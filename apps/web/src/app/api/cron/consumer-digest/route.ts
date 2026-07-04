@@ -6,13 +6,13 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { getRedis } from '@/lib/redis'
 import {
   sendEmail,
   consumerWeeklyDigest,
   type DigestToolUsage,
   type DigestNewTool,
 } from '@/lib/email'
+import { isSuppressed, listUnsubscribeHeaders } from '@/lib/email-suppression'
 
 export const maxDuration = 120
 
@@ -59,7 +59,6 @@ export async function GET(request: NextRequest) {
 
     logger.info('cron.consumer_digest.starting')
 
-    const redis = getRedis()
     const now = new Date()
     const oneWeekAgo = new Date(now.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
 
@@ -94,10 +93,12 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        // Check unsubscribe suppression
-        const unsubKey = `unsub:consumer-digest:${consumer.email.toLowerCase()}`
-        const isUnsubscribed = await redis.get<string>(unsubKey)
-        if (isUnsubscribed) {
+        // Suppression gate — the canonical (email,'consumer-digest') / (email,'all')
+        // key. Replaces the orphaned unsub:consumer-digest: Redis key that no
+        // writer ever set (the G6-2 no-op). Fails CLOSED inside this per-item
+        // try/catch, so a missing table in the deploy window pauses this
+        // consumer's send rather than crashing the run.
+        if (await isSuppressed(consumer.email, 'consumer-digest')) {
           skipped++
           continue
         }
@@ -194,6 +195,7 @@ export async function GET(request: NextRequest) {
           to: consumer.email,
           subject: template.subject,
           html: template.html,
+          headers: listUnsubscribeHeaders(consumer.email, 'consumer-digest'),
         })
 
         if (emailSent) {

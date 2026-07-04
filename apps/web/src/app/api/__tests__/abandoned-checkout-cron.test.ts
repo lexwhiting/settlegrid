@@ -11,6 +11,7 @@ const { mockCheckRateLimit, mockGetCronSecret, mockGetStripeSecretKey, mockGetAp
 }))
 
 const mockSendEmail = vi.hoisted(() => vi.fn().mockResolvedValue(true))
+const mockIsSuppressed = vi.hoisted(() => vi.fn().mockResolvedValue(false))
 const mockAbandonedCheckoutEmail = vi.hoisted(() => vi.fn().mockReturnValue({
   subject: 'Test Subject',
   html: '<p>Test</p>',
@@ -41,6 +42,14 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/lib/email', () => ({
   sendEmail: mockSendEmail,
   abandonedCheckoutEmail: mockAbandonedCheckoutEmail,
+}))
+
+// Suppression is exercised in email-compliance.integration.test.ts; here stub
+// it so these Stripe/reminder-logic assertions aren't gated by the (mock-db)
+// suppression check (default: not suppressed).
+vi.mock('@/lib/email-suppression', () => ({
+  isSuppressed: mockIsSuppressed,
+  listUnsubscribeHeaders: vi.fn().mockReturnValue({}),
 }))
 
 // Chainable mock DB
@@ -109,6 +118,7 @@ describe('abandoned-checkout cron', () => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ success: true, limit: 1000, remaining: 999, reset: 0 })
     mockGetCronSecret.mockReturnValue('test-secret')
+    mockIsSuppressed.mockResolvedValue(false)
   })
 
   it('returns 500 when CRON_SECRET is not configured (fail-closed)', async () => {
@@ -185,6 +195,34 @@ describe('abandoned-checkout cron', () => {
 
     // Should have updated the purchase with reminderSentAt
     expect(mockDbUpdate).toHaveBeenCalled()
+  })
+
+  it('skips a suppressed recipient — no Stripe session, no email (gate awaited, correct polarity)', async () => {
+    // Same active/qualifying purchase shape as "sends reminder" above (which,
+    // with isSuppressed=false, DOES send) — so a no-send here proves the
+    // `if (await isSuppressed(...)) continue` gate short-circuits on true.
+    mockIsSuppressed.mockResolvedValue(true)
+    const abandonedPurchase = {
+      id: 'purchase-suppressed',
+      consumerId: 'consumer-s',
+      toolId: 'tool-s',
+      amountCents: 2000,
+      consumerEmail: 'optedout@example.com',
+      consumerStripeCustomerId: 'cus_s',
+      toolName: 'AnalyzeTool',
+      toolStatus: 'active',
+    }
+    mockDbLimit.mockResolvedValueOnce([abandonedPurchase])
+
+    const { GET } = await import('@/app/api/cron/abandoned-checkout/route')
+    const response = await GET(makeRequest('Bearer test-secret'))
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.reminded).toBe(0)
+    // gate runs BEFORE the Stripe session creation and the send
+    expect(mockStripeSessionCreate).not.toHaveBeenCalled()
+    expect(mockSendEmail).not.toHaveBeenCalled()
   })
 
   it('skips purchases for inactive tools', async () => {

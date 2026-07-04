@@ -7,6 +7,7 @@ import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail, ecosystemNewsletterEmail } from '@/lib/email'
+import { isSuppressed } from '@/lib/email-suppression'
 import { getRedis, tryRedis } from '@/lib/redis'
 
 export const maxDuration = 120
@@ -145,12 +146,22 @@ export async function GET(request: NextRequest) {
     // Send emails in batches
     let sentCount = 0
     let failCount = 0
+    let skippedCount = 0
 
     for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
       const batch = subscribers.slice(i, i + BATCH_SIZE)
 
       const results = await Promise.allSettled(
         batch.map(async (subscriber) => {
+          // Belt-and-suspenders: the SQL audience filter already excludes
+          // newsletterSubscribed=false, but also consult the canonical gate so
+          // a bounce/complaint ('all') or a table opt-out is honored. Inside
+          // this per-item boundary the gate fails CLOSED (a missing table in
+          // the deploy window pauses this send, doesn't crash the run).
+          if (await isSuppressed(subscriber.email, 'newsletter')) {
+            return 'skipped' as const
+          }
+
           const emailData = ecosystemNewsletterEmail({
             npmDownloads: ecosystemMetrics.npmDownloads,
             githubStars: ecosystemMetrics.githubStars,
@@ -171,14 +182,17 @@ export async function GET(request: NextRequest) {
             html: emailData.html,
             headers: {
               'List-Unsubscribe': `<https://settlegrid.ai/api/newsletter/unsubscribe?email=${encodeURIComponent(subscriber.email)}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
             },
           })
         }),
       )
 
       for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-          sentCount++
+        if (result.status === 'fulfilled') {
+          if (result.value === 'skipped') skippedCount++
+          else if (result.value) sentCount++
+          else failCount++
         } else {
           failCount++
         }
@@ -190,11 +204,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    logger.info('cron.newsletter.completed', { sentCount, failCount, total: subscribers.length })
+    logger.info('cron.newsletter.completed', {
+      sentCount,
+      failCount,
+      skippedCount,
+      total: subscribers.length,
+    })
 
     return successResponse({
       sent: sentCount,
       failed: failCount,
+      skipped: skippedCount,
       total: subscribers.length,
     })
   } catch (error) {

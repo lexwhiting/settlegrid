@@ -3,9 +3,24 @@
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
 
+// Friendly stream labels for the confirmation copy. Keyed by the `type`/`stream`
+// query param the sender's unsubscribe link carries (SUPPRESSIBLE_STREAMS).
+const STREAM_LABELS: Record<string, string> = {
+  outreach: 'outreach',
+  'consumer-digest': 'weekly digest',
+  'weekly-report': 'weekly report',
+  'abandoned-checkout': 'purchase reminder',
+  newsletter: 'newsletter',
+}
+
 function UnsubscribeContent() {
   const searchParams = useSearchParams()
   const email = searchParams.get('email') ?? ''
+  // Forward the SAME param the sender's link already carries (`type`; accept
+  // `stream` as an alias) so /api/unsubscribe writes the CORRECT stream — the
+  // fix for G6-2 (the client used to DISCARD it and suppress 'outreach').
+  const stream = searchParams.get('type') ?? searchParams.get('stream') ?? ''
+  const streamLabel = STREAM_LABELS[stream] ?? 'outreach'
   const [status, setStatus] = useState<'processing' | 'done' | 'error' | 'no-email'>('processing')
 
   useEffect(() => {
@@ -19,7 +34,7 @@ function UnsubscribeContent() {
     fetch('/api/unsubscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(stream ? { email, stream } : { email }),
       signal: controller.signal,
     })
       .then((res) => {
@@ -34,7 +49,7 @@ function UnsubscribeContent() {
       })
 
     return () => controller.abort()
-  }, [email])
+  }, [email, stream])
 
   return (
     <div className="min-h-screen bg-indigo flex items-center justify-center px-6">
@@ -57,9 +72,8 @@ function UnsubscribeContent() {
               You&apos;ve been unsubscribed
             </h1>
             <p className="text-text-secondary mb-6 leading-relaxed">
-              You won&apos;t receive any more outreach emails from SettleGrid.
-              If you change your mind, you can always visit your tool&apos;s listing
-              page directly at{' '}
+              You won&apos;t receive any more {streamLabel} emails from SettleGrid.
+              You can always explore tools directly at{' '}
               <a href="https://settlegrid.ai/marketplace" className="text-brand hover:text-brand-light underline">
                 settlegrid.ai/marketplace
               </a>.

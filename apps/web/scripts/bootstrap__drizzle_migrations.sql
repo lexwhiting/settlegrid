@@ -128,6 +128,11 @@ INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
 SELECT '46802cb3294b44d5ea16f687a3f34a31d87688cf4dd6e7a7e4e2187826ef9686', 1782864000000
 WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '46802cb3294b44d5ea16f687a3f34a31d87688cf4dd6e7a7e4e2187826ef9686');
 
+-- 0018_email_suppressions  (hand-written, not in journal; ships with email-compliance (G6-1/2/3) 2026-07-04 — APPLY-BEFORE-DEPLOY intended, but deploy-first is NOT an outage: bulk reads fail-closed (sends pause), unsubscribe writes degrade via their durable fallback, the Resend webhook redelivers until the table exists; see the 0018 header)
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at)
+SELECT '41ac48c4cfb2d2b158171de0ce368754b74927e8630980fb1ad9d87b7fada4ed', 1783185585000
+WHERE NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '41ac48c4cfb2d2b158171de0ce368754b74927e8630980fb1ad9d87b7fada4ed');
+
 COMMIT;
 
 -- POST-RUN VERIFICATION (run separately after the bootstrap):
@@ -135,6 +140,6 @@ COMMIT;
 --   FROM "drizzle"."__drizzle_migrations"
 --   ORDER BY created_at;
 --
--- Expected: 18 rows. MAX(created_at) = 1782864000000 (0017_academic_granted_at).
+-- Expected: 19 rows. MAX(created_at) = 1783185585000 (0018_email_suppressions).
 -- All three journal folderMillis (1773459112883, 1776513600000, 1777737600000)
 -- are < MAX, so drizzle-kit migrate will correctly skip them.

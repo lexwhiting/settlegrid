@@ -6,6 +6,7 @@ import { purchases, consumers, tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { logger } from '@/lib/logger'
 import { sendEmail, abandonedCheckoutEmail } from '@/lib/email'
+import { isSuppressed, listUnsubscribeHeaders } from '@/lib/email-suppression'
 import { getStripeSecretKey, getAppUrl } from '@/lib/env'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -86,6 +87,14 @@ export async function GET(request: NextRequest) {
         // Skip if tool is no longer active
         if (purchase.toolStatus !== 'active') continue
 
+        // Suppression gate — BEFORE creating the Stripe session or stamping
+        // reminderSentAt, so a suppressed recipient neither has a session
+        // created nor is marked reminded (it simply ages out of the 1-24h
+        // window). Fails CLOSED inside this per-item try/catch.
+        if (await isSuppressed(purchase.consumerEmail, 'abandoned-checkout')) {
+          continue
+        }
+
         // Create a fresh Stripe Checkout session with the same parameters
         const sessionParams: Stripe.Checkout.SessionCreateParams = {
           payment_method_types: ['card'],
@@ -138,6 +147,7 @@ export async function GET(request: NextRequest) {
             purchase.toolName,
             session.url ?? `${appUrl}/dashboard/consumer`
           ),
+          headers: listUnsubscribeHeaders(purchase.consumerEmail, 'abandoned-checkout'),
         }).catch((err) => {
           logger.error('cron.abandoned_checkout.email_error', { purchaseId: purchase.id }, err)
         })
