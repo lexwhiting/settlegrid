@@ -15,6 +15,7 @@ import {
   claimFollowUpE4,
 } from '@/lib/email'
 import { resolveCreatorEmail } from '@/lib/ecosystem-email-resolver'
+import { isSuppressed, listUnsubscribeHeaders } from '@/lib/email-suppression'
 
 export const maxDuration = 120
 
@@ -224,20 +225,13 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        // Check unsubscribe suppression
-        const unsubKey = `unsub:outreach:${creator.email.toLowerCase()}`
-        const isUnsubscribed = await redis.get<string>(unsubKey)
-        if (isUnsubscribed) {
-          logger.info('cron.claim_follow_up.unsubscribed', { slug: tool.slug })
-          skipped++
-          continue
-        }
-
-        // Check bounce suppression (set by webhook or previous send failure)
-        const bounceKey = `bounce:outreach:${creator.email.toLowerCase()}`
-        const isBounced = await redis.get<string>(bounceKey)
-        if (isBounced) {
-          logger.info('cron.claim_follow_up.bounced_email', { slug: tool.slug })
+        // Suppression gate — unions the canonical table ('outreach'/'all') AND
+        // the legacy Redis unsub:outreach: + bounce:outreach: keys (the latter
+        // still written on send failure below), so a prior opt-out, a recent
+        // send-failure bounce, or a webhook complaint stops the follow-up.
+        // Fails CLOSED inside this per-item try/catch.
+        if (await isSuppressed(creator.email, 'outreach')) {
+          logger.info('cron.claim_follow_up.suppressed', { slug: tool.slug })
           skipped++
           continue
         }
@@ -275,6 +269,7 @@ export async function GET(request: NextRequest) {
           replyTo: 'luther@settlegrid.ai',
           subject: emailTemplate.subject,
           html: emailTemplate.html,
+          headers: listUnsubscribeHeaders(creator.email, 'outreach'),
         })
 
         if (!emailSent) {

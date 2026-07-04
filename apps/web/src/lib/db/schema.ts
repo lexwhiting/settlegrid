@@ -1359,6 +1359,44 @@ export const processedWebhookEvents = pgTable(
   ],
 )
 
+/**
+ * Canonical email suppression list (G6-1/2/3 — email-compliance).
+ *
+ * One row per (email, stream). `email` is ALWAYS stored normalized
+ * (trim().toLowerCase() via normalizeEmail — see lib/email-suppression.ts).
+ * The unique expression index on (lower(email), stream) is the DB backstop
+ * that enforces one canonical row even if an app writer skips normalization;
+ * suppress() upserts ON CONFLICT DO NOTHING against it (idempotent).
+ *
+ *   stream:  'all' (hard bounce / complaint — suppresses every bulk stream via
+ *            the OR in isSuppressed) | 'newsletter' | 'consumer-digest' |
+ *            'outreach' | 'weekly-report' | 'abandoned-checkout'
+ *   reason:  'unsubscribe' | 'bounce' | 'complaint' | 'manual'
+ *   source:  'link' | 'list-unsub-post' | 'resend-webhook' | 'admin' (audit)
+ *
+ * Transactional/security senders NEVER consult this table (CAN-SPAM exempt).
+ * Migration 0018 is applied MANUALLY in Supabase (no CI migrate) — bulk reads
+ * fail CLOSED if the table is absent, so a pre-migration deploy pauses (not
+ * crashes) bulk sends. See docs/tech-debt/email-compliance-handoff-2026-07-04.md.
+ */
+export const emailSuppressions = pgTable(
+  'email_suppressions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    stream: text('stream').notNull(),
+    reason: text('reason').notNull(),
+    source: text('source'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('email_suppressions_lower_email_stream_idx').on(
+      sql`lower(${table.email})`,
+      table.stream,
+    ),
+  ],
+)
+
 // ─── P3.RAIL3 — Chargeback velocity alerts ────────────────────────────────────
 //
 // Each row represents an emitted alert (yellow or red tier) for one

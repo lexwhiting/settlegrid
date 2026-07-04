@@ -682,6 +682,9 @@ export function abandonedCheckoutEmail(
 </table>
 ${ctaButton('Complete Purchase', checkoutUrl)}
 <p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">If you didn't intend to make this purchase, you can safely ignore this email.</p>
+<p style="color:#9ca3af;font-size:11px;line-height:1.5;margin:16px 0 0;text-align:center;font-family:${FONT_STACK}">
+  <a href="https://settlegrid.ai/unsubscribe?email=${encodeURIComponent(email)}&type=abandoned-checkout" style="color:#9ca3af;text-decoration:underline">Unsubscribe from purchase reminders</a>
+</p>
 `,
       { preheader: `Your ${formatted} credit purchase for ${escapeHtml(toolName)} is waiting` }
     ),

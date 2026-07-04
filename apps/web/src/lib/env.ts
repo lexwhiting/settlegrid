@@ -76,6 +76,14 @@ export function getResendApiKey(): string {
   return requireEnv('RESEND_API_KEY')
 }
 
+// Resend bounce/complaint webhook (Svix) signing secret. Plain optional read
+// (mirrors get*WebhookSecret) so the route can return a graceful 503
+// NOT_CONFIGURED at request time instead of crashing at module load — never
+// requireEnv here.
+export function getResendWebhookSecret(): string | undefined {
+  return process.env.RESEND_WEBHOOK_SECRET
+}
+
 export function getSupabaseUrl(): string {
   return requireEnv('NEXT_PUBLIC_SUPABASE_URL')
 }

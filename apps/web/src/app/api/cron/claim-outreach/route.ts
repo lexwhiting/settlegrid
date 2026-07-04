@@ -21,6 +21,7 @@ import {
   type EmailTemplate,
 } from '@/lib/email'
 import { resolveCreatorEmailWithBackfill } from '@/lib/ecosystem-email-resolver'
+import { isSuppressed, listUnsubscribeHeaders } from '@/lib/email-suppression'
 
 export const maxDuration = 120
 
@@ -401,11 +402,12 @@ export async function GET(request: NextRequest) {
           ? creator.name.split(/\s+/)[0] || creator.username
           : creator.username
 
-        // Check unsubscribe suppression list
-        const unsubKey = `unsub:outreach:${creator.email.toLowerCase()}`
-        const isUnsubscribed = await redis.get<string>(unsubKey)
-        if (isUnsubscribed) {
-          logger.info('cron.claim_outreach.unsubscribed', { slug: tool.slug })
+        // Suppression gate — the canonical (email,'outreach')/(email,'all') key,
+        // unioned with the legacy Redis unsub:outreach: + bounce:outreach: keys
+        // so no historical opt-out/bounce/complaint is dropped. Fails CLOSED
+        // inside this per-item try/catch.
+        if (await isSuppressed(creator.email, 'outreach')) {
+          logger.info('cron.claim_outreach.suppressed', { slug: tool.slug })
           skipped++
           continue
         }
@@ -431,6 +433,7 @@ export async function GET(request: NextRequest) {
           replyTo: 'luther@settlegrid.ai',
           subject: emailTemplate.subject,
           html: emailTemplate.html,
+          headers: listUnsubscribeHeaders(creator.email, 'outreach'),
         })
 
         if (!sent) {

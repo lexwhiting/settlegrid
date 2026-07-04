@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendEmail, baseEmailTemplate, escapeHtml, sanitizeSubject, dataRow, dividerLine } from '@/lib/email'
+import { isSuppressed, listUnsubscribeHeaders } from '@/lib/email-suppression'
 import { hasFeature } from '@/lib/tier-config'
 import { getRedis } from '@/lib/redis'
 
@@ -466,10 +467,18 @@ async function sendEnhancedDevReport(
 
     <p style="color:#9ca3af;font-size:12px;margin-top:24px;">
       This enhanced report is available on the Scale plan. View your full dashboard at settlegrid.ai/dashboard.
+    </p>
+    <p style="color:#9ca3af;font-size:11px;line-height:1.5;margin-top:16px;text-align:center;">
+      <a href="https://settlegrid.ai/unsubscribe?email=${encodeURIComponent(email)}&type=weekly-report" style="color:#9ca3af;text-decoration:underline">Unsubscribe from weekly reports</a>
     </p>`
   )
 
-  await sendEmail({ to: email, subject, html })
+  await sendEmail({
+    to: email,
+    subject,
+    html,
+    headers: listUnsubscribeHeaders(email, 'weekly-report'),
+  })
 }
 
 // ─── Route Handler ──────────────────────────────────────────────────────────────
@@ -760,7 +769,11 @@ View Tool Page
             .where(eq(developers.id, spotlightTool.developerId))
             .limit(1)
 
-          if (spotlightDev) {
+          // Suppression gate for the congrats send — shares the 'weekly-report'
+          // stream with the enhanced report (one opt-out silences both). The
+          // internal admin TOTW email above stays ungated. Fails CLOSED inside
+          // the surrounding spotlight try/catch.
+          if (spotlightDev && !(await isSuppressed(spotlightDev.email, 'weekly-report'))) {
             const congratsSubject = sanitizeSubject(
               `Congratulations! ${spotlightTool.name} is SettleGrid's Tool of the Week`
             )
@@ -791,12 +804,20 @@ Keep up the great work!
 View Your Tool Page
 </a>
 </p>
+<p style="color:#9ca3af;font-size:11px;line-height:1.5;margin:24px 0 0;text-align:center">
+<a href="https://settlegrid.ai/unsubscribe?email=${encodeURIComponent(spotlightDev.email)}&type=weekly-report" style="color:#9ca3af;text-decoration:underline">Unsubscribe from weekly emails</a>
+</p>
 `,
               { preheader: `${spotlightTool.name} is SettleGrid's Tool of the Week!` }
             )
 
             try {
-              await sendEmail({ to: spotlightDev.email, subject: congratsSubject, html: congratsHtml })
+              await sendEmail({
+                to: spotlightDev.email,
+                subject: congratsSubject,
+                html: congratsHtml,
+                headers: listUnsubscribeHeaders(spotlightDev.email, 'weekly-report'),
+              })
               logger.info('cron.weekly_report.congrats_email_sent', { to: spotlightDev.email })
             } catch (congratsErr) {
               logger.error('cron.weekly_report.congrats_email_failed', { to: spotlightDev.email }, congratsErr)
@@ -827,6 +848,12 @@ View Your Tool Page
       if (!hasFeature(dev.tier, 'weekly_report', dev.isFoundingMember)) continue
 
       try {
+        // Suppression gate — BEFORE the expensive gatherEnhancedReport, keyed on
+        // dev.email ('weekly-report'/'all'). Fails CLOSED inside this per-item
+        // try/catch, so a missing table in the deploy window pauses this dev's
+        // report rather than crashing the run.
+        if (await isSuppressed(dev.email, 'weekly-report')) continue
+
         const enhanced = await gatherEnhancedReport(dev.id, weekAgo)
         await sendEnhancedDevReport(dev.email, dev.name, enhanced, periodStart, periodEnd)
         enhancedReportsSent++
