@@ -7,12 +7,11 @@ export const maxDuration = 5
 const AGENT_CARD: AP2AgentCard = {
   name: 'SettleGrid Settlement',
   description:
-    'AI settlement layer -- payment method management and credential issuance for autonomous agent commerce.',
+    'AI payment-method and credential-issuance layer for autonomous agent commerce.',
   url: 'https://api.settlegrid.ai/a2a',
   skills: [
     'get_eligible_payment_methods',
     'provision_credentials',
-    'process_payment',
     'verify_intent_mandate',
     'verify_cart_mandate',
   ],

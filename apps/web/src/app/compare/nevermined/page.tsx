@@ -382,9 +382,9 @@ export default function CompareNeverminedPage() {
                 routes every incoming request through a runtime detection chain
                 across {SHIPPED_ADAPTERS.length} shipped protocol adapters &mdash;{' '}
                 {ADAPTER_LIST} &mdash; so merchants accept whatever protocol the
-                buyer arrives with. Settlement sessions support multi-hop atomic
-                workflows, so Agent A paying Agent B paying Agent C commits or
-                rolls back as one unit. Progressive pricing means developers keep
+                buyer arrives with. Settlement sessions meter multi-hop agent
+                workflows, so each hop in an Agent A paying Agent B paying Agent C
+                chain is settled as it completes. Progressive pricing means developers keep
                 100% of revenue under $1,000 per month and never cross 5% at scale.
               </p>
             </div>

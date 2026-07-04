@@ -588,13 +588,13 @@ export async function POST(request: Request) {
               <h3 className="text-xl font-bold text-gray-100 mb-3">Multi-Hop Settlement</h3>
               <p className="text-gray-300 leading-relaxed mb-4">
                 When Agent A calls your tool, which calls Tool B, which calls Tool C, everyone needs to get paid.
-                SettleGrid handles multi-hop settlement atomically — all participants settle or none do.
+                SettleGrid handles multi-hop settlement — each hop is metered and settled independently as it completes.
                 Revenue splits are resolved in real time across the entire chain.
               </p>
               <CopyableCodeBlock
                 title="Multi-hop chain"
                 code={`// Agent A → Your Tool (5¢) → Tool B (3¢) → Tool C (2¢)
-// Total cost: 10¢ — each developer paid atomically
+// Total cost: 10¢ — each developer settled as its hop completes
 // No manual reconciliation. No delayed settlements.`}
               />
             </div>

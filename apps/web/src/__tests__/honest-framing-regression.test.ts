@@ -889,3 +889,278 @@ describe('B19 — [slug] x402 howItWorks no longer asserts the in-development me
     )
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// Launch-gate chunk #13 — detection-adapter-claims-demote (G3-7 / DC-18 + DC-18b)
+// (2026-07-04)
+//
+// Prose demoted so every PUBLIC claim matches the SHIPPED runtime. Two classes:
+//   • DC-18  (claim-vs-adapter-RUNTIME) — AP2/UCP/Mastercard/DRAIN/Visa-TAP/MPP
+//     asserted present-tense LIVE settlement/processing for rails whose runtime
+//     is stub / always-fail / self-issued-HS256-JWT / sandbox-default /
+//     format-only / pending-GA. Calibrated PER RAIL against a read-only trace of
+//     the FROZEN adapters: Visa-TAP is a REAL Visa VTS sandbox verify+authorize
+//     (authorize-only, no capture) → "authorizes when configured, does not
+//     capture", NOT zeroed; MPP captures real Stripe money but is env-gated →
+//     "when enabled"; AP2 self-verifies a settlegrid.ai-issued HS256 JWT (no
+//     Google call) + UCP header-presence stub + DRAIN trusts the claimed payer
+//     (no ecrecover) + Mastercard always returns valid:false → detection /
+//     not-yet-live framing.
+//   • DC-18b (claim-vs-REACHABILITY) — "multi-hop atomic settlement / all-or-
+//     nothing / everyone gets paid or no one does / rolls back as one unit / no
+//     partial payments" asserted live on ~25 surfaces, but the atomic
+//     disbursement/rollback engine is UNREACHABLE: createSession hardcodes
+//     settlementMode:'immediate', /api/sessions rejects settlementMode, and
+//     processSettlementBatch/rollbackSettlementBatch have ZERO runtime callers.
+//     The reachable 'immediate' path settles each hop independently → demoted to
+//     per-hop framing everywhere.
+//
+// Every guard is FILE-scoped AND RAIL-scoped with REAL committed RED teeth: the
+// retired phrase is present at HEAD (7445ee24) and absent after the prose edit.
+// Anchors avoid the legit-keep collisions — Circle Nano's TRUE EIP-712 signature
+// recovery ([slug]:329), ACP's TRUE "Stripe processes the payment" ([slug]:252),
+// the single-call "Settlement happens atomically" metering (solutions.ts:81), the
+// four live Smart-Proxy "transparently" hits, and the LIVE x402 facilitator. Never
+// a bare /atomic/, /'Ready'/, /signature recovery/, /processes the payment/, or
+// /transparently/.
+// ════════════════════════════════════════════════════════════════════════════
+
+const NEVERMINED_DATA_TS = repoFile('apps/web/src/app/compare/nevermined/data.ts')
+const SOLUTIONS_TS = repoFile('apps/web/src/lib/solutions.ts')
+const CATEGORIES_TS = repoFile('apps/web/src/lib/categories.ts')
+const BLOG_BODY_TEMPLATES_LAUNCH = repoFile(
+  'apps/web/src/lib/blog-bodies/settlegrid-templates-launch.md',
+)
+
+// ─── G3-7 DC-18b — multi-hop "atomic settlement" demoted to per-hop reality ───
+
+describe('G3-7 DC-18b — atomic/all-or-nothing multi-hop claims demoted', () => {
+  it('README drops the "Multi-hop atomic settlement" claim', () => {
+    expect(README_MD).not.toMatch(/Multi-hop atomic settlement/)
+    expect(README_MD).toMatch(/each hop settled as it completes/)
+  })
+
+  it('llms.txt drops the three atomic multi-hop framings', () => {
+    expect(LLMS_TXT).not.toMatch(/Atomic settlement across multi-agent workflows/)
+    expect(LLMS_TXT).not.toMatch(/atomic revenue splits/)
+    expect(LLMS_TXT).not.toMatch(/multi-hop atomic settlement/)
+  })
+
+  it('llms-full.txt drops the "everyone gets paid or no one does" all-or-nothing claim', () => {
+    expect(LLMS_FULL_TXT).not.toMatch(/everyone gets paid or no one does/)
+  })
+
+  it('docs settlement FAQ drops the present-tense atomic all-or-nothing guarantees', () => {
+    // :475 revenue-split-atomically, :479 rollback tail, :510 question,
+    // :511 "no partial payment", :1921 "settles all hops atomically",
+    // :1927 "All hops settle together or none do". The engine's atomic-batch
+    // mode is now framed "scaffolded but not yet enabled" — those legit
+    // not-yet-enabled mentions are NOT guarded (no bare /atomic/).
+    expect(DOCS_PAGE_TSX).not.toMatch(/split across all participants atomically/)
+    expect(DOCS_PAGE_TSX).not.toMatch(/if any hop fails, the entire workflow is rolled back/)
+    expect(DOCS_PAGE_TSX).not.toMatch(/How does atomic settlement work\?/)
+    expect(DOCS_PAGE_TSX).not.toMatch(/no developer receives partial payment/)
+    expect(DOCS_PAGE_TSX).not.toMatch(/settles all hops atomically/)
+    expect(DOCS_PAGE_TSX).not.toMatch(/All hops settle together or none do/)
+  })
+
+  it('handbook drops "multi-hop settlement atomically" + "each developer paid atomically"', () => {
+    expect(HANDBOOK_TSX).not.toMatch(/handles multi-hop settlement atomically/)
+    expect(HANDBOOK_TSX).not.toMatch(/each developer paid atomically/)
+  })
+
+  it('categories.ts drops "settles every hop atomically" + "multi-hop settlement atomically"', () => {
+    expect(CATEGORIES_TS).not.toMatch(/settles every hop atomically/)
+    expect(CATEGORIES_TS).not.toMatch(/handles multi-hop settlement atomically/)
+  })
+
+  it('solutions.ts drops the atomic all-or-nothing chain claims and keeps the true single-call metering', () => {
+    expect(SOLUTIONS_TS).not.toMatch(/atomic multi-hop settlement/)
+    expect(SOLUTIONS_TS).not.toMatch(/all 3 agents are paid atomically/)
+    expect(SOLUTIONS_TS).not.toMatch(/settles the entire chain atomically/)
+    expect(SOLUTIONS_TS).not.toMatch(/either all succeed or none do/)
+    expect(SOLUTIONS_TS).not.toMatch(/Atomic settlement means no partial charges/)
+    // KEEP: single-call metering is genuinely atomic (one Redis+DB op). Guards
+    // the over-correction (do not demote the true single-hop claim).
+    expect(SOLUTIONS_TS).toMatch(/Settlement happens atomically before the response/)
+  })
+
+  it('blog-body templates-launch drops "as one atomic unit" and the "atomic-session ... shipped" twin', () => {
+    expect(BLOG_BODY_TEMPLATES_LAUNCH).not.toMatch(/as one atomic unit/)
+    expect(BLOG_BODY_TEMPLATES_LAUNCH).not.toMatch(/atomic-session half of this is shipped/)
+  })
+
+  it('compare/nevermined data.ts demotes the atomic value + claim (keeps the primitive-name cites)', () => {
+    // F-E: anchor the specific claim strings, NOT /shipped code/ (that hits the
+    // thesis comment). The four session-primitive names stay in the cite
+    // (compare-nevermined.test.ts pins them; the functions genuinely exist) —
+    // now framed per-hop-reachable + scaffolded-atomic, not a live moat.
+    expect(NEVERMINED_DATA_TS).not.toMatch(/Atomic commit\/rollback across agent chains/)
+    expect(NEVERMINED_DATA_TS).not.toMatch(/Multi-hop atomic settlement primitives/)
+    expect(NEVERMINED_DATA_TS).toMatch(/not-yet-enabled atomic-batch mode/)
+  })
+
+  it('compare/nevermined page.tsx drops "rolls back as one unit" (JSX wraps "multi-hop atomic workflows")', () => {
+    // F-E: /multi-hop atomic settlement/ matches 0 here (the JSX text reads
+    // "multi-hop atomic workflows"), so anchor the settled tail instead.
+    expect(NEVERMINED_PAGE_TSX).not.toMatch(/rolls back as one unit/)
+    expect(NEVERMINED_PAGE_TSX).toMatch(/Settlement sessions meter multi-hop agent/)
+  })
+})
+
+// ─── G3-7 DC-18 — adapter-runtime present-tense overclaims demoted ────────────
+
+describe('G3-7 DC-18 — adapter-runtime prose demoted to the shipped runtime', () => {
+  it('[slug] AP2 drops the Google-infrastructure and settlement-transparently overclaim', () => {
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/validates them against Google's AP2 infrastructure/)
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/budget checking, and settlement transparently/)
+    expect(PROTOCOL_SLUG_TSX).toMatch(/verifies the SettleGrid-issued AP2 credential/)
+  })
+
+  it('[slug] UCP drops the live handles-the-settlement-flow claim', () => {
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/SettleGrid handles the settlement flow/)
+    expect(PROTOCOL_SLUG_TSX).toMatch(/UCP is a detection-only adapter today/)
+  })
+
+  it('[slug] Mastercard drops the present-tense Mastercard-infrastructure/processes claim (ACP untouched)', () => {
+    // Rail-scoped: ACP [slug]:252 "Stripe processes the payment" is TRUE (real
+    // paid Stripe) and must remain — never a bare /processes the payment/.
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/validates it with Mastercard's infrastructure/)
+    expect(PROTOCOL_SLUG_TSX).toMatch(/This rail is not yet live/)
+  })
+
+  it('[slug] DRAIN drops "Voucher signature recovery" (adapter trusts the claimed payer)', () => {
+    // Rail-scoped: Circle Nano [slug]:329 "EIP-712 signature recovery" is TRUE
+    // (it genuinely recovers) — never a bare /signature recovery/.
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/Voucher signature recovery uses the EIP-712/)
+    expect(PROTOCOL_SLUG_TSX).toMatch(/rather than recovering the signer address/)
+  })
+
+  it('[slug] Visa-TAP calibrated to real VTS sandbox authorize-not-capture (NOT zeroed to stub)', () => {
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/checks credit balance or authorizes a Visa charge/)
+    expect(PROTOCOL_SLUG_TSX).toMatch(/authorizes \(but does not capture\) a Visa charge/)
+  })
+
+  it('[slug] MPP howItWorks gains the when-enabled qualifier (pending-GA parity with x402 B19)', () => {
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/X-Payment-Token header\. SettleGrid verifies the SPT/)
+    expect(PROTOCOL_SLUG_TSX).toMatch(/When MPP is enabled on the deployment, SettleGrid verifies the SPT/)
+  })
+
+  it('docs AP2/Visa FAQ drops the milder pay-seamlessly / pay-for-tool-invocations live framing', () => {
+    // F-F: docs carries MILDER phrasing than [slug]; calibrated separately, so a
+    // guard keyed to the [slug] literal would not fire here.
+    expect(DOCS_PAGE_TSX).not.toMatch(/pay for your tools seamlessly/)
+    expect(DOCS_PAGE_TSX).not.toMatch(/authenticate and pay for tool invocations/)
+  })
+
+  it('llms-full.txt AP2/UCP/Mastercard entries demoted (the sealed live x402-facilitator clause is preserved)', () => {
+    expect(LLMS_FULL_TXT).not.toMatch(/credentials provider in Google's Agent Payments ecosystem/)
+    expect(LLMS_FULL_TXT).not.toMatch(/integrates with UCP for unified commerce flows/)
+    expect(LLMS_FULL_TXT).not.toMatch(/supports Mastercard's Verifiable Intent protocol for agent-initiated payments/)
+    expect(LLMS_FULL_TXT).not.toMatch(/native support for MCP and AP2/)
+    // F-F caveat: editing the co-located AP2 clause must NOT touch the sealed
+    // (B16) live x402-facilitator claim.
+    expect(LLMS_FULL_TXT).toMatch(
+      /SettleGrid runs a public x402 facilitator \(verify \+ settle on Base mainnet and Base Sepolia\)/,
+    )
+  })
+
+  it('use-cases card drops AP2 from the live pay-each-other-across-platforms list (keeps live MCP)', () => {
+    expect(USE_CASES_PAGE_TSX).not.toMatch(/including MCP and AP2/)
+  })
+})
+
+// ─── G3-7 F-A — status BADGE ↔ prose reconciliation (DC-16d recurrence #7) ────
+
+describe('G3-7 F-A — AP2/UCP/Visa-TAP badges demoted Ready→Pending (index + detail)', () => {
+  // Scoped by the backer→status pairing (mirrors the sealed B2/B3/B7 guards) —
+  // never a bare /'Ready'/ (ACP + KYAPay legitimately keep 'Ready'). Fires RED
+  // on HEAD (each entry carried 'Ready'), GREEN once demoted to 'Pending' to
+  // match the settlement-dark prose + the already-'Pending' Mastercard sibling.
+  it('AP2 badge is not Ready on index + detail', () => {
+    expect(PROTOCOLS_INDEX).not.toMatch(/backer: 'Google',\s*status: 'Ready'/)
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/backer: 'Google',\s*status: 'Ready'/)
+  })
+
+  it('UCP badge is not Ready on index + detail', () => {
+    expect(PROTOCOLS_INDEX).not.toMatch(/backer: 'Google \+ Shopify',\s*status: 'Ready'/)
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/backer: 'Google \+ Shopify',\s*status: 'Ready'/)
+  })
+
+  it('Visa-TAP badge is not Ready on index + detail (settlement dark, authorize-only)', () => {
+    expect(PROTOCOLS_INDEX).not.toMatch(/backer: 'Visa',\s*status: 'Ready'/)
+    expect(PROTOCOL_SLUG_TSX).not.toMatch(/backer: 'Visa',\s*status: 'Ready'/)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// Launch-gate chunk — a2a-card-process-payment-demote (G3-7a / DC-18 + DC-16d #7)
+// (2026-07-04)
+//
+// The machine-readable A2A discovery card advertised a live AP2 `process_payment`
+// skill while the backing processPayment() is a no-op stub that moves no money —
+// the same claim-vs-runtime defect class as the G3-7 prose sweep, on the same AP2
+// rail, but on a MACHINE surface the prose sweep could not reach. TWO independent
+// card copies carry the claim: the static public/.well-known/agent-card.json AND
+// the hardcoded AGENT_CARD const served by GET /api/a2a (it does NOT read the
+// static file). Both also carry an unqualified "AI settlement layer" umbrella
+// description that contradicts the demoted prose ("AP2 settlement is dark-gated").
+// Both are pruned + softened; the endpoint refuses unconditionally (see the
+// ap2.test.ts route-refusal + flag-independence guards). Real committed RED teeth
+// at HEAD (7445ee24): both copies carried process_payment + the retired
+// description; both absent after the fix.
+// ════════════════════════════════════════════════════════════════════════════
+
+const AGENT_CARD_JSON = repoFile('apps/web/public/.well-known/agent-card.json')
+const A2A_ROUTE_TS = repoFile('apps/web/src/app/api/a2a/route.ts')
+
+describe('G3-7a — A2A discovery card no longer advertises the no-op process_payment skill', () => {
+  const card = JSON.parse(AGENT_CARD_JSON) as {
+    skills: string[]
+    description: string
+    ap2_roles: string[]
+  }
+
+  // Static card (public/.well-known/agent-card.json) — parsed, mirroring the
+  // mcp.json honest-framing describe above.
+  it('static agent-card.json skills[] no longer lists process_payment', () => {
+    expect(card.skills).not.toContain('process_payment')
+  })
+
+  it('static agent-card.json keeps the 4 genuinely-backed skills + credentials-provider role', () => {
+    expect(card.skills).toHaveLength(4)
+    for (const skill of [
+      'get_eligible_payment_methods',
+      'provision_credentials',
+      'verify_intent_mandate',
+      'verify_cart_mandate',
+    ]) {
+      expect(card.skills).toContain(skill)
+    }
+    expect(card.ap2_roles).toContain('credentials-provider')
+  })
+
+  it('static agent-card.json description drops the unqualified "AI settlement layer" umbrella', () => {
+    expect(card.description).not.toMatch(/AI settlement layer/)
+  })
+
+  // Inline AGENT_CARD const (api/a2a/route.ts) — the static-file guard above has
+  // NO teeth on this independent twin. File-scoped text assertions.
+  it('inline AGENT_CARD (api/a2a/route.ts) no longer lists process_payment', () => {
+    expect(A2A_ROUTE_TS).not.toMatch(/process_payment/)
+  })
+
+  it('inline AGENT_CARD (api/a2a/route.ts) drops the unqualified "AI settlement layer" umbrella', () => {
+    expect(A2A_ROUTE_TS).not.toMatch(/AI settlement layer/)
+  })
+})
+
+// ─── G3-7a docs:359 sibling — AP2/Visa-TAP/REST "transparently" adapter FAQ ───
+describe('G3-7a — docs adapter FAQ drops the "Visa TAP, and REST transparently" live framing', () => {
+  // Unique anchor: bare /transparently/ has ~13 legit tree hits (the live
+  // Smart-Proxy copy), so pin the exact retired :359 phrase. RED vs HEAD
+  // (present), GREEN in tree (the parent prose diff already demoted it).
+  it('docs/page.tsx no longer claims the adapter layer handles "Visa TAP, and REST transparently"', () => {
+    expect(DOCS_PAGE_TSX).not.toMatch(/Visa TAP, and REST transparently/)
+  })
+})

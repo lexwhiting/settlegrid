@@ -348,15 +348,15 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What is AP2 (Google Agent Payments)?',
-      a: 'AP2 is Google\'s Agent Payments protocol that lets AI agents transact with service providers. SettleGrid acts as an AP2 credentials provider, issuing budget-capped credentials to agents within Google\'s 180+ partner ecosystem. This allows AP2-enabled agents to pay for your tools seamlessly.',
+      a: 'AP2 is Google\'s Agent Payments protocol that lets AI agents transact with service providers. SettleGrid acts as an AP2 credentials provider, issuing budget-capped credentials that AP2-compatible agents can present. AP2 settlement is dark-gated and in development.',
     },
     {
       q: 'What is Visa TAP (Token Agent Payments)?',
-      a: 'Visa TAP is Visa\'s protocol for tokenized agent-to-agent payments. SettleGrid supports TAP tokens as an identity type in the KYA system, allowing Visa-credentialed agents to authenticate and pay for tool invocations.',
+      a: 'Visa TAP is Visa\'s protocol for tokenized agent-to-agent payments. SettleGrid supports TAP tokens as an identity type in the KYA system, letting Visa-credentialed agents authenticate; when configured for production, the adapter authorizes (but does not capture) a Visa charge.',
     },
     {
       q: 'Do I need separate integrations for each protocol?',
-      a: 'No. SettleGrid\'s protocol adapter layer handles MCP, AP2, Visa TAP, and REST transparently through one SDK integration. Settling x402 and other on-chain rails through the hosted proxy is in development; the standalone x402 facilitator that verifies and settles on Base is already live. The adapter layer normalizes authentication and metering across the supported protocols.',
+      a: 'No. SettleGrid\'s protocol adapter layer handles authentication and metering for MCP, AP2, Visa TAP, and REST through one SDK integration. Settling x402 and other on-chain rails through the hosted proxy is in development; the standalone x402 facilitator that verifies and settles on Base is already live. The adapter layer normalizes authentication and metering across the supported protocols.',
     },
   ],
 },
@@ -472,11 +472,11 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What is multi-hop settlement?',
-      a: 'When Agent A calls Agent B which calls Agent C, SettleGrid tracks the entire chain as a workflow session with individual hops. Revenue is split across all participants atomically — everyone gets paid or no one does. This is critical for complex AI agent orchestration.',
+      a: 'When Agent A calls Agent B which calls Agent C, SettleGrid tracks the entire chain as a workflow session with individual hops. Revenue is metered and settled per hop — each participant is paid as its own hop completes. This is critical for complex AI agent orchestration.',
     },
     {
       q: 'What settlement modes are available?',
-      a: 'Three modes: Immediate (settle each hop instantly as it completes), Deferred (accumulate hops and settle at session end), and Atomic (all-or-nothing settlement via settlement batches — if any hop fails, the entire workflow is rolled back).',
+      a: 'The hosted path settles each hop immediately, as it completes. The settlement engine also scaffolds two further modes — Deferred (accumulate hops and settle at session end) and Atomic (all-or-nothing settlement via settlement batches) — but these are not yet enabled on the hosted path.',
     },
     {
       q: 'What is Agent Identity (KYA)?',
@@ -507,8 +507,8 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       a: 'A cron job runs periodically to detect sessions that have passed their expiresAt timestamp. Expired sessions are marked as "expired" and their Redis budget keys are cleaned up. Any in-progress hops after expiry are rejected. Unused delegated budget is not released until the session is explicitly completed or finalized.',
     },
     {
-      q: 'How does atomic settlement work?',
-      a: 'In atomic mode, when a session is finalized, SettleGrid creates a settlement batch containing disbursements for every developer whose tool was called. All developer balances are credited inside a single PostgreSQL transaction — if any credit fails, the entire batch rolls back and no developer receives partial payment.',
+      q: 'How is atomic settlement designed to work?',
+      a: 'In the settlement engine\'s atomic-batch mode, finalizing a session would create a settlement batch containing disbursements for every developer whose tool was called, crediting all balances inside a single PostgreSQL transaction so that a failed credit rolls back the batch. This mode is scaffolded but not yet enabled on the hosted path, which settles each hop immediately as it completes.',
     },
   ],
 },
@@ -1918,13 +1918,13 @@ curl -X POST https://settlegrid.ai/api/proxy/your-tool \\
           {/* ── Agent-to-Agent Settlement ─────────────────────────── */}
           <Section title="Agent-to-Agent Settlement" id="a2a-settlement">
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Native support for Google&apos;s Agent-to-Agent (A2A) protocol and multi-hop settlement. When Agent A calls Agent B which calls Agent C, SettleGrid tracks the entire chain and settles all hops atomically.
+              Native support for Google&apos;s Agent-to-Agent (A2A) protocol and multi-hop settlement. When Agent A calls Agent B which calls Agent C, SettleGrid tracks the entire chain and settles each hop as it completes.
             </p>
             <div className="bg-[#161822] border border-[#2A2D3E] rounded-xl p-6 mb-6">
               <h3 className="text-lg font-semibold text-indigo dark:text-gray-100 mb-3">Multi-Hop Settlement</h3>
               <div className="space-y-3 text-sm text-gray-400">
                 <p><strong className="text-gray-300">Workflow sessions</strong> — Budget-capped containers for multi-agent workflows. Create a session, delegate budgets to sub-agents, track every hop.</p>
-                <p><strong className="text-gray-300">Atomic settlement</strong> — All hops settle together or none do. If any hop fails, the entire workflow rolls back. No partial payments.</p>
+                <p><strong className="text-gray-300">Per-hop settlement</strong> — Each hop is metered and settled as it completes; a hop that fails is simply not charged. An all-or-nothing batch mode is scaffolded in the engine but not yet enabled.</p>
                 <p><strong className="text-gray-300">Budget delegation</strong> — Parent agents delegate budgets to child agents. Unused budget returns to the parent automatically.</p>
                 <p><strong className="text-gray-300">A2A skills discovery</strong> — Your tools are automatically discoverable by A2A-compatible agents via the <code className="bg-[#252836] px-1 py-0.5 rounded text-xs">/api/a2a/skills</code> endpoint.</p>
               </div>

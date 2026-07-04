@@ -190,9 +190,9 @@ export const dimensions: Dimension[] = [
   {
     label: 'Multi-hop settlement primitives',
     settlegrid: {
-      value: 'Atomic commit/rollback across agent chains',
+      value: 'Per-hop settlement across agent chains',
       cite:
-        'recordHop, finalizeSession, processSettlementBatch, rollbackSettlementBatch — apps/web/src/lib/settlement/sessions.ts',
+        'recordHop + finalizeSession settle each hop as it completes; processSettlementBatch + rollbackSettlementBatch scaffold a not-yet-enabled atomic-batch mode — apps/web/src/lib/settlement/sessions.ts',
       sourceUrl: gh('apps/web/src/lib/settlement/sessions.ts'),
     },
     nevermined: {
@@ -317,9 +317,9 @@ export const settlegridStronger: Point[] = [
     sourceUrl: gh('open-source-servers'),
   },
   {
-    claim: 'Multi-hop atomic settlement primitives',
+    claim: 'Multi-hop per-hop settlement primitives',
     cite:
-      'recordHop + finalizeSession + processSettlementBatch + rollbackSettlementBatch — apps/web/src/lib/settlement/sessions.ts — unique moat for multi-agent workflow billing',
+      'recordHop + finalizeSession settle each hop as it completes; processSettlementBatch + rollbackSettlementBatch scaffold an atomic-batch mode that is not yet enabled on the reachable path — apps/web/src/lib/settlement/sessions.ts — a moat for multi-agent workflow billing',
     sourceUrl: gh('apps/web/src/lib/settlement/sessions.ts'),
   },
   {
