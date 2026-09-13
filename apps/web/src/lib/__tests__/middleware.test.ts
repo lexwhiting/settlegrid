@@ -9,11 +9,16 @@ vi.mock('@/lib/env', () => ({
   getGatePassword: () => mockGetGatePassword(),
 }))
 
-// Mock @supabase/ssr — the middleware creates a Supabase client inline
+// Mock @supabase/ssr — the middleware creates a Supabase client inline.
+// `authState.user` is mutable so individual tests can simulate a logged-out
+// visitor (set it to null) without re-mocking the module.
+const authState = vi.hoisted(() => ({
+  user: { id: 'user-123', email: 'test@example.com' } as { id: string; email: string } | null,
+}))
 vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({
     auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123', email: 'test@example.com' } } }),
+      getUser: vi.fn().mockImplementation(async () => ({ data: { user: authState.user } })),
     },
   }),
 }))
@@ -196,5 +201,38 @@ describe('Middleware gate with password configured', () => {
     const response = await middleware(createRequest('/dashboard'))
     expect(response.status).toBe(200)
     expect(response.headers.get('X-Frame-Options')).toBe('DENY')
+  })
+})
+
+describe('Middleware auth-protected routes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetGateSecret.mockImplementation(() => { throw new Error('not set') })
+    mockGetGatePassword.mockImplementation(() => { throw new Error('not set') })
+    authState.user = { id: 'user-123', email: 'test@example.com' }
+  })
+
+  it.each(['/onboarding', '/onboarding/waitlist', '/dashboard', '/consumer'])(
+    'redirects a logged-out visitor on %s to /login with a return path',
+    async (path) => {
+      authState.user = null
+      const response = await middleware(createRequest(path))
+      expect(response.status).toBe(307)
+      const location = new URL(response.headers.get('location')!)
+      expect(location.pathname).toBe('/login')
+      expect(location.searchParams.get('redirect')).toBe(path)
+    },
+  )
+
+  it('lets a signed-in developer through to /onboarding', async () => {
+    const response = await middleware(createRequest('/onboarding'))
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  it('still leaves public marketing paths open when logged out', async () => {
+    authState.user = null
+    const response = await middleware(createRequest('/docs'))
+    expect(response.status).toBe(200)
   })
 })
