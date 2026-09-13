@@ -139,9 +139,19 @@ export default async function middleware(request: NextRequest) {
   }
 
   // Protect dashboard routes: redirect unauthenticated users to /login
-  // Only dashboard and consumer routes require auth — everything else is public
-  // (API routes handle their own auth and return 401)
-  const isProtectedRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/consumer')
+  // Only dashboard, consumer, and Stripe Connect onboarding routes require
+  // auth — everything else is public (API routes handle their own auth and
+  // return 401).
+  //
+  // /onboarding is protected because its "Continue with Stripe" button POSTs
+  // to /api/stripe/connect, which requires a developer session. Without this
+  // guard a logged-out visitor fills in the form and then hits a bare
+  // "Authentication required" error with no way to sign in. Redirecting up
+  // front (with ?redirect= back here) is the only path that lets them finish.
+  const isProtectedRoute =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/consumer') ||
+    pathname.startsWith('/onboarding')
   if (isProtectedRoute && !user) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirect', pathname)
