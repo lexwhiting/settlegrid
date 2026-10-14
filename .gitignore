@@ -154,3 +154,6 @@ docs/decisions/
 # Word doc exports anywhere in docs/ (the .md sources stay tracked if public)
 docs/*.docx
 docs/**/*.docx
+
+# Generated prospect lists (scripts/extract-mcp-developers.ts). Contains personal data. DO NOT COMMIT.
+scripts/output/
