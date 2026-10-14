@@ -39,7 +39,9 @@ const synthesizeSpeech = sg.wrap(async (args: SynthesizeSpeechInput) => {
   const voiceId = args.voice_id?.trim()
   if (!voiceId) throw new Error('voice_id is required')
 
-  const modelId = args.model_id?.trim() || 'sonic-2'
+  // sonic-2 is sunset on 2026-10-20 (docs.cartesia.ai/build-with-cartesia/tts-models/api-changes).
+  // sonic-3.5 is a stable alias and is a valid model for the Cartesia-Version pinned below.
+  const modelId = args.model_id?.trim() || 'sonic-3.5'
   const rawFormat = args.output_format?.trim().toLowerCase() || 'mp3'
   const allowedFormats = ['mp3', 'wav', 'pcm']
   const outputFormat = allowedFormats.includes(rawFormat) ? rawFormat : 'mp3'
