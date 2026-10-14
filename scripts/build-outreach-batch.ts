@@ -724,11 +724,15 @@ const isMain =
   process.argv[1]?.endsWith('build-outreach-batch.ts') === true ||
   process.argv[1]?.endsWith('build-outreach-batch.js') === true
 
+// Disabled permanently (2026-10-14). Cold email to addresses gathered from
+// GitHub is not permitted: GitHub's Acceptable Use Policies forbid using
+// GitHub data to send unsolicited email, and EU/UK rules require prior consent
+// for marketing email to individuals. The helpers stay exported for tests only.
 if (isMain) {
-  main().catch((err: unknown) => {
-    console.error('build-outreach-batch failed:', err)
-    process.exitCode = 1
-  })
+  console.error(
+    'build-outreach-batch is disabled: cold email to GitHub-sourced addresses is not permitted.',
+  )
+  process.exitCode = 1
 }
 
 // re-export for tests
