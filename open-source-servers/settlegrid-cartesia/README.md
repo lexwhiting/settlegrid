@@ -27,7 +27,7 @@ npm run dev
 ### synthesize_speech
 - `text` (string, required) — The text to convert to speech (max 5000 characters)
 - `voice_id` (string, required) — The ID of the voice to use for synthesis
-- `model_id` (string) — Model ID to use (default: sonic-2)
+- `model_id` (string) — Model ID to use (default: sonic-3.5; `sonic-3` also works. `sonic-2` and `sonic-turbo` stop working on 2026-10-20)
 - `output_format` (string) — Output audio format: mp3, wav, pcm (default: mp3)
 - `language` (string) — Language code (e.g. en, fr, de; default: en)
 
