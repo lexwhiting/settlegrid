@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Send welcome email
     const template = welcomeConsumerEmail(body.email, {
-      preheader: 'Welcome to SettleGrid! You have $25 in free credits waiting.',
+      preheader: 'Welcome to SettleGrid!',
     })
     await sendEmail({
       to: body.email,
