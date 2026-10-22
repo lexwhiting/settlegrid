@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 
 export const metadata: Metadata = {
   title: 'Marketplace Activity — SettleGrid',
@@ -19,5 +20,6 @@ export const metadata: Metadata = {
 }
 
 export default function ActivityLayout({ children }: { children: React.ReactNode }) {
+  notFound()
   return children
 }

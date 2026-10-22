@@ -16,7 +16,6 @@ const resourceLinks = [
   { label: "Glossary", href: "/learn/glossary" },
   { label: "FAQ", href: "/faq" },
   { label: "Ask", href: "/ask" },
-  { label: "Activity", href: "/activity" },
   { label: "Academic Program", href: "/academic" },
   { label: "Status", href: "/status" },
 ]

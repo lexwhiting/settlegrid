@@ -199,7 +199,7 @@ export default function AskSettleGridPage() {
             <div className="mt-6 bg-gradient-to-br from-[#161822] to-[#1E2030] border border-[#2A2D3E] rounded-xl p-6">
               <h3 className="text-lg font-semibold text-gray-100 mb-1">Want unlimited access?</h3>
               <p className="text-sm text-gray-400 mb-4">
-                Enter your email for $25 in free credits across the marketplace.
+                Enter your email to get started.
               </p>
               <form onSubmit={handleCapture} className="flex gap-3">
                 <input
@@ -232,7 +232,6 @@ export default function AskSettleGridPage() {
           {captureSuccess && (
             <div className="mt-6 bg-green-900/20 border border-green-800/40 rounded-xl p-6 text-center">
               <p className="text-sm text-green-300 font-medium">Check your email for next steps!</p>
-              <p className="text-xs text-green-400/70 mt-1">$25 in credits will be available when you activate your account.</p>
             </div>
           )}
 
