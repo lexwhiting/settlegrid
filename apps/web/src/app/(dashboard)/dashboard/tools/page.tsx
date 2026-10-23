@@ -317,7 +317,7 @@ export default function ToolsPage() {
       if (endpoint && created.tool?.id) {
         const endpointError = await saveProxyEndpoint(created.tool.id, endpoint, null)
         if (endpointError) {
-          setError(`Tool created, but the upstream URL was not saved: ${endpointError} Use Edit on the tool to try again.`)
+          setError(`Tool created, but the upstream URL was not saved (${endpointError}). Use Edit on the tool to try again.`)
         }
       }
       setShowCreate(false)
