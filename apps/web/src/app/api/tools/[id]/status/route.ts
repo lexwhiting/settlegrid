@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -8,6 +8,10 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { validateToolForActivation } from '@/lib/quality-gates'
+import { onToolActivated } from '@/lib/tool-activation'
+import { ensureDeveloperSlug } from '@/lib/developer-slug'
+import { emitToolStatusChanged } from '@/lib/webhooks'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
@@ -67,6 +71,8 @@ export async function PATCH(
 
     // ── Quality gate: enforce checks when activating ─────────────────────────
     if (body.status === 'active') {
+      // Accounts created before slugs were auto-assigned get one here.
+      await ensureDeveloperSlug(auth.id)
       const gateResult = await validateToolForActivation(id, auth.id)
       if (!gateResult.passed) {
         return errorResponse(
@@ -112,6 +118,30 @@ export async function PATCH(
       details: { fromStatus: existing.status, toStatus: body.status },
       ipAddress: ip,
     }).catch(() => {})
+
+    if (existing.status !== body.status) {
+      // Delivered after the response; dispatchWebhook logs its own failures.
+      after(() =>
+        emitToolStatusChanged({
+          developerId: auth.id,
+          toolId: tool.id,
+          fromStatus: existing.status,
+          toStatus: tool.status,
+          slug: tool.slug,
+          name: tool.name,
+        }).catch((err) => logger.error('tool_status.webhook_failed', { toolId: tool.id }, err)),
+      )
+    }
+
+    if (body.status === 'active' && existing.status !== 'active') {
+      await onToolActivated({
+        developerId: auth.id,
+        toolId: tool.id,
+        toolName: tool.name,
+        toolSlug: tool.slug,
+        fromStatus: existing.status,
+      })
+    }
 
     return successResponse({ tool })
   } catch (error) {

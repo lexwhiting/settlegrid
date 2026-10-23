@@ -17,7 +17,7 @@ const navLinks = [
  * Whether a Supabase session exists in this browser (null until known).
  * UI only — reads the local session, no network round trip.
  */
-function useSignedIn(): boolean | null {
+export function useSignedIn(): boolean | null {
   const [signedIn, setSignedIn] = useState<boolean | null>(null)
 
   useEffect(() => {

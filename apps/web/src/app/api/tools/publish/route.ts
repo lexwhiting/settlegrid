@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -9,6 +9,9 @@ import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { validateToolForActivation } from '@/lib/quality-gates'
+import { onToolActivated } from '@/lib/tool-activation'
+import { ensureDeveloperSlug } from '@/lib/developer-slug'
+import { emitToolStatusChanged } from '@/lib/webhooks'
 import { PUBLISHER_API_KEY_PREFIX, apiKeyHashCandidates } from '@/lib/crypto'
 
 export const maxDuration = 60
@@ -352,6 +355,9 @@ export async function PUT(request: NextRequest) {
           currentVersion: body.version,
           healthEndpoint: body.healthEndpoint ?? null,
           status: 'draft',
+          // Hidden from the marketplace while it is a draft (the column
+          // default of true exists for the claim flow only).
+          listedInMarketplace: false,
         })
         .returning({
           id: tools.id,
@@ -385,6 +391,8 @@ export async function PUT(request: NextRequest) {
     // active), UPDATE tools stay at `existing.status` (e.g., an already-
     // active tool stays active with the new body fields; a draft stays a
     // draft). The developer can fix issues and re-run publish.
+    // Accounts created before slugs were auto-assigned get one here.
+    await ensureDeveloperSlug(auth.id)
     const gateResult = await validateToolForActivation(toolRecord.id, auth.id)
     if (!gateResult.passed) {
       return errorResponse(
@@ -408,6 +416,27 @@ export async function PUT(request: NextRequest) {
 
     if (activated) {
       toolRecord = { ...toolRecord, status: activated.status, updatedAt: activated.updatedAt }
+      if (statusOnInitialWrite !== 'active') {
+        await onToolActivated({
+          developerId: auth.id,
+          toolId: toolRecord.id,
+          toolName: toolRecord.name,
+          toolSlug: toolRecord.slug,
+          fromStatus: statusOnInitialWrite,
+        })
+        const activatedTool = toolRecord
+        // Delivered after the response; dispatchWebhook logs its own failures.
+        after(() =>
+          emitToolStatusChanged({
+            developerId: auth.id,
+            toolId: activatedTool.id,
+            fromStatus: statusOnInitialWrite,
+            toStatus: activatedTool.status,
+            slug: activatedTool.slug,
+            name: activatedTool.name,
+          }).catch((err) => logger.error('tools_publish.webhook_failed', { toolId: activatedTool.id }, err)),
+        )
+      }
     }
 
     // Audit log

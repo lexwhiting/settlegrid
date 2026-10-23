@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { developers, tools, developerReputation } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { hasRecentHealthChecksSql } from '@/lib/developer-health'
 
 export const maxDuration = 60
 
@@ -51,6 +52,7 @@ export async function GET(
         reviewAvg: developerReputation.reviewAvg,
         totalTools: developerReputation.totalTools,
         totalConsumers: developerReputation.totalConsumers,
+        hasChecks: hasRecentHealthChecksSql(developer.id),
       })
       .from(developerReputation)
       .where(eq(developerReputation.developerId, developer.id))
@@ -88,7 +90,8 @@ export async function GET(
           ? {
             score: reputation.score,
             tier,
-            uptimePct: reputation.uptimePct,
+            // null when there were no health checks (the cached 0 is not a measurement)
+            uptimePct: reputation.hasChecks ? reputation.uptimePct : null,
             reviewAvg: reputation.reviewAvg / 100,
             totalTools: reputation.totalTools,
             totalConsumers: reputation.totalConsumers,

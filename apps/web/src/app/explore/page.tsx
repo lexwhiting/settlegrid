@@ -9,6 +9,10 @@ import { ExploreCategoryFilter } from '@/components/explore-category-filter'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, sql, and, desc } from 'drizzle-orm'
+import { logger } from '@/lib/logger'
+
+/** Re-render at most every 5 minutes so counts and recent tools stay fresh */
+export const revalidate = 300
 
 export const metadata: Metadata = {
   title: 'Explore AI Tools & Services | SettleGrid',
@@ -50,7 +54,8 @@ async function getCategoryCounts(): Promise<Map<string, number>> {
       .groupBy(tools.category)
 
     return new Map(counts.map((c) => [c.category!, c.count]))
-  } catch {
+  } catch (err) {
+    logger.error('explore.category_counts_failed', {}, err)
     return new Map()
   }
 }
@@ -62,7 +67,8 @@ async function getTotalToolCount(): Promise<number> {
       .from(tools)
       .where(eq(tools.status, 'active'))
     return row?.count ?? 0
-  } catch {
+  } catch (err) {
+    logger.error('explore.total_tool_count_failed', {}, err)
     return 0
   }
 }
@@ -92,7 +98,8 @@ async function getRecentTools(): Promise<RecentTool[]> {
       .where(eq(tools.status, 'active'))
       .orderBy(desc(tools.createdAt))
       .limit(6)
-  } catch {
+  } catch (err) {
+    logger.error('explore.recent_tools_failed', {}, err)
     return []
   }
 }

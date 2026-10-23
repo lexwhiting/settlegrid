@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
+import { CATEGORY_SLUGS } from '@/lib/categories'
 
 export const maxDuration = 60
 
@@ -121,6 +122,10 @@ const pricingConfigSchema = z
 const updateToolSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
+  category: z
+    .string()
+    .refine((c) => CATEGORY_SLUGS.includes(c), 'Invalid category')
+    .optional(),
   pricingConfig: pricingConfigSchema.optional(),
   healthEndpoint: z.string().url().max(500).nullable().optional(),
   currentVersion: z
@@ -179,6 +184,7 @@ export async function GET(
         description: tools.description,
         pricingConfig: tools.pricingConfig,
         status: tools.status,
+        category: tools.category,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,
@@ -245,6 +251,7 @@ export async function PATCH(
     const updateData: Record<string, unknown> = { updatedAt: new Date() }
     if (body.name !== undefined) updateData.name = body.name
     if (body.description !== undefined) updateData.description = body.description
+    if (body.category !== undefined) updateData.category = body.category
     if (body.pricingConfig !== undefined) updateData.pricingConfig = body.pricingConfig
     if (body.healthEndpoint !== undefined) updateData.healthEndpoint = body.healthEndpoint
     if (body.currentVersion !== undefined) updateData.currentVersion = body.currentVersion
@@ -260,6 +267,7 @@ export async function PATCH(
         description: tools.description,
         pricingConfig: tools.pricingConfig,
         status: tools.status,
+        category: tools.category,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,

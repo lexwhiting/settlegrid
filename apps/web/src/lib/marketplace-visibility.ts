@@ -39,11 +39,24 @@ export function shouldIncludeInMarketplace(
  * unclaimed and from monetized listings (P2.INTL2). Only `status='draft'`
  * tools that satisfied `shouldIncludeInMarketplace` are eligible.
  *
- * Pure function so the rendering condition has a regression-testable mirror.
- * The actual JSX lives in `apps/web/src/components/marketplace/tool-card.tsx`.
+ * Status-only check. The card (`components/marketplace/tool-card.tsx`) uses
+ * `isClaimedDraft`, which also requires a directory `sourceEcosystem`, so a
+ * developer's own listed draft is not labelled "Claimed".
  */
 export function shouldShowClaimedBadge(status: string): boolean {
   return status === 'draft'
+}
+
+/**
+ * Whether a draft tool is a claimed directory listing (as opposed to a draft
+ * the developer created from the dashboard, CLI or quick publish).
+ *
+ * Only crawled directory entries carry a `sourceEcosystem`; the claim flow
+ * keeps it when it moves the row from 'unclaimed' to 'draft'. Tools created
+ * by a developer never set it, so a draft without one was never claimed.
+ */
+export function isClaimedDraft(status: string, sourceEcosystem: string | null | undefined): boolean {
+  return status === 'draft' && !!sourceEcosystem
 }
 
 /**

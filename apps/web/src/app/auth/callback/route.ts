@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { safeRelativePath } from '@/lib/safe-redirect'
 import { isSystemPrincipal } from '@/lib/system-principal'
+import { ensureDeveloperSlug } from '@/lib/developer-slug'
 
 const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
 const INVITE_BONUS_OPS = 5000
@@ -167,22 +168,18 @@ export async function GET(request: NextRequest) {
             .set({ supabaseUserId: user.id, updatedAt: new Date() })
             .where(eq(developers.email, email))
         } else {
-          // Check if this developer qualifies as a Founding Member (first 100)
-          const [{ count: devCount }] = await db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(developers)
-          const isFoundingMember = devCount < 100
-
+          // Founding-member slots are granted when a developer's first tool
+          // goes live (lib/founding.ts), not at sign-up.
           const [inserted] = await db.insert(developers).values({
             email,
             name,
             supabaseUserId: user.id,
-            isFoundingMember,
-            foundingMemberAt: isFoundingMember ? new Date() : null,
             updatedAt: new Date(),
           }).returning({ id: developers.id })
 
           developerId = inserted?.id
+          // Profile slug (and display name) from the name or email; never throws.
+          if (developerId) await ensureDeveloperSlug(developerId)
 
           const displayName = name ?? email
           const template = welcomeDeveloperEmail(displayName)

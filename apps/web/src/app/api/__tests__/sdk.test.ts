@@ -81,6 +81,7 @@ vi.mock('@/lib/db/schema', () => ({
     balanceCents: 'balance_cents',
     revenueSharePct: 'revenue_share_pct',
     tier: 'tier',
+    isFoundingMember: 'is_founding_member',
     updatedAt: 'updated_at',
   },
 }))
@@ -328,6 +329,27 @@ describe('Validate Key (POST /api/sdk/validate-key)', () => {
     expect(data.valid).toBe(true)
     expect(data.balanceCents).toBe(0)
   })
+
+  it("applies the founding member's plan limits to the tiered rate limit", async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([
+        {
+          keyId: 'key-1',
+          keyStatus: 'active',
+          consumerId: 'con-123',
+          toolId: 'tool-1',
+          toolSlug: 'my-tool',
+          toolStatus: 'active',
+          developerId: 'dev-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ tier: 'standard', isFoundingMember: true }])
+      .mockResolvedValueOnce([])
+
+    await validateKey(makeRequest('/api/sdk/validate-key', { apiKey: 'sg_live_valid', toolSlug: 'my-tool' }))
+
+    expect(mockCheckTieredRateLimit).toHaveBeenCalledWith('sdk-validate:con-123', 'standard', 'sdk', true)
+  })
 })
 
 describe('Meter (POST /api/sdk/meter)', () => {
@@ -371,6 +393,27 @@ describe('Meter (POST /api/sdk/meter)', () => {
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
     expect(data.costCents).toBe(5)
+  })
+
+  it("applies the founding member's plan limits to the tiered rate limit", async () => {
+    mockCheckTieredRateLimit.mockResolvedValueOnce({ success: false, limit: 0, remaining: 0, reset: 60000 })
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: '550e8400-e29b-41d4-a716-446655440002', consumerId: '550e8400-e29b-41d4-a716-446655440000', toolId: '550e8400-e29b-41d4-a716-446655440001', status: 'active' }]) // F2 auth row
+      .mockResolvedValueOnce([{ developerId: 'dev-1', revenueSharePct: 95, developerTier: 'standard', developerIsFoundingMember: true }])
+
+    const response = await meter(makeRequest('/api/sdk/meter', {
+      toolSlug: 'my-tool',
+      consumerId: '550e8400-e29b-41d4-a716-446655440000',
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+      keyId: '550e8400-e29b-41d4-a716-446655440002',
+      method: 'classify',
+      costCents: 5,
+    }, { 'x-api-key': 'sg_live_meter_test_key_000000000' }))
+
+    expect(response.status).toBe(429)
+    expect(mockCheckTieredRateLimit).toHaveBeenCalledWith(
+      'sdk-meter:550e8400-e29b-41d4-a716-446655440000', 'standard', 'sdk', true
+    )
   })
 
   it('returns 402 for insufficient credits', async () => {

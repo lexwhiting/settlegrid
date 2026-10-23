@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockValidate } = vi.hoisted(() => {
+const { mockDb, mockValidate, mockOnToolActivated, mockEmit, mockEnsureDeveloperSlug } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -30,6 +30,9 @@ const { mockDb, mockValidate } = vi.hoisted(() => {
   return {
     mockDb,
     mockValidate: vi.fn(),
+    mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
+    mockEmit: vi.fn().mockResolvedValue(undefined),
+    mockEnsureDeveloperSlug: vi.fn().mockResolvedValue({ slug: 'dev-slug', name: 'Dev' }),
   }
 })
 
@@ -83,6 +86,24 @@ vi.mock('@/lib/audit', () => ({
 
 vi.mock('@/lib/quality-gates', () => ({
   validateToolForActivation: mockValidate,
+}))
+
+vi.mock('@/lib/tool-activation', () => ({
+  onToolActivated: mockOnToolActivated,
+}))
+
+vi.mock('@/lib/webhooks', () => ({
+  emitToolStatusChanged: mockEmit,
+}))
+
+vi.mock('@/lib/developer-slug', () => ({
+  ensureDeveloperSlug: mockEnsureDeveloperSlug,
+}))
+
+// after() defers the webhook past the response; run the callback inline here.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: vi.fn((cb: () => unknown) => cb()),
 }))
 
 vi.mock('@/lib/request-id', () => ({
@@ -163,6 +184,29 @@ describe('PUT /api/tools/publish — producer-audit #8 quality gate', () => {
     expect(res.status).toBe(201)
     expect(data.tool.status).toBe('active')
     expect(mockValidate).toHaveBeenCalledWith('tool-new', 'dev-123')
+    expect(mockEnsureDeveloperSlug).toHaveBeenCalledWith('dev-123')
+    expect(mockEnsureDeveloperSlug.mock.invocationCallOrder[0]).toBeLessThan(mockValidate.mock.invocationCallOrder[0])
+    expect(mockOnToolActivated).toHaveBeenCalledWith(
+      expect.objectContaining({ developerId: 'dev-123', toolId: 'tool-new', toolSlug: 'my-tool', fromStatus: 'draft' })
+    )
+    expect(mockEmit).toHaveBeenCalledWith({
+      developerId: 'dev-123', toolId: 'tool-new', fromStatus: 'draft', toStatus: 'active', slug: 'my-tool', name: 'My Tool',
+    })
+  })
+
+  it('CREATE: inserts the draft hidden from the marketplace', async () => {
+    mockAuth()
+    mockDb.limit.mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'tool-new', slug: 'my-tool', name: 'My Tool', status: 'draft', currentVersion: '1.0.0', createdAt: new Date(), updatedAt: new Date() },
+    ])
+    mockValidate.mockResolvedValueOnce({ passed: false, failures: ['A category must be selected'] })
+
+    await PUT(makeRequest())
+
+    expect(mockDb.values).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'draft', listedInMarketplace: false })
+    )
   })
 
   it('CREATE: stays at status="draft" and returns 422 when the gate fails', async () => {
@@ -183,6 +227,7 @@ describe('PUT /api/tools/publish — producer-audit #8 quality gate', () => {
     expect(data.code).toBe('QUALITY_GATE_FAILED')
     expect(data.currentStatus).toBe('draft')
     expect(data.failures).toContain('Description must be at least 50 characters')
+    expect(mockEmit).not.toHaveBeenCalled()
   })
 })
 
@@ -254,6 +299,27 @@ describe('PUT /api/tools/publish — regression guard: UPDATE preserves existing
 
     expect(res.status).toBe(200)
     expect(data.tool.status).toBe('active')
+    expect(mockOnToolActivated).toHaveBeenCalledWith(
+      expect.objectContaining({ developerId: 'dev-123', toolId: 'tool-u', fromStatus: 'draft' })
+    )
+  })
+
+  it('UPDATE: re-publishing an already-active tool does not re-run activation side effects', async () => {
+    mockAuth()
+    mockDb.limit.mockResolvedValueOnce([
+      { id: 'tool-live', developerId: 'dev-123', name: 'T', status: 'active' },
+    ])
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'tool-live', slug: 'my-tool', name: 'T', status: 'active', currentVersion: '1.0.1', createdAt: new Date(), updatedAt: new Date() },
+    ])
+    mockDb.returning.mockResolvedValueOnce([{ status: 'active', updatedAt: new Date() }])
+    mockValidate.mockResolvedValueOnce({ passed: true, failures: [] })
+
+    const res = await PUT(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockOnToolActivated).not.toHaveBeenCalled()
+    expect(mockEmit).not.toHaveBeenCalled()
   })
 
   it('UPDATE: rejects with 409 when a different developer owns the slug', async () => {

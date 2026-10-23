@@ -6,6 +6,10 @@ import type { ShowcaseTool } from '@/components/showcase-search'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
+import { logger } from '@/lib/logger'
+
+/** Re-render at most every 5 minutes so newly published tools appear */
+export const revalidate = 300
 
 export default async function ShowcasePage() {
   let activeTools: ShowcaseTool[] = []
@@ -43,8 +47,9 @@ export default async function ShowcasePage() {
       developerName: r.developerName,
       developerSlug: r.developerSlug ?? null,
     }))
-  } catch {
+  } catch (err) {
     // DB unavailable — show empty state gracefully
+    logger.error('showcase.active_tools_failed', {}, err)
   }
 
   return (

@@ -258,6 +258,9 @@ export async function POST(request: NextRequest) {
     let suggestedPricingModel: string
     let confidence: number
     let tags: string[] = []
+    // True when suggestedDescription is a note to the user rather than a
+    // description of the service; clients must not publish it as-is.
+    let descriptionIsPlaceholder = false
 
     if (isMcp) {
       // MCP handshake succeeded — definitive classification
@@ -330,6 +333,7 @@ export async function POST(request: NextRequest) {
         category = 'utility'
         suggestedName = suggestNameFromUrl(url)
         suggestedDescription = 'An API endpoint. We could not probe it — please verify the URL is accessible.'
+        descriptionIsPlaceholder = true
         suggestedPriceCents = 5
         suggestedPricingModel = 'per-invocation'
         confidence = 0.1
@@ -375,6 +379,7 @@ export async function POST(request: NextRequest) {
         suggestedName,
         suggestedSlug,
         suggestedDescription,
+        descriptionIsPlaceholder,
         suggestedPriceCents,
         suggestedPricingModel,
         confidence,

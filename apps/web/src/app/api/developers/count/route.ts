@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { developers } from '@/lib/db/schema'
-import { sql } from 'drizzle-orm'
+import { countFoundingMembers } from '@/lib/founding'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
+/** Founding-member slots taken (of FOUNDING_MEMBER_LIMIT), for the register page banner. */
 export async function GET() {
   try {
-    const result = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(developers)
-
-    const count = result[0]?.count ?? 0
+    const count = await countFoundingMembers()
 
     return NextResponse.json(
       { count },
@@ -21,7 +17,9 @@ export async function GET() {
         },
       }
     )
-  } catch {
-    return NextResponse.json({ count: 0 }, { status: 200 })
+  } catch (err) {
+    logger.error('developers.count_failed', {}, err)
+    // null hides the banner rather than claiming "0 of 100".
+    return NextResponse.json({ count: null }, { status: 200 })
   }
 }

@@ -7,6 +7,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { SocialShare } from '@/components/ui/social-share'
 import { BuyCreditsButton } from '@/components/storefront/buy-credits-button'
 import { ReviewForm } from '@/components/storefront/review-form'
+import { HeaderAuthLinks } from '@/components/storefront/header-auth-links'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -48,6 +49,10 @@ interface ToolData {
    */
   status?: string
   listedInMarketplace?: boolean
+  /** True only for a draft that came from claiming a directory listing. */
+  claimedListing?: boolean
+  /** True when calls are made through the SettleGrid proxy at /api/proxy/{slug}. */
+  hasProxyEndpoint?: boolean
   currentVersion: string
   pricingConfig: {
     model?: string
@@ -186,6 +191,8 @@ export default async function ToolStorefrontPage({
   const reviews = tool.reviews ?? []
   const changelog = tool.changelog ?? []
   const categoryDef = getCategoryBySlug(tool.category)
+  const isClaimedDraft = tool.status === 'draft' && tool.claimedListing === true
+  const isUnpublishedDraft = tool.status === 'draft' && !isClaimedDraft
 
   // ─── Structured Data ──────────────────────────────────────────────────────
 
@@ -330,12 +337,7 @@ export default async function ToolStorefrontPage({
             <Link href="/tools" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100 transition-colors">
               Showcase
             </Link>
-            <Link href="/login" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100">
-              Log in
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">
-              Sign up
-            </Link>
+            <HeaderAuthLinks />
           </div>
         </nav>
       </header>
@@ -364,13 +366,15 @@ export default async function ToolStorefrontPage({
               status='active'    → normal purchase flow
               status='draft'     → claimed-but-not-yet-monetized (INTL2 corridor,
                                    Stripe Connect unavailable) — show "Claimed"
+                                   only when it really was a claimed listing;
+                                   a developer's own draft says "Not yet published"
               status='unclaimed' → shadow-directory crawler entry, no developer
                                    has claimed the listing — show "Unclaimed"
                                    and invite the owner to claim. Critical not
                                    to say "claimed" here: unclaimed tools have
                                    NO developer, so the message would be false.
           */}
-          {tool.status === 'draft' && (
+          {isClaimedDraft && (
             <div
               role="status"
               className="mb-6 rounded-lg border border-amber-600/40 bg-amber-500/10 p-4"
@@ -381,6 +385,20 @@ export default async function ToolStorefrontPage({
               <p className="mt-1 text-xs text-amber-200/80">
                 The developer has claimed this listing but hasn&apos;t finished configuring payments
                 for their region yet. Buying credits isn&apos;t available for this tool today.
+              </p>
+            </div>
+          )}
+          {isUnpublishedDraft && (
+            <div
+              role="status"
+              className="mb-6 rounded-lg border border-gray-500/40 bg-gray-500/10 p-4"
+            >
+              <p className="text-sm font-semibold text-gray-200">
+                Not yet published
+              </p>
+              <p className="mt-1 text-xs text-gray-300/80">
+                The developer hasn&apos;t published this tool yet. Buying credits isn&apos;t available
+                for this tool today.
               </p>
             </div>
           )}
@@ -542,19 +560,31 @@ export default async function ToolStorefrontPage({
                   {canPurchaseCredits(tool.status ?? '') && (
                     <p><strong className="text-gray-900 dark:text-gray-200">1. Buy credits</strong> — Use the panel on the right to purchase credits for this tool via Stripe.</p>
                   )}
-                  {tool.status === 'draft' && (
+                  {isClaimedDraft && (
                     <p><strong className="text-gray-900 dark:text-gray-200">1. Wait for pricing</strong> — This tool has been claimed but Stripe payments aren&apos;t live in the developer&apos;s region yet. Buying credits will unlock once they finish onboarding.</p>
+                  )}
+                  {isUnpublishedDraft && (
+                    <p><strong className="text-gray-900 dark:text-gray-200">1. Wait for publishing</strong> — The developer hasn&apos;t published this tool yet. Buying credits will unlock once it goes live.</p>
                   )}
                   {tool.status === 'unclaimed' && (
                     <p><strong className="text-gray-900 dark:text-gray-200">1. Listing not yet claimed</strong> — Purchases aren&apos;t available for unclaimed listings. If you maintain this tool, <Link href="/register" className="text-brand hover:underline">claim your listing</Link> to enable monetization.</p>
                   )}
                   <p><strong className="text-gray-900 dark:text-gray-200">2. Get your API key</strong> — After purchasing, go to your <Link href="/consumer" className="text-brand hover:underline">Consumer Dashboard</Link> to generate an API key.</p>
-                  <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — The developer hosts this tool on their own server. Use your API key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header when calling their endpoint. SettleGrid handles metering and billing automatically.</p>
+                  {tool.hasProxyEndpoint ? (
+                    <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — Calls go through the SettleGrid proxy, which checks your API key, meters the call and forwards it to the developer&apos;s service. Send your key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header.</p>
+                  ) : (
+                    <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — The developer hosts this tool on their own server. Use your API key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header when calling their endpoint. SettleGrid handles metering and billing automatically.</p>
+                  )}
                 </div>
                 <CopyableCodeBlock
                   className="!my-0 mt-4"
                   title="Example"
-                  code={`# Replace with the developer's actual tool endpoint
+                  code={tool.hasProxyEndpoint
+                    ? `curl -X POST https://settlegrid.ai/api/proxy/${tool.slug} \\
+  -H "x-api-key: sg_live_your_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "your input here"}'`
+                    : `# Replace with the developer's actual tool endpoint
 curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
   -H "x-api-key: sg_live_your_key_here" \\
   -H "Content-Type: application/json" \\
@@ -587,14 +617,15 @@ curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
                   </p>
                 </div>
               ) : tool.status === 'draft' ? (
-                // P2.INTL2 — placeholder for claimed draft tools in Stripe-unsupported
-                // corridors. Do not render <BuyCreditsButton> since the tool has no
-                // price yet and the checkout session would fail.
+                // P2.INTL2 — placeholder for draft tools. Do not render
+                // <BuyCreditsButton> since the tool isn't purchasable yet and
+                // the checkout session would fail.
                 <div className="bg-white dark:bg-[#161822] rounded-xl border-2 border-dashed border-gray-400 dark:border-[#3A3D4E] p-6 sticky top-8">
                   <h3 className="font-semibold text-indigo dark:text-gray-100 mb-2">Pricing coming soon</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    This tool has been claimed. The developer will enable purchases once Stripe
-                    payments are available in their region.
+                    {isClaimedDraft
+                      ? 'This tool has been claimed. The developer will enable purchases once Stripe payments are available in their region.'
+                      : 'The developer will enable purchases once this tool is published.'}
                   </p>
                 </div>
               ) : (

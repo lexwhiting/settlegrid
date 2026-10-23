@@ -72,7 +72,9 @@ export async function GET(
       .where(sql`${toolHealthChecks.toolId} = ${id} AND ${toolHealthChecks.checkedAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
 
     const total = uptimeStats?.total ?? 0
-    const uptimePct = total > 0 ? Math.round((uptimeStats.upCount / total) * 10000) / 100 : 100
+    // No checks in the window: no uptime or latency to report (null, not 100% / 0ms).
+    const uptimePct = total > 0 ? Math.round((uptimeStats.upCount / total) * 10000) / 100 : null
+    const avgResponseTimeMs = total > 0 ? uptimeStats.avgResponseTimeMs : null
 
     // Public response
     const publicResult = {
@@ -81,7 +83,7 @@ export async function GET(
       currentStatus: latestCheck?.status ?? 'unknown',
       lastCheckedAt: latestCheck?.checkedAt ?? null,
       uptimePct30d: uptimePct,
-      avgResponseTimeMs: uptimeStats?.avgResponseTimeMs ?? 0,
+      avgResponseTimeMs,
     }
 
     if (!isOwner) {

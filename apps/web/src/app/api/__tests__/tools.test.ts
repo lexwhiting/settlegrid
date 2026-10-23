@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation } = vi.hoisted(() => {
+const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation, mockOnToolActivated, mockEmitToolStatusChanged, mockEnsureDeveloperSlug } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -20,6 +20,9 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForAct
     mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
     mockValidateToolForActivation: vi.fn().mockResolvedValue({ passed: true, failures: [] }),
+    mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
+    mockEmitToolStatusChanged: vi.fn().mockResolvedValue(undefined),
+    mockEnsureDeveloperSlug: vi.fn().mockResolvedValue({ slug: 'dev-slug', name: 'Dev' }),
   }
 })
 
@@ -95,6 +98,24 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/quality-gates', () => ({
   validateToolForActivation: mockValidateToolForActivation,
+}))
+
+vi.mock('@/lib/tool-activation', () => ({
+  onToolActivated: mockOnToolActivated,
+}))
+
+vi.mock('@/lib/webhooks', () => ({
+  emitToolStatusChanged: mockEmitToolStatusChanged,
+}))
+
+vi.mock('@/lib/developer-slug', () => ({
+  ensureDeveloperSlug: mockEnsureDeveloperSlug,
+}))
+
+// after() defers the webhook past the response; run the callback inline here.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: vi.fn((cb: () => unknown) => cb()),
 }))
 
 import { GET, POST } from '@/app/api/tools/route'
@@ -177,6 +198,46 @@ describe('Create Tool (POST /api/tools)', () => {
 
     expect(response.status).toBe(201)
     expect(data.tool).toBeDefined()
+  })
+
+  it('inserts new dashboard tools hidden from the marketplace', async () => {
+    const request = makeRequest('/api/tools', 'POST', {
+      name: 'Test Tool',
+      slug: 'test-tool',
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(201)
+    expect(mockDb.values).toHaveBeenCalledWith(
+      expect.objectContaining({ listedInMarketplace: false })
+    )
+  })
+
+  it('saves a valid category', async () => {
+    const request = makeRequest('/api/tools', 'POST', {
+      name: 'Test Tool',
+      slug: 'test-tool',
+      category: 'data',
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(201)
+    expect(mockDb.values).toHaveBeenCalledWith(expect.objectContaining({ category: 'data' }))
+  })
+
+  it('returns 422 for a category outside the canonical list', async () => {
+    const request = makeRequest('/api/tools', 'POST', {
+      name: 'Test Tool',
+      slug: 'test-tool',
+      category: 'not-a-category',
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(422)
+    expect(mockDb.insert).not.toHaveBeenCalled()
   })
 
   it('returns 409 for duplicate slug', async () => {
@@ -274,6 +335,26 @@ describe('Update Tool (PATCH /api/tools/[id])', () => {
     expect(data.tool.name).toBe('Updated Tool')
   })
 
+  it('updates category and description', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: toolUuid, currentVersion: '1.0.0' }])
+    mockDb.returning.mockResolvedValueOnce([{ ...mockTool, category: 'search' }])
+
+    const description = 'Searches public datasets and returns ranked, de-duplicated results.'
+    const request = makeRequest(`/api/tools/${toolUuid}`, 'PATCH', { category: 'search', description })
+    const response = await PATCH(request, { params: Promise.resolve({ id: toolUuid }) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.set).toHaveBeenCalledWith(expect.objectContaining({ category: 'search', description }))
+  })
+
+  it('returns 422 for an invalid category', async () => {
+    const request = makeRequest(`/api/tools/${toolUuid}`, 'PATCH', { category: 'nope' })
+    const response = await PATCH(request, { params: Promise.resolve({ id: toolUuid }) })
+
+    expect(response.status).toBe(422)
+    expect(mockDb.update).not.toHaveBeenCalled()
+  })
+
   it('returns 404 for tool not belonging to developer', async () => {
     mockDb.limit.mockResolvedValueOnce([])
 
@@ -339,6 +420,106 @@ describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
 
     expect(response.status).toBe(200)
     expect(data.tool.status).toBe('active')
+    expect(mockOnToolActivated).toHaveBeenCalledWith({
+      developerId: 'dev-123', toolId: statusUuid, toolName: 'Tool', toolSlug: 'tool', fromStatus: 'draft',
+    })
+  })
+
+  it('assigns a missing developer slug before the activation gate runs', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(mockEnsureDeveloperSlug).toHaveBeenCalledWith('dev-123')
+    expect(mockEnsureDeveloperSlug.mock.invocationCallOrder[0]).toBeLessThan(
+      mockValidateToolForActivation.mock.invocationCallOrder[0]
+    )
+
+    mockEnsureDeveloperSlug.mockClear()
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'draft', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'draft' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+    expect(mockEnsureDeveloperSlug).not.toHaveBeenCalled()
+  })
+
+  it('does not run activation side effects for an already-active tool or on deactivate', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'draft', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'draft' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(mockOnToolActivated).not.toHaveBeenCalled()
+  })
+
+  it('emits tool.status_changed when the status changes', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+    expect(mockEmitToolStatusChanged).toHaveBeenCalledWith({
+      developerId: 'dev-123', toolId: statusUuid, fromStatus: 'draft', toStatus: 'active', slug: 'tool', name: 'Tool',
+    })
+
+    mockEmitToolStatusChanged.mockClear()
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'draft', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'draft' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+    expect(mockEmitToolStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ fromStatus: 'active', toStatus: 'draft' })
+    )
+  })
+
+  it('does not emit tool.status_changed when the status is unchanged or the gate fails', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockValidateToolForActivation.mockResolvedValueOnce({ passed: false, failures: ['A category must be selected'] })
+    const res = await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockEmitToolStatusChanged).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 when the webhook emit rejects', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    mockEmitToolStatusChanged.mockRejectedValueOnce(new Error('dispatch failed'))
+
+    const res = await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(res.status).toBe(200)
   })
 
   it('returns 400 for deleted tool', async () => {
@@ -440,6 +621,71 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     expect(response.status).toBe(200)
     expect(data.data.status).toBe('draft')
     expect(data.data.listedInMarketplace).toBe(true)
+  })
+
+  it('marks a draft as a claimed listing only when it came from the directory', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-c',
+        name: 'Claimed Draft',
+        slug: 'claimed-draft',
+        description: 'Claimed, pricing pending',
+        status: 'draft',
+        listedInMarketplace: true,
+        sourceEcosystem: 'mcp-registry',
+        pricingConfig: { defaultCostCents: 0 },
+        developerName: 'Dev',
+      },
+    ])
+    const claimedRes = await getPublic(
+      makeRequest('/api/tools/public/claimed-draft'),
+      { params: Promise.resolve({ slug: 'claimed-draft' }) }
+    )
+    expect((await claimedRes.json()).data.claimedListing).toBe(true)
+
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-o',
+        name: 'Own Draft',
+        slug: 'own-draft',
+        description: 'Created from the dashboard',
+        status: 'draft',
+        listedInMarketplace: true,
+        sourceEcosystem: null,
+        pricingConfig: { defaultCostCents: 5 },
+        developerName: 'Dev',
+      },
+    ])
+    const ownRes = await getPublic(
+      makeRequest('/api/tools/public/own-draft'),
+      { params: Promise.resolve({ slug: 'own-draft' }) }
+    )
+    expect((await ownRes.json()).data.claimedListing).toBe(false)
+  })
+
+  it('reports whether the tool is called through the proxy without exposing the upstream URL', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-p',
+        name: 'Proxied Tool',
+        slug: 'proxied-tool',
+        description: 'Reached through the SettleGrid proxy',
+        status: 'active',
+        listedInMarketplace: true,
+        proxyEndpoint: 'https://upstream.example.com/v1',
+        pricingConfig: { defaultCostCents: 5 },
+        developerName: 'Dev',
+      },
+    ])
+
+    const res = await getPublic(
+      makeRequest('/api/tools/public/proxied-tool'),
+      { params: Promise.resolve({ slug: 'proxied-tool' }) }
+    )
+    const data = await res.json()
+
+    expect(data.data.hasProxyEndpoint).toBe(true)
+    expect(JSON.stringify(data)).not.toContain('upstream.example.com')
   })
 
   it('serializes status + listedInMarketplace so the detail page can render the right variant', async () => {
