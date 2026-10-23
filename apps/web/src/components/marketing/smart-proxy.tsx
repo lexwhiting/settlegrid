@@ -1,7 +1,7 @@
 import { CopyButton } from "@/components/ui/copy-button"
 
 const proxyCode = `curl https://settlegrid.ai/api/proxy/my-tool \\
-  -H "Authorization: Bearer sg_live_..."`
+  -H "x-api-key: sg_live_..."`
 
 const features = [
   "Per-call metering & budget enforcement",
@@ -70,7 +70,7 @@ export function SmartProxy() {
                 <div className="text-muted-foreground mb-6 pl-4">
                   <span>-H </span>
                   <span className="text-[#98c379]">
-                    {`"Authorization: Bearer sg_live_..."`}
+                    {`"x-api-key: sg_live_..."`}
                   </span>
                 </div>
 
