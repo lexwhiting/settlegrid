@@ -40,6 +40,13 @@ describe('Docs API reference', () => {
     expect(DOCS_PAGE_TSX).not.toContain('/api/auth/developer/register')
     expect(DOCS_PAGE_TSX).not.toContain('/api/auth/developer/login')
   })
+
+  it('lists only webhook events that are dispatched', () => {
+    for (const event of ['invocation.completed', 'payout.initiated', 'payout.completed', 'balance.low']) {
+      expect(DOCS_PAGE_TSX).not.toContain(event)
+    }
+    expect(DOCS_PAGE_TSX).toContain('tool.status_changed')
+  })
 })
 
 // ─── No test-key / sandbox-mode claims ──────────────────────────────────────

@@ -170,7 +170,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I verify webhook signatures?',
-      a: 'Every SettleGrid webhook is signed with HMAC-SHA256. Verify using the X-SettleGrid-Signature header. Example:\n\nimport crypto from \'crypto\'\n\nfunction verifyWebhookSignature(\n  rawBody: string,\n  signature: string,\n  secret: string\n): boolean {\n  const expected = crypto\n    .createHmac(\'sha256\', secret)\n    .update(rawBody, \'utf8\')\n    .digest(\'hex\')\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(expected)\n  )\n}\n\n// In your webhook handler:\napp.post(\'/webhooks/settlegrid\', express.raw({ type: \'application/json\' }), (req, res) => {\n  const signature = req.headers[\'x-settlegrid-signature\'] as string\n  const secret = process.env.SETTLEGRID_WEBHOOK_SECRET!\n\n  if (!verifyWebhookSignature(req.body.toString(), signature, secret)) {\n    return res.status(401).json({ error: \'Invalid signature\' })\n  }\n\n  const event = JSON.parse(req.body.toString())\n  // Process event.type: invocation.completed, payout.initiated, etc.\n  res.json({ received: true })\n})\n\nAlways use crypto.timingSafeEqual to prevent timing attacks. Store your webhook secret in an environment variable.',
+      a: 'Every SettleGrid webhook is signed with HMAC-SHA256. Verify using the X-SettleGrid-Signature header. Example:\n\nimport crypto from \'crypto\'\n\nfunction verifyWebhookSignature(\n  rawBody: string,\n  signature: string,\n  secret: string\n): boolean {\n  const expected = crypto\n    .createHmac(\'sha256\', secret)\n    .update(rawBody, \'utf8\')\n    .digest(\'hex\')\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(expected)\n  )\n}\n\n// In your webhook handler:\napp.post(\'/webhooks/settlegrid\', express.raw({ type: \'application/json\' }), (req, res) => {\n  const signature = req.headers[\'x-settlegrid-signature\'] as string\n  const secret = process.env.SETTLEGRID_WEBHOOK_SECRET!\n\n  if (!verifyWebhookSignature(req.body.toString(), signature, secret)) {\n    return res.status(401).json({ error: \'Invalid signature\' })\n  }\n\n  const event = JSON.parse(req.body.toString())\n  // Process event.event (e.g. tool.status_changed); the payload is in event.data\n  res.json({ received: true })\n})\n\nAlways use crypto.timingSafeEqual to prevent timing attacks. Store your webhook secret in an environment variable.',
     },
   ],
 },
@@ -427,7 +427,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What webhook events are available?',
-      a: 'SettleGrid supports webhook events for invocation.completed, payout.initiated, payout.completed, tool.status_changed, and more. Webhooks are delivered with HMAC-SHA256 signatures and include automatic retry with exponential backoff (up to 3 attempts).',
+      a: 'SettleGrid sends a tool.status_changed webhook event when one of your tools is activated or deactivated, and a test.ping event when you press Send test event in the dashboard. Webhooks are delivered with HMAC-SHA256 signatures and include automatic retry with exponential backoff (up to 3 attempts).',
     },
     {
       q: 'How does health monitoring work?',
@@ -554,7 +554,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I activate or deactivate a tool?',
-      a: 'From /dashboard/tools, toggle the tool status via the status switch. Deactivated tools stop accepting API calls and consumers receive errors. Both statuses trigger an email notification and a tool.status_changed webhook event.',
+      a: 'From /dashboard/tools, toggle the tool status via the status switch. Deactivated tools stop accepting API calls and consumers receive errors. Activating a tool sends you a tool-published email, and both changes send a tool.status_changed webhook event.',
     },
     {
       q: 'What is the conversion funnel?',
