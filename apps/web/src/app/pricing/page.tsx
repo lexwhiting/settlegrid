@@ -3,6 +3,12 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
+import {
+  revenueExamples,
+  savingsAtOneHundredThousand,
+  takeOnTenThousand,
+  takeRateBrackets,
+} from '@/lib/pricing-examples'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -175,21 +181,6 @@ const plans = [
   },
 ] as const
 
-const takeRateBrackets = [
-  { bracket: '$0 \u2013 $1,000', rate: '0%', youKeep: '100%', example: '$1,000 revenue \u2192 you keep $1,000' },
-  { bracket: '$1,001 \u2013 $10,000', rate: '2%', youKeep: '98%', example: '$5,000 revenue \u2192 you keep $4,920' },
-  { bracket: '$10,001 \u2013 $50,000', rate: '2.5%', youKeep: '97.5%', example: '$25,000 revenue \u2192 you keep $24,445' },
-  { bracket: '$50,001+', rate: '5%', youKeep: '95%', example: '$100,000 revenue \u2192 you keep $96,830' },
-] as const
-
-const revenueExamples = [
-  { monthly: '$500', settlegrid: '$500', mcpize: '$425', note: 'SettleGrid: 0% take. MCPize: 15% take.' },
-  { monthly: '$2,000', settlegrid: '$1,980', mcpize: '$1,700', note: '0% on first $1K + 2% on next $1K.' },
-  { monthly: '$10,000', settlegrid: '$9,820', mcpize: '$8,500', note: 'Progressive brackets save you $1,320/mo.' },
-  { monthly: '$50,000', settlegrid: '$48,620', mcpize: '$42,500', note: 'At scale, you keep $6,120 more per month.' },
-  { monthly: '$100,000', settlegrid: '$97,080', mcpize: '$85,000', note: 'You keep $12,080 more per month vs 15% flat.' },
-] as const
-
 const faqs = [
   {
     q: 'What is the progressive take rate?',
@@ -205,7 +196,7 @@ const faqs = [
   },
   {
     q: 'How does SettleGrid compare to a 15% flat take rate?',
-    a: 'On a 15% flat rate (like MCPize), you lose $1,500 on $10,000 in revenue. On SettleGrid, you lose only $180 \u2014 because the first $1,000 is free and only the amount above each bracket is charged. At $100K/mo, you keep $12,080 more with SettleGrid.',
+    a: `On a 15% flat rate (like MCPize), you lose $1,500 on $10,000 in revenue. On SettleGrid, you lose only ${takeOnTenThousand} \u2014 because the first $1,000 is free and only the amount above each bracket is charged. At $100K/mo, you keep ${savingsAtOneHundredThousand} more with SettleGrid.`,
   },
   {
     q: 'Are there any hidden fees?',
