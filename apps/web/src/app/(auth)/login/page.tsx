@@ -42,6 +42,10 @@ function LoginForm() {
       return
     }
 
+    // Password sign-ins don't pass through auth/callback, so record the
+    // auth.login audit entry here. Best effort: never block the sign-in.
+    await fetch('/api/auth/developer/login-event', { method: 'POST' }).catch(() => {})
+
     // Validate the user-controlled `redirect` to a same-origin path — an
     // unvalidated `?redirect=https://evil.com` would phish after sign-in (G2-3).
     const redirect = safeRelativePath(searchParams.get('redirect'))
