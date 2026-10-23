@@ -172,6 +172,7 @@ export async function GET(request: NextRequest) {
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,
+        proxyEndpoint: tools.proxyEndpoint,
         currentVersion: tools.currentVersion,
         listedInMarketplace: tools.listedInMarketplace,
         createdAt: tools.createdAt,

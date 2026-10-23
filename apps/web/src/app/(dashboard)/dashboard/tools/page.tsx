@@ -35,6 +35,7 @@ interface Tool {
   totalInvocations: number
   totalRevenueCents: number
   pricingConfig: ToolPricingConfig
+  proxyEndpoint: string | null
   listedInMarketplace: boolean
   createdAt: string
 }
@@ -180,6 +181,7 @@ const EMPTY_CHANGELOG_FORM: ChangelogForm = { version: '', changeType: 'feature'
 interface ToolDetailsUpdate {
   description: string
   category: string
+  proxyEndpoint: string
 }
 
 const SELECT_CLASS = 'flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand'
@@ -217,6 +219,7 @@ export default function ToolsPage() {
     slug: '',
     description: '',
     category: '',
+    proxyEndpoint: '',
     defaultCostCents: '1',
     pricingModel: 'per-invocation' as PricingModelType,
     costPerToken: '10',
@@ -309,9 +312,17 @@ export default function ToolsPage() {
         setError(data.error || 'Failed to create tool')
         return
       }
+      const created = await res.json()
+      const endpoint = form.proxyEndpoint.trim()
+      if (endpoint && created.tool?.id) {
+        const endpointError = await saveProxyEndpoint(created.tool.id, endpoint, null)
+        if (endpointError) {
+          setError(`Tool created, but the upstream URL was not saved: ${endpointError} Use Edit on the tool to try again.`)
+        }
+      }
       setShowCreate(false)
       setForm({
-        name: '', slug: '', description: '', category: '', defaultCostCents: '1',
+        name: '', slug: '', description: '', category: '', proxyEndpoint: '', defaultCostCents: '1',
         pricingModel: 'per-invocation', costPerToken: '10', costPerMB: '5',
         costPerSecond: '1', successCostCents: '10', failureCostCents: '0',
         successCondition: 'result.success === true',
@@ -354,17 +365,46 @@ export default function ToolsPage() {
     }
   }
 
-  /** Saves a tool's description and category. Returns an error message, or null on success. */
-  async function saveToolDetails(toolId: string, update: ToolDetailsUpdate): Promise<string | null> {
+  /**
+   * Sets or clears a tool's upstream URL through the endpoint route, which owns
+   * the https / public-address validation. Returns an error message, or null.
+   */
+  async function saveProxyEndpoint(toolId: string, endpoint: string, previous: string | null): Promise<string | null> {
+    if (endpoint === (previous ?? '')) return null
+    try {
+      const res = endpoint
+        ? await fetch(`/api/developer/tools/${toolId}/endpoint`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpointUrl: endpoint }),
+          })
+        : await fetch(`/api/developer/tools/${toolId}/endpoint`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        return data.error || 'Failed to save the upstream URL.'
+      }
+      return null
+    } catch {
+      return 'Network error saving the upstream URL.'
+    }
+  }
+
+  /** Saves a tool's description, category and upstream URL. Returns an error message, or null on success. */
+  async function saveToolDetails(toolId: string, update: ToolDetailsUpdate, previousEndpoint: string | null): Promise<string | null> {
     try {
       const res = await fetch(`/api/tools/${toolId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(update),
+        body: JSON.stringify({ description: update.description, category: update.category }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         return data.error || 'Failed to save tool details'
+      }
+      const endpointError = await saveProxyEndpoint(toolId, update.proxyEndpoint.trim(), previousEndpoint)
+      if (endpointError) {
+        fetchTools()
+        return endpointError
       }
       if (qualityFailuresToolId === toolId) {
         setError('')
@@ -486,6 +526,12 @@ export default function ToolsPage() {
                 <label htmlFor="tool-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                 <CategorySelect id="tool-category" value={form.category} onChange={(category) => setForm({ ...form, category })} />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Where your tool is listed in the showcase. Required to activate.</p>
+              </div>
+              <div>
+                <label htmlFor="tool-proxy-endpoint" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Upstream URL (optional)</label>
+                <input id="tool-proxy-endpoint" type="url" pattern="https://.*" placeholder="https://api.example.com/v1/tool" value={form.proxyEndpoint} onChange={(e) => setForm({ ...form, proxyEndpoint: e.target.value })}
+                  className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your tool&apos;s public HTTPS endpoint. Calls to the SettleGrid proxy (/api/proxy/your-slug) are metered and forwarded here. Leave empty if you meter with the SDK instead.</p>
               </div>
 
               {/* Pricing Model Selector */}
@@ -750,7 +796,7 @@ function ToolCard({
   submittingChangelog: boolean
   activationFailures: string[]
   onToggleStatus: (id: string, status: string) => void
-  onSaveDetails: (id: string, update: ToolDetailsUpdate) => Promise<string | null>
+  onSaveDetails: (id: string, update: ToolDetailsUpdate, previousEndpoint: string | null) => Promise<string | null>
   onToggleListedInMarketplace: (id: string, currentListed: boolean) => void
   onToggleChangelog: (id: string) => void
   onChangelogFormChange: (form: ChangelogForm) => void
@@ -765,6 +811,7 @@ function ToolCard({
   const [editing, setEditing] = useState(false)
   const [editDescription, setEditDescription] = useState('')
   const [editCategory, setEditCategory] = useState('')
+  const [editEndpoint, setEditEndpoint] = useState('')
   const [savingDetails, setSavingDetails] = useState(false)
   const [editError, setEditError] = useState('')
 
@@ -772,6 +819,7 @@ function ToolCard({
     setEditDescription(tool.description ?? '')
     // A non-canonical legacy value can't be saved back; make the user pick one.
     setEditCategory(tool.category && getCategoryBySlug(tool.category) ? tool.category : '')
+    setEditEndpoint(tool.proxyEndpoint ?? '')
     setEditError('')
     setEditing(true)
   }
@@ -780,7 +828,11 @@ function ToolCard({
     e.preventDefault()
     setSavingDetails(true)
     setEditError('')
-    const err = await onSaveDetails(tool.id, { description: editDescription, category: editCategory })
+    const err = await onSaveDetails(
+      tool.id,
+      { description: editDescription, category: editCategory, proxyEndpoint: editEndpoint },
+      tool.proxyEndpoint,
+    )
     setSavingDetails(false)
     if (err) {
       setEditError(err)
@@ -910,6 +962,21 @@ function ToolCard({
               <div className="md:w-1/2">
                 <label htmlFor={`edit-category-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
                 <CategorySelect id={`edit-category-${tool.id}`} value={editCategory} onChange={setEditCategory} />
+              </div>
+              <div>
+                <label htmlFor={`edit-endpoint-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Upstream URL</label>
+                <input
+                  id={`edit-endpoint-${tool.id}`}
+                  type="url"
+                  pattern="https://.*"
+                  placeholder="https://api.example.com/v1/tool"
+                  value={editEndpoint}
+                  onChange={(e) => setEditEndpoint(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  HTTPS endpoint the SettleGrid proxy forwards calls to. Clear it to stop proxying.
+                </p>
               </div>
               {editError && (
                 <p className="text-sm text-red-600 dark:text-red-400" role="alert">{editError}</p>
