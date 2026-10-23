@@ -568,6 +568,31 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     expect((await ownRes.json()).data.claimedListing).toBe(false)
   })
 
+  it('reports whether the tool is called through the proxy without exposing the upstream URL', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-p',
+        name: 'Proxied Tool',
+        slug: 'proxied-tool',
+        description: 'Reached through the SettleGrid proxy',
+        status: 'active',
+        listedInMarketplace: true,
+        proxyEndpoint: 'https://upstream.example.com/v1',
+        pricingConfig: { defaultCostCents: 5 },
+        developerName: 'Dev',
+      },
+    ])
+
+    const res = await getPublic(
+      makeRequest('/api/tools/public/proxied-tool'),
+      { params: Promise.resolve({ slug: 'proxied-tool' }) }
+    )
+    const data = await res.json()
+
+    expect(data.data.hasProxyEndpoint).toBe(true)
+    expect(JSON.stringify(data)).not.toContain('upstream.example.com')
+  })
+
   it('serializes status + listedInMarketplace so the detail page can render the right variant', async () => {
     mockDb.limit.mockResolvedValueOnce([
       {

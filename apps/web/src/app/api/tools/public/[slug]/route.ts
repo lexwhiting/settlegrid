@@ -37,6 +37,7 @@ export async function GET(
         status: tools.status,
         listedInMarketplace: tools.listedInMarketplace,
         sourceEcosystem: tools.sourceEcosystem,
+        proxyEndpoint: tools.proxyEndpoint,
         currentVersion: tools.currentVersion,
         pricingConfig: tools.pricingConfig,
         developerName: developers.name,
@@ -119,6 +120,9 @@ export async function GET(
         // Distinguishes a claimed directory listing from a developer's own
         // unpublished draft, so the page only says "Claimed" when true.
         claimedListing: isClaimedDraft(tool.status, tool.sourceEcosystem),
+        // Only whether the tool is reachable through the SettleGrid proxy;
+        // the upstream URL itself is not exposed.
+        hasProxyEndpoint: !!tool.proxyEndpoint,
         currentVersion: tool.currentVersion,
         pricingConfig: tool.pricingConfig ?? { defaultCostCents: 0 },
         developerName: tool.developerName ?? 'Anonymous',

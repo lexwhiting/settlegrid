@@ -50,6 +50,8 @@ interface ToolData {
   listedInMarketplace?: boolean
   /** True only for a draft that came from claiming a directory listing. */
   claimedListing?: boolean
+  /** True when calls are made through the SettleGrid proxy at /api/proxy/{slug}. */
+  hasProxyEndpoint?: boolean
   currentVersion: string
   pricingConfig: {
     model?: string
@@ -572,12 +574,21 @@ export default async function ToolStorefrontPage({
                     <p><strong className="text-gray-900 dark:text-gray-200">1. Listing not yet claimed</strong> — Purchases aren&apos;t available for unclaimed listings. If you maintain this tool, <Link href="/register" className="text-brand hover:underline">claim your listing</Link> to enable monetization.</p>
                   )}
                   <p><strong className="text-gray-900 dark:text-gray-200">2. Get your API key</strong> — After purchasing, go to your <Link href="/consumer" className="text-brand hover:underline">Consumer Dashboard</Link> to generate an API key.</p>
-                  <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — The developer hosts this tool on their own server. Use your API key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header when calling their endpoint. SettleGrid handles metering and billing automatically.</p>
+                  {tool.hasProxyEndpoint ? (
+                    <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — Calls go through the SettleGrid proxy, which checks your API key, meters the call and forwards it to the developer&apos;s service. Send your key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header.</p>
+                  ) : (
+                    <p><strong className="text-gray-900 dark:text-gray-200">3. Call the tool</strong> — The developer hosts this tool on their own server. Use your API key in the <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">x-api-key</code> header when calling their endpoint. SettleGrid handles metering and billing automatically.</p>
+                  )}
                 </div>
                 <CopyableCodeBlock
                   className="!my-0 mt-4"
                   title="Example"
-                  code={`# Replace with the developer's actual tool endpoint
+                  code={tool.hasProxyEndpoint
+                    ? `curl -X POST https://settlegrid.ai/api/proxy/${tool.slug} \\
+  -H "x-api-key: sg_live_your_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "your input here"}'`
+                    : `# Replace with the developer's actual tool endpoint
 curl -X POST https://developer-tool-server.com/api/${tool.slug} \\
   -H "x-api-key: sg_live_your_key_here" \\
   -H "Content-Type: application/json" \\
