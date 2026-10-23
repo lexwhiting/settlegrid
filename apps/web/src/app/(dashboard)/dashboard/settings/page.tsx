@@ -31,6 +31,15 @@ import {
 } from '@/lib/notification-events'
 import { getProgressiveTakeDescription } from '@/lib/pricing'
 import { getEffectiveTier } from '@/lib/tier-config'
+import {
+  LOG_RETENTION_OPTIONS,
+  WEBHOOK_LOG_RETENTION_OPTIONS,
+  AUDIT_LOG_RETENTION_OPTIONS,
+  DEFAULT_LOG_RETENTION_DAYS,
+  DEFAULT_WEBHOOK_LOG_RETENTION_DAYS,
+  DEFAULT_AUDIT_LOG_RETENTION_DAYS,
+  toRetentionOption,
+} from '@/lib/retention-options'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -365,9 +374,9 @@ export default function SettingsPage() {
   const [deletingAccount, setDeletingAccount] = useState(false)
 
   // Data retention state
-  const [logRetentionDays, setLogRetentionDays] = useState(90)
-  const [webhookLogRetentionDays, setWebhookLogRetentionDays] = useState(30)
-  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(365)
+  const [logRetentionDays, setLogRetentionDays] = useState(DEFAULT_LOG_RETENTION_DAYS)
+  const [webhookLogRetentionDays, setWebhookLogRetentionDays] = useState(DEFAULT_WEBHOOK_LOG_RETENTION_DAYS)
+  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(DEFAULT_AUDIT_LOG_RETENTION_DAYS)
   const [savingRetention, setSavingRetention] = useState(false)
 
   // Marketing communications toggle
@@ -411,9 +420,9 @@ export default function SettingsPage() {
       setPublicProfile(dev.publicProfile)
       setPayoutSchedule(dev.payoutSchedule)
       setPayoutMinimumDollars(String(dev.payoutMinimumCents / 100))
-      setLogRetentionDays(dev.logRetentionDays ?? 90)
-      setWebhookLogRetentionDays(dev.webhookLogRetentionDays ?? 30)
-      setAuditLogRetentionDays(dev.auditLogRetentionDays ?? 365)
+      setLogRetentionDays(toRetentionOption(dev.logRetentionDays, LOG_RETENTION_OPTIONS, DEFAULT_LOG_RETENTION_DAYS))
+      setWebhookLogRetentionDays(toRetentionOption(dev.webhookLogRetentionDays, WEBHOOK_LOG_RETENTION_OPTIONS, DEFAULT_WEBHOOK_LOG_RETENTION_DAYS))
+      setAuditLogRetentionDays(toRetentionOption(dev.auditLogRetentionDays, AUDIT_LOG_RETENTION_OPTIONS, DEFAULT_AUDIT_LOG_RETENTION_DAYS))
 
       // Load saved notification preferences
       try {
@@ -2009,9 +2018,9 @@ export default function SettingsPage() {
                         onChange={(e) => setWebhookLogRetentionDays(Number(e.target.value))}
                         className="w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                       >
-                        <option value={7}>7 days</option>
+                        <option value={7}>7 days (default)</option>
                         <option value={14}>14 days</option>
-                        <option value={30}>30 days (default)</option>
+                        <option value={30}>30 days</option>
                         <option value={60}>60 days</option>
                         <option value={90}>90 days</option>
                       </select>
@@ -2027,9 +2036,9 @@ export default function SettingsPage() {
                         onChange={(e) => setAuditLogRetentionDays(Number(e.target.value))}
                         className="w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                       >
-                        <option value={90}>90 days (minimum)</option>
+                        <option value={90}>90 days (default, minimum)</option>
                         <option value={180}>180 days</option>
-                        <option value={365}>365 days (default)</option>
+                        <option value={365}>365 days</option>
                         <option value={730}>730 days</option>
                       </select>
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">How long to keep audit trail records</p>
