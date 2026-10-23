@@ -7,6 +7,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { SocialShare } from '@/components/ui/social-share'
 import { BuyCreditsButton } from '@/components/storefront/buy-credits-button'
 import { ReviewForm } from '@/components/storefront/review-form'
+import { HeaderAuthLinks } from '@/components/storefront/header-auth-links'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -336,12 +337,7 @@ export default async function ToolStorefrontPage({
             <Link href="/tools" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100 transition-colors">
               Showcase
             </Link>
-            <Link href="/login" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-indigo dark:text-gray-100">
-              Log in
-            </Link>
-            <Link href="/register" className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-dark">
-              Sign up
-            </Link>
+            <HeaderAuthLinks />
           </div>
         </nav>
       </header>
