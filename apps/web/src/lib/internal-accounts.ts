@@ -55,6 +55,12 @@ export function isInternalEmail(email: string | null | undefined): boolean {
   const at = e.lastIndexOf('@')
   if (at === -1) return false
   const domain = e.slice(at + 1)
+  // Gmail '+' aliases of a listed internal address (e.g. smoke-test accounts)
+  // deliver to the same inbox, so they are internal too.
+  if (domain === 'gmail.com') {
+    const plus = e.indexOf('+')
+    if (plus > 0 && plus < at && INTERNAL_EMAIL_SET.has(`${e.slice(0, plus)}@${domain}`)) return true
+  }
   return (INTERNAL_EMAIL_DOMAINS as readonly string[]).includes(domain)
 }
 
