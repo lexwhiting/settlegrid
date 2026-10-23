@@ -30,7 +30,7 @@ The table below compares the five approaches across the features that matter mos
 
 SettleGrid is purpose-built for MCP tool monetization. The `@settlegrid/mcp` SDK adds native MCP billing with a single `sg.wrap()` call, and the hosted Smart Proxy brokers payments across 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments) with detection adapters for 2 more (L402 on Bitcoin Lightning, Skyfire's KYAPay) and tracks 3 emerging rails (Alipay's ACTP, EMVCo agent payments, Bittensor DRAIN). It also supports six pricing models and includes a built-in discovery marketplace.
 
-Setup takes under 5 minutes: install the SDK, configure pricing, wrap your handler, deploy. The free tier includes 50,000 operations per month with a progressive take rate (0% on your first $1K/mo of revenue). Paid tiers (Builder $19/mo, Scale $79/mo) add features like sandbox mode, IP allowlisting, fraud detection, and team seats.
+Setup takes under 5 minutes: install the SDK, configure pricing, wrap your handler, deploy. The free tier includes 50,000 operations per month with a progressive take rate (0% on your first $1K/mo of revenue). Paid tiers (Builder $19/mo, Scale $79/mo) add features like IP allowlisting, fraud detection, and team seats.
 
 The key differentiator is the combination of billing and discovery. When you publish a tool on SettleGrid, it becomes discoverable by AI agents through the Discovery API, the MCP Discovery Server, and the explore marketplace. Other billing solutions handle payments but leave discovery entirely to you.
 

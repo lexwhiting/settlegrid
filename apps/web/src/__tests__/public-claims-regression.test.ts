@@ -41,3 +41,39 @@ describe('Docs API reference', () => {
     expect(DOCS_PAGE_TSX).not.toContain('/api/auth/developer/login')
   })
 })
+
+// ─── No test-key / sandbox-mode claims ──────────────────────────────────────
+
+// Consumer keys are always issued with the sg_live_ prefix; there is no way
+// to create an sg_test_ key, so public copy must not offer one.
+const PUBLIC_COPY_FILES = [
+  'README.md',
+  'apps/web/public/llms.txt',
+  'apps/web/public/llms-full.txt',
+  'apps/web/public/.well-known/mcp.json',
+  'apps/web/src/app/page.tsx',
+  'apps/web/src/app/about/page.tsx',
+  'apps/web/src/app/docs/page.tsx',
+  'apps/web/src/app/faq/page.tsx',
+  'apps/web/src/app/pricing/page.tsx',
+  'apps/web/src/app/terms/page.tsx',
+  'apps/web/src/app/learn/handbook/page.tsx',
+  'apps/web/src/app/api/chat/route.ts',
+  'apps/web/src/components/marketing/pricing-section.tsx',
+  'apps/web/src/lib/blog-posts.ts',
+  'apps/web/src/lib/blog-bodies/mcp-server-free-tier-usage-limits.md',
+  'apps/web/src/lib/blog-bodies/mcp-server-payment-retry-logic.md',
+  'apps/web/src/lib/blog-bodies/mcp-billing-comparison-2026.md',
+  'apps/web/src/lib/blog-bodies/erc-8004-trustless-agent-identity.md',
+].map((rel) => ({ name: rel, text: repoFile(rel) }))
+
+describe('no test-key or sandbox-mode claims', () => {
+  it.each(PUBLIC_COPY_FILES)("'$name' does not mention sg_test_ keys", ({ text }) => {
+    expect(text).not.toContain('sg_test_')
+  })
+
+  it.each(PUBLIC_COPY_FILES)("'$name' does not offer a sandbox/test mode", ({ text }) => {
+    expect(text).not.toMatch(/sandbox[- ]mode/i)
+    expect(text).not.toMatch(/test[- ]mode transactions/i)
+  })
+})

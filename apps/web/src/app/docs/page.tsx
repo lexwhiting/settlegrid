@@ -80,7 +80,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I test my integration before going live?',
-      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics and responses include the X-SettleGrid-Mode: sandbox header. Available on Builder tier and above.',
+      a: 'Initialize the SDK with debug: true for debug logging and synchronous metering, then call your tool with your own consumer API key (prefixed sg_live_) and a small credit balance. Each invocation appears in your dashboard, so you can verify metering end-to-end before sharing the tool.',
     },
     {
       q: 'Can I attach custom metadata to invocations?',
@@ -517,7 +517,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'How do I create an API key?',
-      a: 'Navigate to a tool\'s storefront page and click "Generate API Key." The full key (prefixed sg_live_ or sg_test_) is shown once at creation time — copy and store it securely. You can manage all your keys from the Consumer Dashboard.',
+      a: 'Navigate to a tool\'s storefront page and click "Generate API Key." The full key (prefixed sg_live_) is shown once at creation time — copy and store it securely. You can manage all your keys from the Consumer Dashboard.',
     },
     {
       q: 'How do I add IP restrictions to my API key?',
@@ -579,7 +579,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What plans are available?',
-      a: 'Three plans: Free ($0 forever, unlimited tools, 50K ops/month), Builder ($19/month, 200K ops/month, sandbox mode, IP allowlisting), and Scale ($79/month, 2M ops/month, fraud detection, priority support). All plans use progressive take rates: 0% on first $1K/mo, scaling to 5% at $50K+. Need higher limits? Email support@settlegrid.ai.',
+      a: 'Three plans: Free ($0 forever, unlimited tools, 50K ops/month), Builder ($19/month, 200K ops/month, IP allowlisting), and Scale ($79/month, 2M ops/month, fraud detection, priority support). All plans use progressive take rates: 0% on first $1K/mo, scaling to 5% at $50K+. Need higher limits? Email support@settlegrid.ai.',
     },
     {
       q: 'Are there overage charges?',
@@ -591,7 +591,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Which features require a paid plan?',
-      a: 'Sandbox mode, IP allowlisting, CSV export, and referral system require Builder ($19/mo) or above. Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the showcase are available on all plans.',
+      a: 'IP allowlisting, CSV export, and referral system require Builder ($19/mo) or above. Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the showcase are available on all plans.',
     },
   ],
 },
@@ -670,7 +670,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Nevermined?',
-      a: 'Nevermined focuses on DeFi/on-chain AI payments. SettleGrid supports fiat (Stripe Connect) today — with platform crypto (x402) settlement into one unified ledger in development, while its standalone x402 facilitator already verifies and settles on Base — and adds per-method pricing, IP allowlisting, fraud detection, sandbox mode, and Stripe Connect payouts that Nevermined lacks.',
+      a: 'Nevermined focuses on DeFi/on-chain AI payments. SettleGrid supports fiat (Stripe Connect) today — with platform crypto (x402) settlement into one unified ledger in development, while its standalone x402 facilitator already verifies and settles on Base — and adds per-method pricing, IP allowlisting, fraud detection, and Stripe Connect payouts that Nevermined lacks.',
     },
     {
       q: 'Can I use SettleGrid with Stripe?',
@@ -932,9 +932,9 @@ app.post('/api/search', settlegridMiddleware({
                   <h3 className="text-xl font-semibold text-gray-100">Test &amp; Go Live</h3>
                 </div>
                 <div className="ml-11 text-gray-400 space-y-3 text-sm leading-relaxed">
-                  <p>Create a test API key in your dashboard, then make a test invocation:</p>
+                  <p>Create an API key in your dashboard, then make a test invocation:</p>
                   <CopyableCodeBlock title="Terminal" code={`curl -X POST https://your-server.com/api/search \\
-  -H "x-api-key: sg_test_your_key_here" \\
+  -H "x-api-key: sg_live_your_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{"query": "test"}'`} />
                   <ul className="list-disc list-inside space-y-1 mt-2">

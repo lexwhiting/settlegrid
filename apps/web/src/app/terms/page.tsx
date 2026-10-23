@@ -123,10 +123,6 @@ export default function TermsPage() {
                   You must not reverse-engineer, decompile, or attempt to extract the source code of
                   the Service (except as permitted by law).
                 </li>
-                <li>
-                  Sandbox mode is provided for testing only. Test-mode transactions do not incur real
-                  charges and must not be used for production workloads.
-                </li>
               </ul>
             </Section>
 

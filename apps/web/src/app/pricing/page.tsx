@@ -76,7 +76,7 @@ const jsonLdProduct = {
       availability: 'https://schema.org/InStock',
       priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' },
       description:
-        '200,000 operations/month, sandbox mode, Slack/Discord notifications, health alerts, benchmarking, revenue forecasting, priority listing, white-label widget.',
+        '200,000 operations/month, Slack/Discord notifications, health alerts, benchmarking, revenue forecasting, priority listing, white-label widget.',
     },
     {
       '@type': 'Offer',
@@ -134,7 +134,6 @@ const plans = [
     features: [
       'Everything in Free',
       '200,000 operations/month',
-      'Sandbox mode (test keys)',
       'Slack & Discord notifications',
       'Health alerts for your tools',
       'Category benchmarking',
@@ -192,7 +191,7 @@ const faqs = [
   },
   {
     q: 'When should I upgrade to Builder or Scale?',
-    a: 'Upgrade when you hit the operation limit on your current plan. Builder gives you 200K ops/month and sandbox mode for $19/mo. Scale gives you 2M ops/month and fraud detection for $79/mo. The progressive take rate is the same across all plans.',
+    a: 'Upgrade when you hit the operation limit on your current plan. Builder gives you 200K ops/month and Slack & Discord notifications for $19/mo. Scale gives you 2M ops/month and fraud detection for $79/mo. The progressive take rate is the same across all plans.',
   },
   {
     q: 'How does SettleGrid compare to a 15% flat take rate?',

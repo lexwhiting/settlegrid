@@ -55,7 +55,7 @@ const jsonLd = {
       price: '19',
       priceCurrency: 'USD',
       availability: 'https://schema.org/InStock',
-      description: '200,000 operations/month, sandbox mode, Slack alerts, benchmarking.',
+      description: '200,000 operations/month, Slack alerts, benchmarking.',
     },
     {
       '@type': 'Offer',

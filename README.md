@@ -143,7 +143,6 @@ ACTP (Alipay's Agentic Commerce Trust Protocol) &middot; EMVCo agent payments &m
 - IP allowlisting (CIDR support)
 - HMAC-SHA256 webhook signatures
 - Audit logging with CSV export (SOC 2 ready)
-- Sandbox/test mode
 
 **Developer Experience**
 - `sg.wrap()` — one function, any handler

@@ -75,7 +75,7 @@ const values = [
   {
     title: 'Developer-First',
     description:
-      '2 lines of code to start billing. TypeScript SDK, comprehensive docs, sandbox mode, and a free tier that never expires. We build for developers, not procurement departments.',
+      '2 lines of code to start billing. TypeScript SDK, comprehensive docs, and a free tier that never expires. We build for developers, not procurement departments.',
   },
   {
     title: 'Protocol-Agnostic',

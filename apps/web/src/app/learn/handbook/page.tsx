@@ -436,18 +436,18 @@ export async function POST(request: Request) {
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-gray-100 mb-3">3. Test in Sandbox Mode</h3>
+              <h3 className="text-xl font-bold text-gray-100 mb-3">3. Test Your Integration</h3>
               <p className="text-gray-300 leading-relaxed">
-                SettleGrid supports sandbox mode with test API keys (prefixed <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">sg_test_</code>).
-                Test keys meter usage without real charges. Verify your integration
-                works end-to-end before going live.
+                Initialize the SDK with <code className="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-xs">debug: true</code> for
+                synchronous metering, then call your tool with your own API key and a small credit balance.
+                Verify your integration works end-to-end before going live.
               </p>
             </div>
 
             <div>
               <h3 className="text-xl font-bold text-gray-100 mb-3">4. Go Live</h3>
               <p className="text-gray-300 leading-relaxed">
-                Switch from test keys to live keys. Connect your Stripe account for payouts.
+                Connect your Stripe account for payouts.
                 Your tool is now earning revenue on every call.
               </p>
             </div>

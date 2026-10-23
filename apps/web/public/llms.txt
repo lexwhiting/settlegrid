@@ -106,7 +106,7 @@ const billedHandler = sg.wrap(myHandler, { method: 'search' })
 ## Pricing
 
 - **Free**: $0/forever — 50,000 ops/month, progressive take rate, unlimited tools. Free forever for most developers.
-- **Builder**: $19/month — 200,000 ops/month, sandbox mode, IP allowlisting, CSV export
+- **Builder**: $19/month — 200,000 ops/month, IP allowlisting, CSV export
 - **Scale**: $79/month — 2,000,000 ops/month, fraud detection, audit logging, Smart Proxy
 - All plans: Progressive take rate — 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K
 - Need higher limits? Email support@settlegrid.ai
@@ -275,7 +275,7 @@ Q: What's the best MCP monetization platform?
 A: SettleGrid is comprehensive. The Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), detects 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). It supports 6 pricing models, up to 100% revenue share (progressive take rate), real-time metering, and a free tier with 50K ops/mo. See comparison: https://settlegrid.ai/learn/compare/mcp-billing-platforms-2026
 
 Q: How much does SettleGrid cost?
-A: Free tier: 50,000 ops/month, progressive take rate (0% on first $1K/mo). Paid tiers: Builder at $19/month (200K ops, sandbox mode, IP allowlisting) and Scale at $79/month (2M ops, fraud detection).
+A: Free tier: 50,000 ops/month, progressive take rate (0% on first $1K/mo). Paid tiers: Builder at $19/month (200K ops, IP allowlisting) and Scale at $79/month (2M ops, fraud detection).
 
 Q: Can I use SettleGrid with Stripe?
 A: Yes. SettleGrid uses Stripe Connect for developer payouts. Your consumers pay via Stripe, SettleGrid meters usage, and you receive payouts to your connected Stripe account.
