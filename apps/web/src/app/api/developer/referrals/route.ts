@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db } from '@/lib/db'
-import { referrals, tools } from '@/lib/db/schema'
+import { referrals, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -48,7 +48,41 @@ export async function GET(request: NextRequest) {
       .where(eq(referrals.referrerId, auth.id))
       .limit(100)
 
-    return successResponse({ referrals: devReferrals })
+    // This month's commission per referral (same basis as
+    // /api/developer/referrals/[id]/earnings): attributed invocation cost × commissionPct
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const monthCostByCode = new Map<string, number>()
+    const codes = devReferrals.map((r) => r.referralCode)
+    if (codes.length > 0) {
+      const monthRows = await db
+        .select({
+          referralCode: invocations.referralCode,
+          totalCostCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
+        })
+        .from(invocations)
+        .where(
+          and(
+            inArray(invocations.referralCode, codes),
+            sql`${invocations.createdAt} >= ${startOfMonth}`
+          )
+        )
+        .groupBy(invocations.referralCode)
+      for (const row of monthRows) {
+        if (row.referralCode) monthCostByCode.set(row.referralCode, Number(row.totalCostCents) || 0)
+      }
+    }
+
+    return successResponse({
+      referrals: devReferrals.map((r) => ({
+        ...r,
+        earnedThisMonthCents: Math.floor(
+          (monthCostByCode.get(r.referralCode) ?? 0) * r.commissionPct / 100
+        ),
+      })),
+    })
   } catch (error) {
     return internalErrorResponse(error)
   }

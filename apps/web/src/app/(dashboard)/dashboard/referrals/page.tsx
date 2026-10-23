@@ -16,6 +16,8 @@ interface Referral {
   referralCode: string
   commissionPct: number
   totalEarnedCents: number
+  /** Commission on invocations attributed this calendar month */
+  earnedThisMonthCents?: number
   status: string
   createdAt: string
 }
@@ -142,12 +144,9 @@ export default function ReferralsPage() {
   const activeReferrals = referrals.filter((r) => r.status === 'active').length
   const totalEarnings = referrals.reduce((sum, r) => sum + r.totalEarnedCents, 0)
 
-  // This month earnings (approximate: referrals created this month)
-  const now = new Date()
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const thisMonthEarnings = referrals
-    .filter((r) => new Date(r.createdAt) >= thisMonthStart)
-    .reduce((sum, r) => sum + r.totalEarnedCents, 0)
+  // This month's earnings across all referrals
+  const thisMonthEarnings = referrals.reduce((sum, r) => sum + (r.earnedThisMonthCents ?? 0), 0)
+  const thisMonthName = new Date().toLocaleString('en-US', { month: 'long' })
 
   if (loading) {
     return (
@@ -265,7 +264,7 @@ export default function ReferralsPage() {
         <StatCard title="Total Referrals" value={String(totalReferrals)} subtitle="All-time created" />
         <StatCard title="Active Referrals" value={String(activeReferrals)} subtitle="Currently earning" />
         <StatCard title="Total Earnings" value={formatCents(totalEarnings)} subtitle="All-time commissions" />
-        <StatCard title="This Month" value={formatCents(thisMonthEarnings)} subtitle="March earnings" />
+        <StatCard title="This Month" value={formatCents(thisMonthEarnings)} subtitle={`${thisMonthName} earnings`} />
       </div>
 
       {/* Create Referral Form */}

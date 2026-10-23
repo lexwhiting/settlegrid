@@ -14,6 +14,7 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit } = vi.hoisted(() => {
     update: vi.fn(),
     set: vi.fn(),
     orderBy: vi.fn(),
+    groupBy: vi.fn(),
   }
   for (const key of Object.keys(mockDb)) {
     (mockDb as Record<string, ReturnType<typeof vi.fn>>)[key].mockReturnValue(mockDb)
@@ -36,6 +37,7 @@ vi.mock('@/lib/rate-limit', () => ({ apiLimiter: {}, checkRateLimit: mockCheckRa
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
+  inArray: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ inArray: [a, b] })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({ sql: strings, values })),
     { raw: vi.fn() }
@@ -78,10 +80,33 @@ describe('R17: Referrals', () => {
       mockDb.limit.mockResolvedValueOnce([
         { id: 'ref-1', referredToolId: 'tool-1', toolName: 'Tool One', toolSlug: 'tool-one', referralCode: 'ref_abc', commissionPct: 10, totalEarnedCents: 500, status: 'active', createdAt: '2026-03-10' },
       ])
+      mockDb.groupBy.mockResolvedValueOnce([])
       const res = await listReferrals(makeGet('/api/developer/referrals'))
       const data = await res.json()
       expect(res.status).toBe(200)
       expect(data.referrals).toHaveLength(1)
+    })
+
+    it('adds this month\'s commission per referral', async () => {
+      mockDb.limit.mockResolvedValueOnce([
+        { id: 'ref-1', referredToolId: 'tool-1', toolName: 'Tool One', toolSlug: 'tool-one', referralCode: 'ref_abc', commissionPct: 10, totalEarnedCents: 5000, status: 'active', createdAt: '2025-01-10' },
+        { id: 'ref-2', referredToolId: 'tool-2', toolName: 'Tool Two', toolSlug: 'tool-two', referralCode: 'ref_def', commissionPct: 20, totalEarnedCents: 900, status: 'active', createdAt: '2025-02-10' },
+      ])
+      mockDb.groupBy.mockResolvedValueOnce([{ referralCode: 'ref_abc', totalCostCents: 1234 }])
+      const res = await listReferrals(makeGet('/api/developer/referrals'))
+      const data = await res.json()
+      expect(res.status).toBe(200)
+      expect(data.referrals[0].earnedThisMonthCents).toBe(123)
+      expect(data.referrals[1].earnedThisMonthCents).toBe(0)
+    })
+
+    it('skips the monthly query when there are no referrals', async () => {
+      mockDb.limit.mockResolvedValueOnce([])
+      const res = await listReferrals(makeGet('/api/developer/referrals'))
+      const data = await res.json()
+      expect(res.status).toBe(200)
+      expect(data.referrals).toEqual([])
+      expect(mockDb.groupBy).not.toHaveBeenCalled()
     })
 
     it('returns 401 when not authenticated', async () => {
