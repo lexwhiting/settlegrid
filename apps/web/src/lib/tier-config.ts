@@ -48,6 +48,16 @@ export function getTierConfig(tier: string) {
   return TIER_LIMITS[normalized as PlanTier] ?? TIER_LIMITS.free
 }
 
+/**
+ * The plan a developer effectively has. Founding members get Scale for life,
+ * whatever their stored `tier` (which stays at its default); a higher stored
+ * tier (enterprise) is kept.
+ */
+export function getEffectiveTier(tier: string, isFoundingMember?: boolean | null): string {
+  if (!isFoundingMember) return tier
+  return tier.toLowerCase() === 'enterprise' ? tier : 'scale'
+}
+
 export function hasFeature(tier: string, feature: Feature, isFoundingMember?: boolean): boolean {
   if (isFoundingMember) return true // Founding members get Scale features
   const config = getTierConfig(tier)

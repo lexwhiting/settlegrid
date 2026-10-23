@@ -140,6 +140,22 @@ describe('GET /api/auth/developer/me — extended fields', () => {
     expect(data.developer.publicBio).toBe('Hi there')
   })
 
+  it('returns isFoundingMember so settings can show the effective plan', async () => {
+    mockDb.limit.mockResolvedValueOnce([{
+      id: 'dev-123',
+      email: 'dev@example.com',
+      tier: 'free',
+      isFoundingMember: true,
+    }])
+
+    const response = await getMe(makeRequest('/api/auth/developer/me'))
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockDb.select.mock.calls[0][0]).toHaveProperty('isFoundingMember')
+    expect(data.developer.isFoundingMember).toBe(true)
+  })
+
   it('returns 401 when not authenticated', async () => {
     mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required.'))
     const request = makeRequest('/api/auth/developer/me')

@@ -10,7 +10,7 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
 import { WEBHOOK_EVENT_NAMES, parseWebhookEvents } from '@/lib/webhook-events'
-import { getTierConfig } from '@/lib/tier-config'
+import { getTierConfig, getEffectiveTier } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       .where(eq(developers.id, auth.id))
       .limit(1)
 
-    const effectiveTier = dev?.isFoundingMember ? 'scale' : (dev?.tier ?? 'free')
+    const effectiveTier = getEffectiveTier(dev?.tier ?? 'free', dev?.isFoundingMember)
     const tierConfig = getTierConfig(effectiveTier)
     const maxEndpoints = tierConfig.maxWebhookEndpoints
 

@@ -30,6 +30,7 @@ import {
   type NotificationEventDef,
 } from '@/lib/notification-events'
 import { getProgressiveTakeDescription } from '@/lib/pricing'
+import { getEffectiveTier } from '@/lib/tier-config'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ interface DeveloperProfile {
   name: string | null
   slug: string | null
   tier: string
+  isFoundingMember?: boolean
   stripeConnectStatus: string
   stripeSubscriptionId: string | null
   balanceCents: number
@@ -1081,7 +1083,9 @@ export default function SettingsPage() {
 
   // ─── Derived Values ─────────────────────────────────────────────────────────
 
-  const rawTier = profile?.tier ?? 'free'
+  const isFoundingMember = profile?.isFoundingMember === true
+  // Founding members have Scale for life; their stored tier stays at the default.
+  const rawTier = getEffectiveTier(profile?.tier ?? 'free', isFoundingMember)
   const currentPlanKey = rawTier === 'enterprise' ? 'enterprise' : normalizePlanKey(rawTier)
   const currentPlanIndex = PLAN_ORDER.indexOf(currentPlanKey === 'standard' ? 'free' : currentPlanKey)
   const notificationCategories = ['billing', 'tools', 'security', 'webhooks'] as const
@@ -1300,6 +1304,9 @@ export default function SettingsPage() {
                       <Badge variant={currentPlanKey === 'enterprise' ? 'default' : 'secondary'}>
                         {currentPlanKey === 'standard' ? 'Free' : currentPlanKey.charAt(0).toUpperCase() + currentPlanKey.slice(1)}
                       </Badge>
+                      {isFoundingMember && (
+                        <Badge variant="outline" className="ml-2">Founding Member (lifetime)</Badge>
+                      )}
                     </dd>
                   </div>
                   <div>
@@ -1828,6 +1835,9 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-3 mb-3">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Plan:</span>
                         <Badge variant="default">{plan?.name ?? 'Free'}</Badge>
+                        {isFoundingMember && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Included with Founding Member, for life</span>
+                        )}
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
@@ -1879,6 +1889,10 @@ export default function SettingsPage() {
                         </ul>
                         {isCurrent ? (
                           <Badge variant="outline" className="w-full justify-center">Current Plan</Badge>
+                        ) : isFoundingMember ? (
+                          <Button size="sm" variant="ghost" className="w-full" disabled>
+                            Included with Founding Member
+                          </Button>
                         ) : isUpgrade && isPaidPlan ? (
                           profile?.stripeSubscriptionId ? (
                             /* Has subscription — use change-plan API for instant upgrade */

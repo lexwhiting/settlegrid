@@ -163,16 +163,18 @@ const tieredLimiterCache = new Map<string, Ratelimit>()
  * @param identifier - Unique identifier (e.g. IP, API key, consumer ID)
  * @param tier - The plan tier of the user
  * @param type - 'api' or 'sdk'
+ * @param isFoundingMember - Founding Members get Scale-tier limits
  * @returns Rate limit result
  */
 export async function checkTieredRateLimit(
   identifier: string,
   tier: string,
-  type: 'api' | 'sdk'
+  type: 'api' | 'sdk',
+  isFoundingMember?: boolean | null
 ): Promise<RateLimitResult> {
-  const limits = getTierLimits(tier)
+  const limits = getTierLimits(tier, isFoundingMember ?? undefined)
   const requestsPerMin = type === 'sdk' ? limits.sdk : limits.api
-  const cacheKey = `${tier}:${type}`
+  const cacheKey = `${isFoundingMember ? 'scale' : tier}:${type}`
 
   let limiter = tieredLimiterCache.get(cacheKey)
   if (!limiter) {

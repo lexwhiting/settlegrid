@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         name: developers.name,
         slug: developers.slug,
         tier: developers.tier,
+        isFoundingMember: developers.isFoundingMember,
         stripeConnectStatus: developers.stripeConnectStatus,
         stripeSubscriptionId: developers.stripeSubscriptionId,
         balanceCents: developers.balanceCents,
