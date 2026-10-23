@@ -165,6 +165,21 @@ describe('PUT /api/tools/publish — producer-audit #8 quality gate', () => {
     expect(mockValidate).toHaveBeenCalledWith('tool-new', 'dev-123')
   })
 
+  it('CREATE: inserts the draft hidden from the marketplace', async () => {
+    mockAuth()
+    mockDb.limit.mockResolvedValueOnce([])
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'tool-new', slug: 'my-tool', name: 'My Tool', status: 'draft', currentVersion: '1.0.0', createdAt: new Date(), updatedAt: new Date() },
+    ])
+    mockValidate.mockResolvedValueOnce({ passed: false, failures: ['A category must be selected'] })
+
+    await PUT(makeRequest())
+
+    expect(mockDb.values).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'draft', listedInMarketplace: false })
+    )
+  })
+
   it('CREATE: stays at status="draft" and returns 422 when the gate fails', async () => {
     mockAuth()
     mockDb.limit.mockResolvedValueOnce([])

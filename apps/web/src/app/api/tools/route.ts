@@ -237,6 +237,9 @@ export async function POST(request: NextRequest) {
         pricingConfig: body.pricingConfig,
         healthEndpoint: body.healthEndpoint ?? null,
         currentVersion: body.currentVersion ?? '1.0.0',
+        // New drafts stay out of the public marketplace until activated.
+        // The column default (true) exists for the claim flow only.
+        listedInMarketplace: false,
       })
       .returning({
         id: tools.id,

@@ -179,6 +179,20 @@ describe('Create Tool (POST /api/tools)', () => {
     expect(data.tool).toBeDefined()
   })
 
+  it('inserts new dashboard tools hidden from the marketplace', async () => {
+    const request = makeRequest('/api/tools', 'POST', {
+      name: 'Test Tool',
+      slug: 'test-tool',
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(201)
+    expect(mockDb.values).toHaveBeenCalledWith(
+      expect.objectContaining({ listedInMarketplace: false })
+    )
+  })
+
   it('returns 409 for duplicate slug', async () => {
     mockDb.limit.mockResolvedValueOnce([{ id: 'existing-tool' }])
 
@@ -440,6 +454,46 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     expect(response.status).toBe(200)
     expect(data.data.status).toBe('draft')
     expect(data.data.listedInMarketplace).toBe(true)
+  })
+
+  it('marks a draft as a claimed listing only when it came from the directory', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-c',
+        name: 'Claimed Draft',
+        slug: 'claimed-draft',
+        description: 'Claimed, pricing pending',
+        status: 'draft',
+        listedInMarketplace: true,
+        sourceEcosystem: 'mcp-registry',
+        pricingConfig: { defaultCostCents: 0 },
+        developerName: 'Dev',
+      },
+    ])
+    const claimedRes = await getPublic(
+      makeRequest('/api/tools/public/claimed-draft'),
+      { params: Promise.resolve({ slug: 'claimed-draft' }) }
+    )
+    expect((await claimedRes.json()).data.claimedListing).toBe(true)
+
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'tool-o',
+        name: 'Own Draft',
+        slug: 'own-draft',
+        description: 'Created from the dashboard',
+        status: 'draft',
+        listedInMarketplace: true,
+        sourceEcosystem: null,
+        pricingConfig: { defaultCostCents: 5 },
+        developerName: 'Dev',
+      },
+    ])
+    const ownRes = await getPublic(
+      makeRequest('/api/tools/public/own-draft'),
+      { params: Promise.resolve({ slug: 'own-draft' }) }
+    )
+    expect((await ownRes.json()).data.claimedListing).toBe(false)
   })
 
   it('serializes status + listedInMarketplace so the detail page can render the right variant', async () => {

@@ -47,6 +47,18 @@ export function shouldShowClaimedBadge(status: string): boolean {
 }
 
 /**
+ * Whether a draft tool is a claimed directory listing (as opposed to a draft
+ * the developer created from the dashboard, CLI or quick publish).
+ *
+ * Only crawled directory entries carry a `sourceEcosystem`; the claim flow
+ * keeps it when it moves the row from 'unclaimed' to 'draft'. Tools created
+ * by a developer never set it, so a draft without one was never claimed.
+ */
+export function isClaimedDraft(status: string, sourceEcosystem: string | null | undefined): boolean {
+  return status === 'draft' && !!sourceEcosystem
+}
+
+/**
  * Whether a marketplace tool card should render the "Unclaimed" badge.
  * True for shadow-directory entries (`status='unclaimed'`) that haven't
  * been claimed by a maintainer yet. Paired with `shouldShowClaimedBadge`

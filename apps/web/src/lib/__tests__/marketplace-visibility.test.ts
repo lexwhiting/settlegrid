@@ -5,6 +5,7 @@ import {
   shouldIncludeInMarketplace,
   shouldShowClaimedBadge,
   shouldShowUnclaimedBadge,
+  isClaimedDraft,
   canPurchaseCredits,
   listedInMarketplacePatchSchema,
   marketplaceInclusionSql,
@@ -246,6 +247,22 @@ describe('canPurchaseCredits — Buy Credits purchase gate', () => {
         ).toBe(true)
       }
     }
+  })
+})
+
+describe('isClaimedDraft — claimed listing vs developer-created draft', () => {
+  it('is true for a draft that came from a directory listing', () => {
+    expect(isClaimedDraft('draft', 'mcp-registry')).toBe(true)
+  })
+
+  it('is false for a draft created by the developer (no source ecosystem)', () => {
+    expect(isClaimedDraft('draft', null)).toBe(false)
+    expect(isClaimedDraft('draft', undefined)).toBe(false)
+  })
+
+  it('is false for non-draft statuses', () => {
+    expect(isClaimedDraft('active', 'mcp-registry')).toBe(false)
+    expect(isClaimedDraft('unclaimed', 'mcp-registry')).toBe(false)
   })
 })
 

@@ -352,6 +352,9 @@ export async function PUT(request: NextRequest) {
           currentVersion: body.version,
           healthEndpoint: body.healthEndpoint ?? null,
           status: 'draft',
+          // Hidden from the marketplace while it is a draft (the column
+          // default of true exists for the claim flow only).
+          listedInMarketplace: false,
         })
         .returning({
           id: tools.id,

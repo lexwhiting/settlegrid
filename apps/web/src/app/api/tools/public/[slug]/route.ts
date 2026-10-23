@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { tools, developers, toolReviews, toolChangelogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { marketplaceInclusionSql } from '@/lib/marketplace-visibility'
+import { marketplaceInclusionSql, isClaimedDraft } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 60
 
@@ -36,6 +36,7 @@ export async function GET(
         category: tools.category,
         status: tools.status,
         listedInMarketplace: tools.listedInMarketplace,
+        sourceEcosystem: tools.sourceEcosystem,
         currentVersion: tools.currentVersion,
         pricingConfig: tools.pricingConfig,
         developerName: developers.name,
@@ -115,6 +116,9 @@ export async function GET(
         // Without these fields the page would still show Buy Credits.
         status: tool.status,
         listedInMarketplace: tool.listedInMarketplace,
+        // Distinguishes a claimed directory listing from a developer's own
+        // unpublished draft, so the page only says "Claimed" when true.
+        claimedListing: isClaimedDraft(tool.status, tool.sourceEcosystem),
         currentVersion: tool.currentVersion,
         pricingConfig: tool.pricingConfig ?? { defaultCostCents: 0 },
         developerName: tool.developerName ?? 'Anonymous',

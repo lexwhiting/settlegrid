@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, desc, asc, ilike, or, sql, inArray, type SQL } from 'drizzle-orm'
+import { eq, and, desc, asc, ilike, or, sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews } from '@/lib/db/schema'
@@ -7,6 +7,7 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getEffectiveCostCents } from '@/lib/pricing-utils'
 import { logger } from '@/lib/logger'
+import { marketplaceInclusionSql } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 60
 
@@ -77,15 +78,9 @@ export async function GET(request: NextRequest) {
     //   - 'unclaimed' (indexed, discoverable) — always included
     //   - 'draft'    (claimed, not yet monetized) — included only if the
     //     developer opted in via tools.listedInMarketplace=true. Set true
-    //     by the claim flow; pre-P2.INTL2 drafts default to false via the
-    //     0001_listed_in_marketplace migration backfill.
-    // Canonical pure-function mirror: lib/marketplace-visibility.ts
-    const conditions: SQL[] = [
-      or(
-        inArray(tools.status, ['active', 'unclaimed']),
-        and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
-      )!,
-    ]
+    //     by the claim flow; dashboard/CLI drafts are inserted with false.
+    // Canonical predicate: lib/marketplace-visibility.ts
+    const conditions: SQL[] = [marketplaceInclusionSql()]
 
     if (category) {
       conditions.push(eq(tools.category, category))
