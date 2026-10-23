@@ -24,6 +24,9 @@ import { redirect } from 'next/navigation'
  * (https:// protocol check before trusting the env value).
  */
 
+// Read UPTIMEROBOT_STATUS_URL per request so changing it doesn't need a rebuild.
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Status — SettleGrid',
   description:

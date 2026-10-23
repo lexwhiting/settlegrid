@@ -134,7 +134,6 @@ ACTP (Alipay's Agentic Commerce Trust Protocol) &middot; EMVCo agent payments &m
 **Billing & Metering**
 - A single Redis balance check on the hot path, on every call
 - Budget enforcement — HTTP 402 when exceeded
-- Auto-refill credits via Stripe
 - Multi-hop settlement across agent chains — each hop settled as it completes
 
 **Security & Compliance**
@@ -143,7 +142,6 @@ ACTP (Alipay's Agentic Commerce Trust Protocol) &middot; EMVCo agent payments &m
 - IP allowlisting (CIDR support)
 - HMAC-SHA256 webhook signatures
 - Audit logging with CSV export (SOC 2 ready)
-- Sandbox/test mode
 
 **Developer Experience**
 - `sg.wrap()` — one function, any handler

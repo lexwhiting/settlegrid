@@ -366,9 +366,9 @@ Setting `debug: true` in non-production environments forces synchronous metering
 
 The `timeoutMs: 3000` setting is deliberately shorter than the SDK default of 5000ms. For a status-checking tool where the underlying call is fast, a 5-second billing timeout is longer than the tool response the agent expects. Tune this value to the p99 of your own tool's execution time.
 
-## Testing Your Retry Logic With debug Mode and sg_test_ Keys Before Going Live
+## Testing Your Retry Logic With debug Mode Before Going Live
 
-The `sg_test_*` key format connects to SettleGrid's test environment. Validation, credit checking, and metering all run, but no real money moves. This lets you exercise every error path — including `InsufficientCreditsError` — without affecting live balances.
+SettleGrid does not issue separate test keys: every consumer key uses the `sg_live_*` format, and validation, credit checking, and metering run exactly as in production. Test against your own consumer key with a small credit balance to exercise every error path — including `InsufficientCreditsError` — before real consumers do.
 
 For local development, the recommended configuration is:
 
@@ -582,15 +582,15 @@ export async function handleExpensiveAnalyze(
 
 The preflight check adds one round-trip to SettleGrid, but that round-trip is covered by the in-memory LRU cache (default TTL: 5 minutes, configurable via `cacheTtlMs`). If the agent called another method on the same key within the last five minutes, `validateKey()` returns the cached result with no network call. The latency cost in practice is close to zero for active consumers.
 
-### Testing each error path with sg_test_ keys
+### Testing each error path with your own key
 
-Use `sg_test_*` keys to exercise every branch of your error handler before going live. Create test keys with zero balance to trigger `InsufficientCreditsError`, use malformed strings to trigger `InvalidKeyError`, and use the SettleGrid dashboard to temporarily rate-limit a test key to exercise `RateLimitedError`.
+Use your own consumer key to exercise every branch of your error handler before going live. Use a key with no remaining credit balance to trigger `InsufficientCreditsError`, use malformed strings to trigger `InvalidKeyError`, and use the SettleGrid dashboard to temporarily rate-limit a key to exercise `RateLimitedError`.
 
 With `debug: true`, metering is synchronous — you can write assertions immediately after the handler returns:
 
 ```typescript
 // Example test sketch (using any test framework)
-const testApiKey = 'sg_test_emptywallet123'
+const testApiKey = 'sg_live_zero_balance_key'
 
 const result = await handleExpensiveAnalyze({ input: 'some data' }, testApiKey)
 

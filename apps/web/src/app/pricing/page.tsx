@@ -3,6 +3,12 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
+import {
+  revenueExamples,
+  savingsAtOneHundredThousand,
+  takeOnTenThousand,
+  takeRateBrackets,
+} from '@/lib/pricing-examples'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -70,7 +76,7 @@ const jsonLdProduct = {
       availability: 'https://schema.org/InStock',
       priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' },
       description:
-        '200,000 operations/month, sandbox mode, Slack/Discord notifications, health alerts, benchmarking, revenue forecasting, priority listing, white-label widget.',
+        '200,000 operations/month, Slack/Discord notifications, health alerts, benchmarking, revenue forecasting, priority listing, white-label widget.',
     },
     {
       '@type': 'Offer',
@@ -111,7 +117,6 @@ const plans = [
       'Full dashboard',
       'Progressive take rate (0% on first $1K)',
       'Scheduled invocations (up to 10)',
-      'Consumer referral program',
       '1 webhook endpoint',
       '7-day log retention',
       'Community support',
@@ -128,7 +133,6 @@ const plans = [
     features: [
       'Everything in Free',
       '200,000 operations/month',
-      'Sandbox mode (test keys)',
       'Slack & Discord notifications',
       'Health alerts for your tools',
       'Category benchmarking',
@@ -175,21 +179,6 @@ const plans = [
   },
 ] as const
 
-const takeRateBrackets = [
-  { bracket: '$0 \u2013 $1,000', rate: '0%', youKeep: '100%', example: '$1,000 revenue \u2192 you keep $1,000' },
-  { bracket: '$1,001 \u2013 $10,000', rate: '2%', youKeep: '98%', example: '$5,000 revenue \u2192 you keep $4,920' },
-  { bracket: '$10,001 \u2013 $50,000', rate: '2.5%', youKeep: '97.5%', example: '$25,000 revenue \u2192 you keep $24,445' },
-  { bracket: '$50,001+', rate: '5%', youKeep: '95%', example: '$100,000 revenue \u2192 you keep $96,830' },
-] as const
-
-const revenueExamples = [
-  { monthly: '$500', settlegrid: '$500', mcpize: '$425', note: 'SettleGrid: 0% take. MCPize: 15% take.' },
-  { monthly: '$2,000', settlegrid: '$1,980', mcpize: '$1,700', note: '0% on first $1K + 2% on next $1K.' },
-  { monthly: '$10,000', settlegrid: '$9,820', mcpize: '$8,500', note: 'Progressive brackets save you $1,320/mo.' },
-  { monthly: '$50,000', settlegrid: '$48,620', mcpize: '$42,500', note: 'At scale, you keep $6,120 more per month.' },
-  { monthly: '$100,000', settlegrid: '$97,080', mcpize: '$85,000', note: 'You keep $12,080 more per month vs 15% flat.' },
-] as const
-
 const faqs = [
   {
     q: 'What is the progressive take rate?',
@@ -201,11 +190,11 @@ const faqs = [
   },
   {
     q: 'When should I upgrade to Builder or Scale?',
-    a: 'Upgrade when you hit the operation limit on your current plan. Builder gives you 200K ops/month and sandbox mode for $19/mo. Scale gives you 2M ops/month and fraud detection for $79/mo. The progressive take rate is the same across all plans.',
+    a: 'Upgrade when you hit the operation limit on your current plan. Builder gives you 200K ops/month and Slack & Discord notifications for $19/mo. Scale gives you 2M ops/month and fraud detection for $79/mo. The progressive take rate is the same across all plans.',
   },
   {
     q: 'How does SettleGrid compare to a 15% flat take rate?',
-    a: 'On a 15% flat rate (like MCPize), you lose $1,500 on $10,000 in revenue. On SettleGrid, you lose only $180 \u2014 because the first $1,000 is free and only the amount above each bracket is charged. At $100K/mo, you keep $12,080 more with SettleGrid.',
+    a: `On a 15% flat rate (like MCPize), you lose $1,500 on $10,000 in revenue. On SettleGrid, you lose only ${takeOnTenThousand} \u2014 because the first $1,000 is free and only the amount above each bracket is charged. At $100K/mo, you keep ${savingsAtOneHundredThousand} more with SettleGrid.`,
   },
   {
     q: 'Are there any hidden fees?',
@@ -257,7 +246,7 @@ export default function PricingPage() {
                 )}
                 <h2 className="text-2xl font-bold text-gray-100">{plan.name}</h2>
                 <div className="mt-2 mb-4">
-                  <span className="text-4xl font-bold text-gray-100">{plan.price}</span>
+                  <span className="text-4xl font-bold text-gray-100">{plan.price}</span>{' '}
                   <span className="text-gray-400 ml-1">{plan.period}</span>
                 </div>
                 <p className="text-sm text-gray-400 mb-6">{plan.description}</p>

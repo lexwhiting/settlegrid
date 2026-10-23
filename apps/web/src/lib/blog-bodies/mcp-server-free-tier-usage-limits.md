@@ -326,7 +326,7 @@ const testBilledAnalyze = sgTest.wrap(
 );
 
 async function runTests() {
-  const testKey = 'sg_test_abc123'; // sg_test_* keys are safe for local runs
+  const testKey = 'sg_live_your_key_here'; // your own consumer key with a small credit balance
 
   // --- Test 1: valid key with sufficient balance ---
   console.log('Test 1: paid method with sufficient credits');
@@ -348,7 +348,7 @@ async function runTests() {
   try {
     await testBilledAnalyze(
       { query: 'test query', depth: 'shallow' },
-      { headers: { 'x-api-key': 'sg_test_notreal' } }
+      { headers: { 'x-api-key': 'sg_live_notreal' } }
     );
     console.error('FAIL — expected InvalidKeyError, got no error');
   } catch (err) {
@@ -362,8 +362,8 @@ async function runTests() {
   sgTest.clearCache();
 
   // --- Test 3: key with zero balance hits InsufficientCreditsError ---
-  // (Requires a key you have set to zero balance on the SettleGrid dashboard)
-  const zeroCreditKey = 'sg_test_zerocredit';
+  // (Requires a consumer key with no remaining credit balance)
+  const zeroCreditKey = 'sg_live_zero_balance_key';
   console.log('Test 3: zero-credit key returns InsufficientCreditsError');
   try {
     await testBilledAnalyze(
@@ -387,7 +387,7 @@ runTests().catch(console.error);
 
 A few additional testing practices worth noting:
 
-- Use `sg_test_*` format keys during local development. The key format `sg_live_*` is for production keys attached to real consumer accounts.
+- SettleGrid does not issue separate test keys: every consumer key uses the `sg_live_*` format. During local development, use your own consumer key with a small credit balance.
 - The `cacheTtlMs: 0` setting is only appropriate in test environments. In production, the default 5-minute TTL prevents a key validation round-trip on every single call, which keeps the SDK's per-call latency overhead minimal.
 - If you use a test runner like Vitest or Jest, call `sgTest.clearCache()` in `beforeEach` rather than manually between tests. This ensures each test starts with a clean cache regardless of test ordering.
 - `debug: true` also emits verbose logs to `console.debug`. In a test environment this is useful; suppress it in production by omitting the flag or setting it explicitly to `false`.

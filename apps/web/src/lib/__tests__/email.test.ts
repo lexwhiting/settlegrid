@@ -667,9 +667,9 @@ describe('lowBalanceAlertEmail', () => {
     expect(result.html).toContain('&lt;b&gt;Bad&lt;/b&gt;')
   })
 
-  it('includes auto-refill tip', () => {
+  it('does not suggest auto-refill', () => {
     const result = lowBalanceAlertEmail('user@test.com', 'MyTool', 100)
-    expect(result.html).toContain('auto-refill')
+    expect(result.html).not.toMatch(/auto-refill/i)
   })
 })
 

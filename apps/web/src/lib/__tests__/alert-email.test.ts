@@ -146,10 +146,10 @@ describe('Alert email', () => {
     expect(call.html).toContain('v:roundrect')
   })
 
-  it('includes auto-refill tip for low_balance', async () => {
+  it('does not suggest auto-refill for low_balance', async () => {
     await sendAlertEmail('user@example.com', 'Tool', 'low_balance', 100)
 
     const call = mockSendEmail.mock.calls[0][0]
-    expect(call.html).toContain('auto-refill')
+    expect(call.html).not.toMatch(/auto-refill/i)
   })
 })

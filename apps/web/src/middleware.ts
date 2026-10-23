@@ -59,6 +59,7 @@ const gatePublicPatterns = [
   '/auth/',
   '/tools',
   '/docs',
+  '/status',
   '/unsubscribe',
 ]
 

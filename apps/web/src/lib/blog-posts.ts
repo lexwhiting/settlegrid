@@ -400,7 +400,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         question: 'When should I upgrade from the free tier?',
-        answer: 'Upgrade when you exceed 50,000 operations per month or need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The Builder plan ($19/mo) adds 200K ops and 5 team seats; Scale ($79/mo) adds 2M ops and advanced fraud detection.',
+        answer: 'Upgrade when you exceed 50,000 operations per month or need features like IP allowlisting, fraud detection, or team seats. The Builder plan ($19/mo) adds 200K ops and 5 team seats; Scale ($79/mo) adds 2M ops and advanced fraud detection.',
       },
     ],
     relatedSlugs: [
@@ -413,7 +413,7 @@ export const BLOG_POSTS: BlogPost[] = [
         id: 'free-tier-overview',
         heading: 'What You Get for Free',
         content:
-          'SettleGrid offers a genuinely free tier for MCP tool developers. Not a trial. Not a demo. A production-ready free plan with no credit card required and no expiration date.\n\nThe free tier includes: 50,000 operations per month, progressive take rate (0% on first $1K/mo of revenue), access to the supported agent payment protocols, marketplace listing and Discovery API visibility, usage dashboard with real-time metrics, and Stripe Connect payouts.\n\nThis is not a bait-and-switch. The free tier is designed to let individual developers and small teams monetize their tools without any upfront cost. You only upgrade when you need features like sandbox mode, IP allowlisting, fraud detection, or team seats. The volume limit of 50,000 operations per month is generous enough for most tools in the early stages.',
+          'SettleGrid offers a genuinely free tier for MCP tool developers. Not a trial. Not a demo. A production-ready free plan with no credit card required and no expiration date.\n\nThe free tier includes: 50,000 operations per month, progressive take rate (0% on first $1K/mo of revenue), access to the supported agent payment protocols, marketplace listing and Discovery API visibility, usage dashboard with real-time metrics, and Stripe Connect payouts.\n\nThis is not a bait-and-switch. The free tier is designed to let individual developers and small teams monetize their tools without any upfront cost. You only upgrade when you need features like IP allowlisting, fraud detection, or team seats. The volume limit of 50,000 operations per month is generous enough for most tools in the early stages.',
       },
       {
         id: 'why-free-matters',
@@ -440,7 +440,6 @@ export const BLOG_POSTS: BlogPost[] = [
           ['Payment protocols', 'All 10', 'All 10', 'All 10'],
           ['Marketplace listing', 'Yes', 'Yes', 'Yes'],
           ['Usage dashboard', 'Basic', 'Full', 'Full'],
-          ['Sandbox mode', 'No', 'Yes', 'Yes'],
           ['IP allowlisting', 'No', 'Yes', 'Yes'],
           ['Fraud detection', 'No', 'No', 'Yes'],
           ['Team seats', '1', '5', 'Unlimited'],
@@ -499,7 +498,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         question: 'How do I test free tier behavior locally?',
-        answer: 'Initialize a separate test instance with debug: true (synchronous metering) and cacheTtlMs: 0 (disabled cache). Call sg.clearCache() between test cases that change key state, and use sg_test_ format keys instead of sg_live_ keys.',
+        answer: 'Initialize a separate test instance with debug: true (synchronous metering) and cacheTtlMs: 0 (disabled cache). Call sg.clearCache() between test cases that change key state, and test with your own sg_live_ consumer key and a small credit balance.',
       },
       {
         question: 'What happens when a caller exceeds the free tier and tries a paid method?',

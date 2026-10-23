@@ -317,7 +317,7 @@ Off-chain USDC micropayments via EIP-712 signed vouchers on Polygon. Payments as
 | Tier | Price | Operations/month | Take Rate | Key Features |
 |---|---|---|---|---|
 | Free | $0 | 50,000 | Progressive (0% on first $1K/mo) | Unlimited tools, per-call billing, basic dashboard |
-| Builder | $19/mo | 200,000 | Progressive | Full analytics, sandbox mode, IP allowlisting, CSV export |
+| Builder | $19/mo | 200,000 | Progressive | Full analytics, IP allowlisting, CSV export |
 | Scale | $79/mo | 2,000,000 | Progressive | Smart Proxy, Transaction Explorer, fraud detection, audit logging |
 | Need more? | Email support@settlegrid.ai | Custom limits | Custom | — |
 

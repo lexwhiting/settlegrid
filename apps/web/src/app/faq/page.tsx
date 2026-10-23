@@ -109,7 +109,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       },
       {
         q: 'How do consumers pay for my tool?',
-        a: "Consumers purchase credits via Stripe (credit card). They can enable auto-refill so their balance never runs out. When they call your tool, credits are deducted in real-time. You receive payouts via Stripe Connect on your chosen schedule (daily, weekly, or monthly).",
+        a: "Consumers purchase credits via Stripe (credit card). When they call your tool, credits are deducted in real-time. You receive payouts via Stripe Connect on your chosen schedule (daily, weekly, or monthly).",
       },
     ],
   },
@@ -121,12 +121,8 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
         a: 'No. Credits purchased for a specific tool never expire and can be used at any time.',
       },
       {
-        q: 'How does auto-refill work?',
-        a: 'Consumers can enable auto-refill on a per-tool basis. When your balance drops below a configurable threshold (e.g., $5.00), SettleGrid automatically charges your saved payment method for a configurable refill amount (e.g., $20.00). You receive an email confirmation each time auto-refill triggers.',
-      },
-      {
         q: 'What happens when my balance reaches zero?',
-        a: 'If auto-refill is enabled, your balance is topped up automatically. If auto-refill is off, invocations return an InsufficientCreditsError (HTTP 402) with the required and available amounts. Your tool continues to work for other consumers who have credits.',
+        a: 'Invocations return an InsufficientCreditsError (HTTP 402) with the required and available amounts until you purchase more credits. Your tool continues to work for other consumers who have credits.',
       },
     ],
   },

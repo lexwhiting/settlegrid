@@ -80,7 +80,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I test my integration before going live?',
-      a: 'SettleGrid supports sandbox mode. Create test API keys (prefixed sg_test_) that meter usage without real charges or balance deductions. All invocations made with test keys are flagged as test data in your analytics and responses include the X-SettleGrid-Mode: sandbox header. Available on Builder tier and above.',
+      a: 'Initialize the SDK with debug: true for debug logging and synchronous metering, then call your tool with your own consumer API key (prefixed sg_live_) and a small credit balance. Each invocation appears in your dashboard, so you can verify metering end-to-end before sharing the tool.',
     },
     {
       q: 'Can I attach custom metadata to invocations?',
@@ -141,7 +141,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do consumers pay for my tool?',
-      a: 'Consumers purchase credits via Stripe (credit card). They can enable auto-refill so their balance never runs out. When they call your tool, credits are deducted in real-time. You receive payouts via Stripe Connect on your chosen schedule (daily, weekly, or monthly).',
+      a: 'Consumers purchase credits via Stripe (credit card). When they call your tool, credits are deducted in real-time. You receive payouts via Stripe Connect on your chosen schedule (daily, weekly, or monthly).',
     },
     {
       q: 'Can I offer a free trial?',
@@ -170,7 +170,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I verify webhook signatures?',
-      a: 'Every SettleGrid webhook is signed with HMAC-SHA256. Verify using the X-SettleGrid-Signature header. Example:\n\nimport crypto from \'crypto\'\n\nfunction verifyWebhookSignature(\n  rawBody: string,\n  signature: string,\n  secret: string\n): boolean {\n  const expected = crypto\n    .createHmac(\'sha256\', secret)\n    .update(rawBody, \'utf8\')\n    .digest(\'hex\')\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(expected)\n  )\n}\n\n// In your webhook handler:\napp.post(\'/webhooks/settlegrid\', express.raw({ type: \'application/json\' }), (req, res) => {\n  const signature = req.headers[\'x-settlegrid-signature\'] as string\n  const secret = process.env.SETTLEGRID_WEBHOOK_SECRET!\n\n  if (!verifyWebhookSignature(req.body.toString(), signature, secret)) {\n    return res.status(401).json({ error: \'Invalid signature\' })\n  }\n\n  const event = JSON.parse(req.body.toString())\n  // Process event.type: invocation.completed, payout.initiated, etc.\n  res.json({ received: true })\n})\n\nAlways use crypto.timingSafeEqual to prevent timing attacks. Store your webhook secret in an environment variable.',
+      a: 'Every SettleGrid webhook is signed with HMAC-SHA256. Verify using the X-SettleGrid-Signature header. Example:\n\nimport crypto from \'crypto\'\n\nfunction verifyWebhookSignature(\n  rawBody: string,\n  signature: string,\n  secret: string\n): boolean {\n  const expected = crypto\n    .createHmac(\'sha256\', secret)\n    .update(rawBody, \'utf8\')\n    .digest(\'hex\')\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(expected)\n  )\n}\n\n// In your webhook handler:\napp.post(\'/webhooks/settlegrid\', express.raw({ type: \'application/json\' }), (req, res) => {\n  const signature = req.headers[\'x-settlegrid-signature\'] as string\n  const secret = process.env.SETTLEGRID_WEBHOOK_SECRET!\n\n  if (!verifyWebhookSignature(req.body.toString(), signature, secret)) {\n    return res.status(401).json({ error: \'Invalid signature\' })\n  }\n\n  const event = JSON.parse(req.body.toString())\n  // Process event.event (e.g. tool.status_changed); the payload is in event.data\n  res.json({ received: true })\n})\n\nAlways use crypto.timingSafeEqual to prevent timing attacks. Store your webhook secret in an environment variable.',
     },
   ],
 },
@@ -203,10 +203,6 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       a: 'No. Credits purchased for a specific tool never expire and can be used at any time.',
     },
     {
-      q: 'How does auto-refill work?',
-      a: 'Consumers can enable auto-refill on a per-tool basis. When your balance drops below a configurable threshold (e.g., $5.00), SettleGrid automatically charges your saved payment method for a configurable refill amount (e.g., $20.00). You receive an email confirmation each time auto-refill triggers.',
-    },
-    {
       q: 'What payment methods are accepted?',
       a: 'Fiat payments are processed via Stripe, so all major credit and debit cards are accepted. Accepting x402 crypto payments (USDC) for your own tool through the platform is in development; SettleGrid\'s standalone x402 facilitator that verifies and settles those payments on Base is already live.',
     },
@@ -216,7 +212,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What happens when my balance reaches zero?',
-      a: 'If auto-refill is enabled, your balance is topped up automatically. If auto-refill is off, invocations return an InsufficientCreditsError (HTTP 402) with the required and available amounts. Your tool continues to work for other consumers who have credits.',
+      a: 'Invocations return an InsufficientCreditsError (HTTP 402) with the required and available amounts until you purchase more credits. Your tool continues to work for other consumers who have credits.',
     },
     {
       q: 'How do I get a receipt or invoice?',
@@ -224,7 +220,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What happens if my payment fails?',
-      a: 'You receive a payment failure email with details on why the charge was declined. For auto-refill, SettleGrid follows a dunning sequence: an initial failure notice, a second reminder, a third warning, and a final notice before your auto-refill is paused. You also receive advance notice if your card is approaching its expiration date.',
+      a: 'You receive a payment failure email with details on why the charge was declined. You also receive advance notice if your card is approaching its expiration date.',
     },
     {
       q: 'What credit amounts can I purchase?',
@@ -431,7 +427,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What webhook events are available?',
-      a: 'SettleGrid supports webhook events for invocation.completed, payout.initiated, payout.completed, tool.status_changed, and more. Webhooks are delivered with HMAC-SHA256 signatures and include automatic retry with exponential backoff (up to 3 attempts).',
+      a: 'SettleGrid sends a tool.status_changed webhook event when one of your tools is activated or deactivated, and a test.ping event when you press Send test event in the dashboard. Webhooks are delivered with HMAC-SHA256 signatures and include automatic retry with exponential backoff (up to 3 attempts).',
     },
     {
       q: 'How does health monitoring work?',
@@ -517,7 +513,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'How do I create an API key?',
-      a: 'Navigate to a tool\'s storefront page and click "Generate API Key." The full key (prefixed sg_live_ or sg_test_) is shown once at creation time — copy and store it securely. You can manage all your keys from the Consumer Dashboard.',
+      a: 'Navigate to a tool\'s storefront page and click "Generate API Key." The full key (prefixed sg_live_) is shown once at creation time — copy and store it securely. You can manage all your keys from the Consumer Dashboard.',
     },
     {
       q: 'How do I add IP restrictions to my API key?',
@@ -526,10 +522,6 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     {
       q: 'What happens if I exceed my budget limit?',
       a: 'When your spending reaches the configured limit for a tool, further invocations are blocked and return an error until the budget period (daily, weekly, or monthly) resets. You receive an alert email when spend approaches your configured threshold percentage.',
-    },
-    {
-      q: 'How do I enable auto-refill?',
-      a: 'Auto-refill is configured per tool from the Consumer Dashboard. Set a threshold balance (triggers refill) and a refill amount (how much to charge). When your balance drops below the threshold, your saved payment method is charged automatically and you receive a confirmation email.',
     },
     {
       q: 'Can I use multiple tools with one account?',
@@ -562,7 +554,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do I activate or deactivate a tool?',
-      a: 'From /dashboard/tools, toggle the tool status via the status switch. Deactivated tools stop accepting API calls and consumers receive errors. Both statuses trigger an email notification and a tool.status_changed webhook event.',
+      a: 'From /dashboard/tools, toggle the tool status via the status switch. Deactivated tools stop accepting API calls and consumers receive errors. Activating a tool sends you a tool-published email, and both changes send a tool.status_changed webhook event.',
     },
     {
       q: 'What is the conversion funnel?',
@@ -579,7 +571,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
   faqs: [
     {
       q: 'What plans are available?',
-      a: 'Three plans: Free ($0 forever, unlimited tools, 50K ops/month), Builder ($19/month, 200K ops/month, sandbox mode, IP allowlisting), and Scale ($79/month, 2M ops/month, fraud detection, priority support). All plans use progressive take rates: 0% on first $1K/mo, scaling to 5% at $50K+. Need higher limits? Email support@settlegrid.ai.',
+      a: 'Three plans: Free ($0 forever, unlimited tools, 50K ops/month), Builder ($19/month, 200K ops/month, IP allowlisting), and Scale ($79/month, 2M ops/month, fraud detection, priority support). All plans use progressive take rates: 0% on first $1K/mo, scaling to 5% at $50K+. Need higher limits? Email support@settlegrid.ai.',
     },
     {
       q: 'Are there overage charges?',
@@ -591,7 +583,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'Which features require a paid plan?',
-      a: 'Sandbox mode, IP allowlisting, CSV export, and referral system require Builder ($19/mo) or above. Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the showcase are available on all plans.',
+      a: 'IP allowlisting, CSV export, and referral system require Builder ($19/mo) or above. Fraud detection, audit logging, and dedicated support require Scale ($79/mo). All other features including per-method pricing, webhooks, and the showcase are available on all plans.',
     },
   ],
 },
@@ -670,7 +662,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Nevermined?',
-      a: 'Nevermined focuses on DeFi/on-chain AI payments. SettleGrid supports fiat (Stripe Connect) today — with platform crypto (x402) settlement into one unified ledger in development, while its standalone x402 facilitator already verifies and settles on Base — and adds per-method pricing, IP allowlisting, fraud detection, sandbox mode, and Stripe Connect payouts that Nevermined lacks.',
+      a: 'Nevermined focuses on DeFi/on-chain AI payments. SettleGrid supports fiat (Stripe Connect) today — with platform crypto (x402) settlement into one unified ledger in development, while its standalone x402 facilitator already verifies and settles on Base — and adds per-method pricing, IP allowlisting, fraud detection, and Stripe Connect payouts that Nevermined lacks.',
     },
     {
       q: 'Can I use SettleGrid with Stripe?',
@@ -678,7 +670,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.",
+      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.",
     },
   ],
 },
@@ -932,9 +924,9 @@ app.post('/api/search', settlegridMiddleware({
                   <h3 className="text-xl font-semibold text-gray-100">Test &amp; Go Live</h3>
                 </div>
                 <div className="ml-11 text-gray-400 space-y-3 text-sm leading-relaxed">
-                  <p>Create a test API key in your dashboard, then make a test invocation:</p>
+                  <p>Create an API key in your dashboard, then make a test invocation:</p>
                   <CopyableCodeBlock title="Terminal" code={`curl -X POST https://your-server.com/api/search \\
-  -H "x-api-key: sg_test_your_key_here" \\
+  -H "x-api-key: sg_live_your_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{"query": "test"}'`} />
                   <ul className="list-disc list-inside space-y-1 mt-2">
@@ -1127,11 +1119,10 @@ try {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               The SettleGrid REST API is available at{' '}
               <a href="https://settlegrid.ai/api" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 bg-gray-100 dark:bg-[#252836] px-2 py-0.5 rounded text-xs font-mono text-brand hover:text-brand-dark dark:text-brand-light dark:hover:text-brand transition-colors">https://settlegrid.ai/api<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>.
+              {' '}Developer sign-up and sign-in happen on the /register and /login pages (Supabase Auth), not through REST endpoints.
             </p>
             <div className="space-y-4">
               {[
-                { method: 'POST', path: '/api/auth/developer/register', desc: 'Register developer account' },
-                { method: 'POST', path: '/api/auth/developer/login', desc: 'Developer login' },
                 { method: 'GET', path: '/api/auth/developer/me', desc: 'Get developer profile' },
                 { method: 'POST', path: '/api/tools', desc: 'Create tool' },
                 { method: 'GET', path: '/api/tools', desc: 'List developer tools' },
