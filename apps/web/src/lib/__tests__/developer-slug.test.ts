@@ -1,5 +1,5 @@
 /**
- * Developer slug helpers: generation from name/email, reserved and length
+ * Developer slug helpers: generation from the name (never the email), reserved and length
  * rules, collisions (pre-checked and unique-constraint races), and leaving
  * existing slugs untouched.
  */
@@ -91,15 +91,15 @@ describe('slug generation', () => {
     expect(slug).toMatch(DEVELOPER_SLUG_REGEX)
   })
 
-  it('falls back to the email local part, then to "developer"', () => {
-    expect(baseDeveloperSlug('Jane Doe', 'x@example.com')).toBe('jane-doe')
-    expect(baseDeveloperSlug(null, 'jane.doe+tools@example.com')).toBe('jane-doe-tools')
-    expect(baseDeveloperSlug('日本', 'jd@example.com')).toBe('developer')
+  it('uses the name, else "developer" (never the email address)', () => {
+    expect(baseDeveloperSlug('Jane Doe')).toBe('jane-doe')
+    expect(baseDeveloperSlug(null)).toBe('developer')
+    expect(baseDeveloperSlug('日本')).toBe('developer')
   })
 
   it('does not hand out reserved slugs', () => {
-    expect(baseDeveloperSlug('Admin', 'x@example.com')).toBe('admin-dev')
-    expect(baseDeveloperSlug('SettleGrid System', 'x@example.com')).toBe('settlegrid-system-dev')
+    expect(baseDeveloperSlug('Admin')).toBe('admin-dev')
+    expect(baseDeveloperSlug('SettleGrid System')).toBe('settlegrid-system-dev')
   })
 
   it('numbered then random candidates, all valid and within the length limit', () => {
@@ -161,11 +161,21 @@ describe('ensureDeveloperSlug', () => {
     expect(mockDb.update).not.toHaveBeenCalled()
   })
 
-  it('fills a missing display name from the email local part', async () => {
+  it('never fills a missing display name from the email address', async () => {
     selectResults.push([{ name: null, slug: 'existing', email: 'jane.doe@example.com' }])
 
-    await expect(ensureDeveloperSlug('dev-1')).resolves.toEqual({ slug: 'existing', name: 'jane.doe' })
-    expect(setCalls).toEqual([expect.objectContaining({ name: 'jane.doe' })])
+    await expect(ensureDeveloperSlug('dev-1')).resolves.toEqual({ slug: 'existing', name: null })
+    expect(setCalls).toEqual([])
+  })
+
+  it('gives a nameless developer a neutral slug, not one from the email', async () => {
+    selectResults.push([{ name: null, slug: null, email: 'jane.doe@example.com' }], [])
+    updateResults.push([{ slug: 'developer' }])
+
+    const result = await ensureDeveloperSlug('dev-1')
+    expect(result).toEqual({ slug: 'developer', name: null })
+    expect(setCalls).toEqual([expect.objectContaining({ slug: 'developer' })])
+    expect(JSON.stringify(setCalls)).not.toContain('jane')
   })
 
   it('never touches the system principal', async () => {

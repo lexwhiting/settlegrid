@@ -2,9 +2,9 @@
  * Developer profile slugs (settlegrid.ai/dev/{slug}).
  *
  * The format rules are shared with PATCH /api/dashboard/developer/profile.
- * `ensureDeveloperSlug` gives a developer without a slug (or display name)
- * one derived from their name or email, so the activation quality gate's
- * profile check can pass without a trip to Settings.
+ * `ensureDeveloperSlug` gives a developer without a slug one derived from
+ * their name (never their email, since the slug is public), so the activation
+ * quality gate's profile check can pass without a trip to Settings.
  */
 import { eq, and, inArray, isNull } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -23,7 +23,6 @@ export const RESERVED_DEVELOPER_SLUGS: ReadonlySet<string> = new Set([
   'settlegrid', 'system', 'null', 'undefined', 'new',
 ])
 
-const DISPLAY_NAME_MAX_LENGTH = 100
 /** Numbered candidates tried before falling back to random suffixes. */
 const NUMBERED_CANDIDATES = 5
 const RANDOM_CANDIDATES = 3
@@ -52,10 +51,6 @@ function isValidDeveloperSlug(slug: string): boolean {
   )
 }
 
-function emailLocalPart(email: string): string {
-  return email.split('@')[0]?.trim() ?? ''
-}
-
 function withSuffix(base: string, suffix: string): string {
   const head = base.slice(0, DEVELOPER_SLUG_MAX_LENGTH - suffix.length - 1).replace(/-+$/, '')
   return `${head}-${suffix}`
@@ -66,13 +61,13 @@ function randomSuffix(): string {
 }
 
 /**
- * The base slug for a developer: the slugified name, else the slugified email
- * local part, else 'developer'. A valid but reserved base gets a '-dev' suffix.
+ * The base slug for a developer: the slugified name, else 'developer'. The
+ * email address is never used, since the slug is public. A valid but reserved
+ * base gets a '-dev' suffix.
  */
-export function baseDeveloperSlug(name: string | null, email: string): string {
-  const base =
-    [name ?? '', emailLocalPart(email)].map(slugifyDeveloperName).find(isValidDeveloperSlug) ??
-    'developer'
+export function baseDeveloperSlug(name: string | null): string {
+  const slugified = slugifyDeveloperName(name ?? '')
+  const base = isValidDeveloperSlug(slugified) ? slugified : 'developer'
   return isReservedDeveloperSlug(base) ? withSuffix(base, 'dev') : base
 }
 
@@ -91,7 +86,7 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * Give the developer a slug (and a display name) if they have none. Existing
+ * Give the developer a slug if they have none. Existing
  * values are never changed. Never throws: failures are logged and the current
  * values returned, so callers can run the quality gate regardless.
  */
@@ -107,21 +102,13 @@ export async function ensureDeveloperSlug(
     if (!dev) return { slug: null, name: null }
     if (isSystemPrincipal(dev)) return { slug: dev.slug, name: dev.name }
 
-    let name = dev.name
-    if (!name || name.trim() === '') {
-      const fallback = emailLocalPart(dev.email).slice(0, DISPLAY_NAME_MAX_LENGTH)
-      if (fallback) {
-        await db
-          .update(developers)
-          .set({ name: fallback, updatedAt: new Date() })
-          .where(eq(developers.id, developerId))
-        name = fallback
-      }
-    }
+    // A missing display name is left for the developer to set: it is public,
+    // so it is never derived from the email address.
+    const name = dev.name
 
     if (dev.slug && dev.slug.trim() !== '') return { slug: dev.slug, name }
 
-    const candidates = developerSlugCandidates(baseDeveloperSlug(name, dev.email))
+    const candidates = developerSlugCandidates(baseDeveloperSlug(name))
     const taken = await db
       .select({ slug: developers.slug })
       .from(developers)
