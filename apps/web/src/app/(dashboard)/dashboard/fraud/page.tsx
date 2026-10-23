@@ -20,8 +20,6 @@ interface FraudSignal {
   flaggedThisWeek: number
   lastTriggeredAt: string | null
   riskContribution: string
-  redisKeyPattern: string
-  fallbackBehavior: string
   category: string
 }
 
@@ -37,7 +35,6 @@ interface SignalsSummary {
   degradedSignals: number
   scannedToday: number
   flaggedThisWeek: number
-  redisHealthy: boolean
 }
 
 interface SignalsResponse {
@@ -197,14 +194,6 @@ function SignalCard({ signal }: { signal: FraudSignal }) {
               <div className="flex gap-2">
                 <span className="text-gray-400 dark:text-gray-500 shrink-0 w-28">Risk contribution:</span>
                 <span className="text-gray-600 dark:text-gray-300">{signal.riskContribution}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-gray-400 dark:text-gray-500 shrink-0 w-28">Redis key:</span>
-                <code className="text-gray-600 dark:text-gray-300 font-mono break-all">{signal.redisKeyPattern}</code>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-gray-400 dark:text-gray-500 shrink-0 w-28">Fallback:</span>
-                <span className="text-gray-600 dark:text-gray-300">{signal.fallbackBehavior}</span>
               </div>
             </div>
           </div>
