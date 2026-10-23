@@ -87,6 +87,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 export default function ConsumerDashboardPage() {
   const searchParams = useSearchParams()
   const [balances, setBalances] = useState<ToolBalance[]>([])
+  const [globalBalanceCents, setGlobalBalanceCents] = useState(0)
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [budgets, setBudgets] = useState<BudgetLimit[]>([])
   const [ipRestrictions, setIpRestrictions] = useState<Record<string, IpRestriction>>({})
@@ -101,6 +102,10 @@ export default function ConsumerDashboardPage() {
   // Key generation state
   const [generatingKeyForTool, setGeneratingKeyForTool] = useState<string | null>(null)
   const [newlyCreatedKeys, setNewlyCreatedKeys] = useState<Record<string, string>>({}) // toolId -> full key (shown once)
+  // Key generation by tool slug (for tools without a per-tool balance row)
+  const [keyToolSlug, setKeyToolSlug] = useState('')
+  const [resolvingKeyTool, setResolvingKeyTool] = useState(false)
+  const [slugKeyTools, setSlugKeyTools] = useState<Record<string, string>>({}) // toolId -> slug
 
   // IP add state
   const [addingIpForKey, setAddingIpForKey] = useState<string | null>(null)
@@ -143,6 +148,7 @@ export default function ConsumerDashboardPage() {
         if (balRes.ok) {
           const balData = await balRes.json()
           setBalances(balData.balances ?? [])
+          setGlobalBalanceCents(balData.globalBalanceCents ?? 0)
         }
         if (keyRes.ok) {
           const keyData = await keyRes.json()
@@ -207,7 +213,7 @@ export default function ConsumerDashboardPage() {
     }
   }
 
-  async function generateKey(toolId: string) {
+  async function generateKey(toolId: string): Promise<boolean> {
     setGeneratingKeyForTool(toolId)
     setError('')
     try {
@@ -219,15 +225,48 @@ export default function ConsumerDashboardPage() {
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Failed to generate API key')
-        return
+        return false
       }
       // Store the full key (shown once) and add the new key metadata to the list
       setNewlyCreatedKeys((prev) => ({ ...prev, [toolId]: data.key }))
       setKeys((prev) => [...prev, data.apiKey])
+      return true
+    } catch {
+      setError('Network error')
+      return false
+    } finally {
+      setGeneratingKeyForTool(null)
+    }
+  }
+
+  // Resolve a tool slug (or a /tools/<slug> URL) to its id, then create a key.
+  // Lets a consumer with only a global balance get a key for any active tool.
+  async function generateKeyForSlug() {
+    const slug = keyToolSlug.trim().replace(/[?#].*$/, '').split('/').filter(Boolean).pop() ?? ''
+    if (!slug) return
+    setResolvingKeyTool(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/tools/public/${encodeURIComponent(slug)}`)
+      const data = await res.json().catch(() => ({}))
+      const tool = data.data as { id?: string; status?: string } | undefined
+      if (!res.ok || !tool?.id) {
+        setError('Tool not found. Check the slug and try again.')
+        return
+      }
+      if (tool.status !== 'active') {
+        setError('This tool is not active yet, so an API key cannot be created for it.')
+        return
+      }
+      const toolId = tool.id
+      if (await generateKey(toolId)) {
+        setSlugKeyTools((prev) => ({ ...prev, [toolId]: slug }))
+        setKeyToolSlug('')
+      }
     } catch {
       setError('Network error')
     } finally {
-      setGeneratingKeyForTool(null)
+      setResolvingKeyTool(false)
     }
   }
 
@@ -537,6 +576,38 @@ export default function ConsumerDashboardPage() {
     )
   }
 
+  function renderNewKey(toolId: string, toolLabel?: string) {
+    const newKey = newlyCreatedKeys[toolId]
+    if (!newKey) return null
+    return (
+      <div key={toolId} className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-md p-3">
+        <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">API key created{toolLabel ? ` for /${toolLabel}` : ''}. Copy it now -- it will not be shown again.</p>
+        <code className="block text-xs bg-white dark:bg-[#161822] border border-amber-200 dark:border-amber-800/40 rounded px-2 py-1.5 font-mono text-gray-900 dark:text-gray-100 break-all select-all">
+          {newKey}
+        </code>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 text-xs"
+          onClick={() => {
+            navigator.clipboard.writeText(newKey)
+            setNewlyCreatedKeys((prev) => {
+              const next = { ...prev }
+              delete next[toolId]
+              return next
+            })
+          }}
+        >
+          Copy &amp; Dismiss
+        </Button>
+      </div>
+    )
+  }
+
+  // A key can be issued once the consumer has a positive per-tool balance for
+  // the tool or a positive global balance (the balances the proxy charges).
+  const hasUsableBalance = globalBalanceCents > 0 || balances.some((b) => b.balanceCents > 0)
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -561,13 +632,21 @@ export default function ConsumerDashboardPage() {
           <CardTitle>Credit Balances</CardTitle>
         </CardHeader>
         <CardContent>
-          {balances.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">No credits yet. Browse tools and purchase credits to get started.</p>
-          ) : (
+          {!hasUsableBalance && (
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-3">
+              You need credit before you can create an API key.{' '}
+              <Link href="/consumer/credits" className="text-brand hover:text-brand-dark font-medium">Buy a credit pack</Link>
+              {' '}that works with any tool, or{' '}
+              <Link href="/tools" className="text-brand hover:text-brand-dark font-medium">browse tools</Link>
+              {' '}and buy credits for one.
+            </p>
+          )}
+          {balances.length > 0 && (
             <div className="space-y-3">
               {balances.map((b) => {
                 const hasActiveKey = keys.some((k) => k.toolId === b.toolId && k.status === 'active')
                 const newKey = newlyCreatedKeys[b.toolId]
+                const canCreateKey = b.balanceCents > 0 || globalBalanceCents > 0
                 const isExpanded = expandedToolId === b.toolId
                 return (
                   <div key={b.toolId} className="border border-gray-100 dark:border-[#252836] rounded-lg p-4">
@@ -601,28 +680,8 @@ export default function ConsumerDashboardPage() {
 
                     {/* Generate Key / Show Key */}
                     {newKey ? (
-                      <div className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-md p-3">
-                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">API key created. Copy it now -- it will not be shown again.</p>
-                        <code className="block text-xs bg-white dark:bg-[#161822] border border-amber-200 dark:border-amber-800/40 rounded px-2 py-1.5 font-mono text-gray-900 dark:text-gray-100 break-all select-all">
-                          {newKey}
-                        </code>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-2 text-xs"
-                          onClick={() => {
-                            navigator.clipboard.writeText(newKey)
-                            setNewlyCreatedKeys((prev) => {
-                              const next = { ...prev }
-                              delete next[b.toolId]
-                              return next
-                            })
-                          }}
-                        >
-                          Copy &amp; Dismiss
-                        </Button>
-                      </div>
-                    ) : !hasActiveKey ? (
+                      renderNewKey(b.toolId)
+                    ) : !hasActiveKey && canCreateKey ? (
                       <div className="mt-2">
                         <Button
                           size="sm"
@@ -639,6 +698,42 @@ export default function ConsumerDashboardPage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* Global balance + key for any active tool */}
+          {globalBalanceCents > 0 && (
+            <div className={`border border-gray-100 dark:border-[#252836] rounded-lg p-4${balances.length > 0 ? ' mt-3' : ''}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-indigo dark:text-gray-100">Global credit balance</span>
+                <span className="font-semibold text-brand-text">{formatCents(globalBalanceCents)}</span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Usable with any active tool.</p>
+              <label htmlFor="key-tool-slug" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Get an API key for a tool (enter its slug, from settlegrid.ai/tools/&lt;slug&gt;)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="key-tool-slug"
+                  type="text"
+                  placeholder="tool-slug"
+                  value={keyToolSlug}
+                  onChange={(e) => setKeyToolSlug(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') generateKeyForSlug() }}
+                  className="flex h-9 flex-1 rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand focus-visible:outline-none"
+                />
+                <Button
+                  size="sm"
+                  onClick={generateKeyForSlug}
+                  disabled={resolvingKeyTool || generatingKeyForTool !== null || !keyToolSlug.trim()}
+                >
+                  {resolvingKeyTool ? 'Generating...' : 'Get API Key'}
+                </Button>
+              </div>
+              {/* Keys for tools with their own balance row are shown in that row */}
+              {Object.keys(slugKeyTools)
+                .filter((toolId) => !balances.some((b) => b.toolId === toolId))
+                .map((toolId) => renderNewKey(toolId, slugKeyTools[toolId]))}
             </div>
           )}
         </CardContent>
@@ -771,7 +866,7 @@ export default function ConsumerDashboardPage() {
         </CardHeader>
         <CardContent>
           {keys.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">No API keys yet. Use the &quot;Generate API Key&quot; button on a tool above, or visit a tool storefront to create one.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No API keys yet. Once you have credit, create one from Credit Balances above.</p>
           ) : (
             <div className="space-y-4">
               {keys.map((key) => {
