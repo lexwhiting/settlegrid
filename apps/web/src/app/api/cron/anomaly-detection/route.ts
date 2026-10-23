@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
       // Fire-and-forget
       notifyDeveloper({
         developerId,
-        event: 'tool.anomaly_detected',
+        event: 'usage_spike',
         message,
         email: {
           to: dev.email,

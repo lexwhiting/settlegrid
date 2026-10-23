@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
 import { safeFetch } from '@/lib/safe-egress'
+import { isNotificationOptedOut, type NotificationEventKey } from '@/lib/notification-events'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ export async function sendDiscordNotification(
  */
 export async function notifyDeveloper(params: {
   developerId: string
-  event: string
+  event: NotificationEventKey
   message: string
   email?: {
     to: string
@@ -161,7 +162,7 @@ export async function notifyDeveloper(params: {
     const webhooks = (dev.notificationWebhooks ?? {}) as NotificationWebhooks
 
     // Check opt-out (critical notifications always send)
-    if (!params.critical && prefs[params.event] === false) {
+    if (!params.critical && isNotificationOptedOut(prefs, params.event)) {
       logger.info('notification.skipped', {
         developerId: params.developerId,
         event: params.event,
@@ -234,7 +235,7 @@ export async function notifyDeveloper(params: {
  */
 export async function sendNotificationEmail(params: {
   developerId: string
-  eventKey: string
+  eventKey: NotificationEventKey
   email: string
   subject: string
   html: string
@@ -252,7 +253,7 @@ export async function sendNotificationEmail(params: {
       const prefs = (dev?.notificationPreferences ?? {}) as Record<string, boolean>
 
       // If the developer explicitly disabled this event, skip
-      if (prefs[params.eventKey] === false) {
+      if (isNotificationOptedOut(prefs, params.eventKey)) {
         logger.info('notification.skipped', {
           developerId: params.developerId,
           eventKey: params.eventKey,

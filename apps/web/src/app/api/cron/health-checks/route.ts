@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
       // Fire-and-forget notification (don't block the cron)
       notifyDeveloper({
         developerId,
-        event: 'tool.health_alert',
+        event: 'tool_health_down',
         message,
         email: {
           to: dev.email,

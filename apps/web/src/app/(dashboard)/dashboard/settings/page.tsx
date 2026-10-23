@@ -23,6 +23,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { useToast } from '@/components/ui/toast'
 import { ApiKeyRevealDialog } from '@/components/api-key-reveal-dialog'
+import {
+  SETTINGS_NOTIFICATION_EVENTS,
+  MARKETING_PREFERENCE_KEY,
+  isNotificationOptedOut,
+  type NotificationEventDef,
+} from '@/lib/notification-events'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -65,34 +71,14 @@ interface NavItem {
 
 // ─── Notification Types ─────────────────────────────────────────────────────────
 
-interface NotificationEvent {
-  key: string
-  label: string
-  category: 'billing' | 'tools' | 'security' | 'webhooks'
-  critical: boolean
+interface NotificationEvent extends NotificationEventDef {
   emailEnabled: boolean
 }
 
-const DEFAULT_NOTIFICATIONS: NotificationEvent[] = [
-  { key: 'payout_completed', label: 'Payout completed', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'payout_failed', label: 'Payout failed', category: 'billing', critical: true, emailEnabled: true },
-  { key: 'balance_low', label: 'Balance below threshold', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'invoice_generated', label: 'Invoice generated', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'tool_published', label: 'Tool published', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'tool_status_changed', label: 'Tool status changed', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'tool_health_down', label: 'Tool health check failed', category: 'tools', critical: true, emailEnabled: true },
-  { key: 'usage_spike', label: 'Unusual usage spike detected', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'login_new_device', label: 'Login from new device', category: 'security', critical: true, emailEnabled: true },
-  { key: 'password_changed', label: 'Password changed', category: 'security', critical: true, emailEnabled: true },
-  { key: 'api_key_created', label: 'API key created', category: 'security', critical: false, emailEnabled: true },
-  { key: 'suspicious_activity', label: 'Suspicious activity detected', category: 'security', critical: true, emailEnabled: true },
-  { key: 'webhook_delivery_failed', label: 'Webhook delivery failed', category: 'webhooks', critical: false, emailEnabled: true },
-  { key: 'webhook_endpoint_disabled', label: 'Webhook endpoint disabled', category: 'webhooks', critical: true, emailEnabled: true },
-  { key: 'new_review', label: 'New review received', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'monthly_summary', label: 'Monthly earnings summary', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'onboarding_tips', label: 'Onboarding tips & best practices', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'quality_alert', label: 'Tool quality alerts (slow response, errors)', category: 'tools', critical: false, emailEnabled: true },
-]
+const DEFAULT_NOTIFICATIONS: NotificationEvent[] = SETTINGS_NOTIFICATION_EVENTS.map((e) => ({
+  ...e,
+  emailEnabled: true,
+}))
 
 // ─── Plan Data ──────────────────────────────────────────────────────────────────
 
@@ -434,11 +420,11 @@ export default function SettingsPage() {
           const saved = prefsData.preferences as Record<string, boolean>
           if (saved && Object.keys(saved).length > 0) {
             setNotifications((prev) =>
-              prev.map((n) => saved[n.key] !== undefined ? { ...n, emailEnabled: saved[n.key] } : n)
+              prev.map((n) => n.critical ? n : { ...n, emailEnabled: !isNotificationOptedOut(saved, n.key) })
             )
             // Load marketing communications preference
-            if (saved.marketing_updates !== undefined) {
-              setMarketingUpdates(saved.marketing_updates)
+            if (saved[MARKETING_PREFERENCE_KEY] !== undefined) {
+              setMarketingUpdates(saved[MARKETING_PREFERENCE_KEY])
             }
           }
         }
@@ -925,7 +911,7 @@ export default function SettingsPage() {
     fetch('/api/dashboard/developer/notification-preferences', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ marketing_updates: newValue }),
+      body: JSON.stringify({ [MARKETING_PREFERENCE_KEY]: newValue }),
     })
       .then(async (res) => {
         if (!res.ok) toast('Failed to update preference', 'error')
