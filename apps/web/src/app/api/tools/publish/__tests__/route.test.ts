@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockValidate, mockOnToolActivated, mockEmit } = vi.hoisted(() => {
+const { mockDb, mockValidate, mockOnToolActivated, mockEmit, mockEnsureDeveloperSlug } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -32,6 +32,7 @@ const { mockDb, mockValidate, mockOnToolActivated, mockEmit } = vi.hoisted(() =>
     mockValidate: vi.fn(),
     mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
     mockEmit: vi.fn().mockResolvedValue(undefined),
+    mockEnsureDeveloperSlug: vi.fn().mockResolvedValue({ slug: 'dev-slug', name: 'Dev' }),
   }
 })
 
@@ -93,6 +94,10 @@ vi.mock('@/lib/tool-activation', () => ({
 
 vi.mock('@/lib/webhooks', () => ({
   emitToolStatusChanged: mockEmit,
+}))
+
+vi.mock('@/lib/developer-slug', () => ({
+  ensureDeveloperSlug: mockEnsureDeveloperSlug,
 }))
 
 // after() defers the webhook past the response; run the callback inline here.
@@ -179,6 +184,8 @@ describe('PUT /api/tools/publish — producer-audit #8 quality gate', () => {
     expect(res.status).toBe(201)
     expect(data.tool.status).toBe('active')
     expect(mockValidate).toHaveBeenCalledWith('tool-new', 'dev-123')
+    expect(mockEnsureDeveloperSlug).toHaveBeenCalledWith('dev-123')
+    expect(mockEnsureDeveloperSlug.mock.invocationCallOrder[0]).toBeLessThan(mockValidate.mock.invocationCallOrder[0])
     expect(mockOnToolActivated).toHaveBeenCalledWith(
       expect.objectContaining({ developerId: 'dev-123', toolId: 'tool-new', toolSlug: 'my-tool', fromStatus: 'draft' })
     )

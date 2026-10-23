@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation, mockOnToolActivated, mockEmitToolStatusChanged } = vi.hoisted(() => {
+const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation, mockOnToolActivated, mockEmitToolStatusChanged, mockEnsureDeveloperSlug } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -22,6 +22,7 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForAct
     mockValidateToolForActivation: vi.fn().mockResolvedValue({ passed: true, failures: [] }),
     mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
     mockEmitToolStatusChanged: vi.fn().mockResolvedValue(undefined),
+    mockEnsureDeveloperSlug: vi.fn().mockResolvedValue({ slug: 'dev-slug', name: 'Dev' }),
   }
 })
 
@@ -105,6 +106,10 @@ vi.mock('@/lib/tool-activation', () => ({
 
 vi.mock('@/lib/webhooks', () => ({
   emitToolStatusChanged: mockEmitToolStatusChanged,
+}))
+
+vi.mock('@/lib/developer-slug', () => ({
+  ensureDeveloperSlug: mockEnsureDeveloperSlug,
 }))
 
 // after() defers the webhook past the response; run the callback inline here.
@@ -418,6 +423,30 @@ describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
     expect(mockOnToolActivated).toHaveBeenCalledWith({
       developerId: 'dev-123', toolId: statusUuid, toolName: 'Tool', toolSlug: 'tool', fromStatus: 'draft',
     })
+  })
+
+  it('assigns a missing developer slug before the activation gate runs', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(mockEnsureDeveloperSlug).toHaveBeenCalledWith('dev-123')
+    expect(mockEnsureDeveloperSlug.mock.invocationCallOrder[0]).toBeLessThan(
+      mockValidateToolForActivation.mock.invocationCallOrder[0]
+    )
+
+    mockEnsureDeveloperSlug.mockClear()
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'draft', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'draft' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+    expect(mockEnsureDeveloperSlug).not.toHaveBeenCalled()
   })
 
   it('does not run activation side effects for an already-active tool or on deactivate', async () => {

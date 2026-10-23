@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger'
 import { writeAuditLog } from '@/lib/audit'
 import { safeRelativePath } from '@/lib/safe-redirect'
 import { isSystemPrincipal } from '@/lib/system-principal'
+import { ensureDeveloperSlug } from '@/lib/developer-slug'
 
 const ADMIN_EMAILS = ['lexwhiting365@gmail.com']
 const INVITE_BONUS_OPS = 5000
@@ -177,6 +178,8 @@ export async function GET(request: NextRequest) {
           }).returning({ id: developers.id })
 
           developerId = inserted?.id
+          // Profile slug (and display name) from the name or email; never throws.
+          if (developerId) await ensureDeveloperSlug(developerId)
 
           const displayName = name ?? email
           const template = welcomeDeveloperEmail(displayName)

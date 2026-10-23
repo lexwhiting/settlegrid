@@ -14,6 +14,7 @@ import { logger } from '@/lib/logger'
 import { isPublicUrlString } from '@/lib/safe-egress'
 import { validateToolForActivation } from '@/lib/quality-gates'
 import { onToolActivated } from '@/lib/tool-activation'
+import { ensureDeveloperSlug } from '@/lib/developer-slug'
 import { emitToolStatusChanged } from '@/lib/webhooks'
 
 export const maxDuration = 60
@@ -194,6 +195,8 @@ export async function POST(request: NextRequest) {
         createdAt: tools.createdAt,
       })
 
+    // Accounts created before slugs were auto-assigned get one here.
+    await ensureDeveloperSlug(auth.id)
     const gateResult = await validateToolForActivation(draft.id, auth.id)
 
     // Audit log

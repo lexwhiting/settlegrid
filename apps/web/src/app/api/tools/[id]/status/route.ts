@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { validateToolForActivation } from '@/lib/quality-gates'
 import { onToolActivated } from '@/lib/tool-activation'
+import { ensureDeveloperSlug } from '@/lib/developer-slug'
 import { emitToolStatusChanged } from '@/lib/webhooks'
 import { logger } from '@/lib/logger'
 
@@ -70,6 +71,8 @@ export async function PATCH(
 
     // ── Quality gate: enforce checks when activating ─────────────────────────
     if (body.status === 'active') {
+      // Accounts created before slugs were auto-assigned get one here.
+      await ensureDeveloperSlug(auth.id)
       const gateResult = await validateToolForActivation(id, auth.id)
       if (!gateResult.passed) {
         return errorResponse(

@@ -7,19 +7,18 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  DEVELOPER_SLUG_MAX_LENGTH,
+  DEVELOPER_SLUG_MIN_LENGTH,
+  DEVELOPER_SLUG_REGEX,
+  isReservedDeveloperSlug,
+} from '@/lib/developer-slug'
 
 export const maxDuration = 60
 
-const RESERVED_SLUGS = new Set([
-  'admin', 'api', 'settings', 'dashboard', 'login', 'register',
-  'docs', 'tools', 'learn', 'faq', 'privacy', 'terms', 'support',
-  'help', 'billing', 'pricing', 'about', 'contact', 'blog',
-  'settlegrid', 'system', 'null', 'undefined', 'new',
-])
-
 const updateProfileSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  slug: z.string().min(3).max(30).regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, 'Slug must be lowercase letters, numbers, and hyphens only. No leading/trailing hyphens.').optional(),
+  slug: z.string().min(DEVELOPER_SLUG_MIN_LENGTH).max(DEVELOPER_SLUG_MAX_LENGTH).regex(DEVELOPER_SLUG_REGEX, 'Slug must be lowercase letters, numbers, and hyphens only. No leading/trailing hyphens.').optional(),
   publicProfile: z.boolean().optional(),
   publicBio: z.string().max(500).optional(),
   avatarUrl: z.string().url().optional(),
@@ -60,7 +59,7 @@ export async function PATCH(request: NextRequest) {
       const normalizedSlug = body.slug.toLowerCase()
 
       // Check reserved slugs
-      if (RESERVED_SLUGS.has(normalizedSlug)) {
+      if (isReservedDeveloperSlug(normalizedSlug)) {
         return errorResponse('This profile URL is reserved.', 409, 'SLUG_RESERVED')
       }
 

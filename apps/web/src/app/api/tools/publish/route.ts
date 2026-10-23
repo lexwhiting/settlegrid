@@ -10,6 +10,7 @@ import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { validateToolForActivation } from '@/lib/quality-gates'
 import { onToolActivated } from '@/lib/tool-activation'
+import { ensureDeveloperSlug } from '@/lib/developer-slug'
 import { emitToolStatusChanged } from '@/lib/webhooks'
 import { PUBLISHER_API_KEY_PREFIX, apiKeyHashCandidates } from '@/lib/crypto'
 
@@ -390,6 +391,8 @@ export async function PUT(request: NextRequest) {
     // active), UPDATE tools stay at `existing.status` (e.g., an already-
     // active tool stays active with the new body fields; a draft stays a
     // draft). The developer can fix issues and re-run publish.
+    // Accounts created before slugs were auto-assigned get one here.
+    await ensureDeveloperSlug(auth.id)
     const gateResult = await validateToolForActivation(toolRecord.id, auth.id)
     if (!gateResult.passed) {
       return errorResponse(
