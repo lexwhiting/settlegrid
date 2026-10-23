@@ -20,7 +20,7 @@ export async function sendAlertEmail(
   threshold: number
 ): Promise<void> {
   // Use the dedicated lowBalanceAlertEmail template for low_balance alerts
-  // (includes formatted currency, auto-refill tip, and richer styling)
+  // (includes formatted currency and richer styling)
   if (alertType === 'low_balance') {
     try {
       const template = lowBalanceAlertEmail(email, toolName, threshold)

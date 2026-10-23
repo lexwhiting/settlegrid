@@ -77,3 +77,24 @@ describe('no test-key or sandbox-mode claims', () => {
     expect(text).not.toMatch(/test[- ]mode transactions/i)
   })
 })
+
+// ─── No auto-refill claims ──────────────────────────────────────────────────
+
+// Auto-refill is not reachable by consumers, so public copy and the
+// low-balance email must not offer it.
+const AUTO_REFILL_FILES = [
+  'README.md',
+  'apps/web/public/llms.txt',
+  'apps/web/public/llms-full.txt',
+  'apps/web/src/app/docs/page.tsx',
+  'apps/web/src/app/faq/page.tsx',
+  'apps/web/src/app/terms/page.tsx',
+  'apps/web/src/app/learn/handbook/page.tsx',
+  'apps/web/src/app/api/chat/route.ts',
+].map((rel) => ({ name: rel, text: repoFile(rel) }))
+
+describe('no auto-refill claims', () => {
+  it.each(AUTO_REFILL_FILES)("'$name' does not mention auto-refill", ({ text }) => {
+    expect(text).not.toMatch(/auto[- ]?refill/i)
+  })
+})

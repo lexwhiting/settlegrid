@@ -65,7 +65,7 @@ npm install @settlegrid/mcp
 - REST middleware: \`settlegridMiddleware()\` for Express/Next.js routes
 - Pricing: per-invocation, per-token, per-byte, per-second, tiered, outcome-based
 - Credit system: consumers pre-purchase credits, real-time Redis metering
-- Budget enforcement: spending limits, auto-refill, budget exceeded (402)
+- Budget enforcement: spending limits, budget exceeded (402)
 - API keys: consumer keys use the sg_live_ prefix (there are no separate test keys)
 - Stripe Connect: developer payout onboarding, progressive take rate (0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K)
 - x402: SettleGrid runs a public x402 facilitator (verify + settle on Base) — live; settling x402 payments through the hosted Smart Proxy on a developer's behalf is in development

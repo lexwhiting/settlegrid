@@ -103,10 +103,6 @@ export default function TermsPage() {
                   page at the time of the call.
                 </li>
                 <li>
-                  Auto-refill, if enabled, will automatically purchase additional credits when your
-                  balance falls below your configured threshold.
-                </li>
-                <li>
                   API keys must be kept confidential. You are responsible for all usage incurred
                   through your keys.
                 </li>

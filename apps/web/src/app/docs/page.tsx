@@ -141,7 +141,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How do consumers pay for my tool?',
-      a: 'Consumers purchase credits via Stripe (credit card). They can enable auto-refill so their balance never runs out. When they call your tool, credits are deducted in real-time. You receive payouts via Stripe Connect on your chosen schedule (daily, weekly, or monthly).',
+      a: 'Consumers purchase credits via Stripe (credit card). When they call your tool, credits are deducted in real-time. You receive payouts via Stripe Connect on your chosen schedule (daily, weekly, or monthly).',
     },
     {
       q: 'Can I offer a free trial?',
@@ -203,10 +203,6 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       a: 'No. Credits purchased for a specific tool never expire and can be used at any time.',
     },
     {
-      q: 'How does auto-refill work?',
-      a: 'Consumers can enable auto-refill on a per-tool basis. When your balance drops below a configurable threshold (e.g., $5.00), SettleGrid automatically charges your saved payment method for a configurable refill amount (e.g., $20.00). You receive an email confirmation each time auto-refill triggers.',
-    },
-    {
       q: 'What payment methods are accepted?',
       a: 'Fiat payments are processed via Stripe, so all major credit and debit cards are accepted. Accepting x402 crypto payments (USDC) for your own tool through the platform is in development; SettleGrid\'s standalone x402 facilitator that verifies and settles those payments on Base is already live.',
     },
@@ -216,7 +212,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What happens when my balance reaches zero?',
-      a: 'If auto-refill is enabled, your balance is topped up automatically. If auto-refill is off, invocations return an InsufficientCreditsError (HTTP 402) with the required and available amounts. Your tool continues to work for other consumers who have credits.',
+      a: 'Invocations return an InsufficientCreditsError (HTTP 402) with the required and available amounts until you purchase more credits. Your tool continues to work for other consumers who have credits.',
     },
     {
       q: 'How do I get a receipt or invoice?',
@@ -224,7 +220,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'What happens if my payment fails?',
-      a: 'You receive a payment failure email with details on why the charge was declined. For auto-refill, SettleGrid follows a dunning sequence: an initial failure notice, a second reminder, a third warning, and a final notice before your auto-refill is paused. You also receive advance notice if your card is approaching its expiration date.',
+      a: 'You receive a payment failure email with details on why the charge was declined. You also receive advance notice if your card is approaching its expiration date.',
     },
     {
       q: 'What credit amounts can I purchase?',
@@ -528,10 +524,6 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
       a: 'When your spending reaches the configured limit for a tool, further invocations are blocked and return an error until the budget period (daily, weekly, or monthly) resets. You receive an alert email when spend approaches your configured threshold percentage.',
     },
     {
-      q: 'How do I enable auto-refill?',
-      a: 'Auto-refill is configured per tool from the Consumer Dashboard. Set a threshold balance (triggers refill) and a refill amount (how much to charge). When your balance drops below the threshold, your saved payment method is charged automatically and you receive a confirmation email.',
-    },
-    {
       q: 'Can I use multiple tools with one account?',
       a: 'Yes. A single consumer account can purchase credits for and hold API keys across multiple tools. Each tool has its own separate balance, budget limits, and API keys. The Consumer Dashboard shows all tool balances in one view.',
     },
@@ -678,7 +670,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, auto-refill credits, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.",
+      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.",
     },
   ],
 },

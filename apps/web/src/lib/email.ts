@@ -416,7 +416,6 @@ export function lowBalanceAlertEmail(
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your credit balance for <strong>${escapeHtml(toolName)}</strong> is running low at <strong style="color:#ef4444">${formatted}</strong>.</p>
 <p class="sg-text" style="color:#4b5563;line-height:1.6">Add credits to avoid service interruption.</p>
 ${ctaButton('Add Credits', 'https://settlegrid.ai/consumer')}
-<p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">Tip: Enable auto-refill to automatically top up when your balance gets low.</p>
 `,
       { preheader: options?.preheader ?? `Your balance for ${toolName} is low at ${formatted}.` }
     ),
