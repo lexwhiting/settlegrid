@@ -29,7 +29,6 @@
     "outcome-based-billing",
     "fraud-detection",
     "stripe-connect-payouts",
-    "sandbox-mode",
     "ip-allowlisting",
     "referral-earnings",
     "tiered-rate-limits"

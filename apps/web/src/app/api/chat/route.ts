@@ -52,7 +52,7 @@ app.use('/api/my-endpoint', settlegridMiddleware({
 
 Test with curl:
 \`\`\`bash
-curl -X POST https://your-api.com/api/my-endpoint -H "Authorization: Bearer sg_test_xxx" -H "Content-Type: application/json" -d '{"input": "hello"}'
+curl -X POST https://your-api.com/api/my-endpoint -H "Authorization: Bearer sg_live_xxx" -H "Content-Type: application/json" -d '{"input": "hello"}'
 \`\`\`
 
 Install the SDK:
@@ -65,8 +65,8 @@ npm install @settlegrid/mcp
 - REST middleware: \`settlegridMiddleware()\` for Express/Next.js routes
 - Pricing: per-invocation, per-token, per-byte, per-second, tiered, outcome-based
 - Credit system: consumers pre-purchase credits, real-time Redis metering
-- Budget enforcement: spending limits, auto-refill, budget exceeded (402)
-- API keys: sg_live_ prefix for production, sg_test_ prefix for sandbox (no real charges)
+- Budget enforcement: spending limits, budget exceeded (402)
+- API keys: consumer keys use the sg_live_ prefix (there are no separate test keys)
 - Stripe Connect: developer payout onboarding, progressive take rate (0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K)
 - x402: SettleGrid runs a public x402 facilitator (verify + settle on Base) — live; settling x402 payments through the hosted Smart Proxy on a developer's behalf is in development
 - Webhooks: 10 event types, HMAC-SHA256 signed, retry with exponential backoff
@@ -77,7 +77,7 @@ npm install @settlegrid/mcp
 ## Troubleshooting Guide
 
 "My API key isn't working":
-- Check the key prefix: sg_live_ keys are for production, sg_test_ keys are for sandbox/testing
+- Check the key prefix: consumer API keys start with sg_live_
 - Verify the key is active in Dashboard > Settings > API Keys
 - If the key was recently created, wait a few seconds for propagation
 - If all else fails, regenerate the key from the dashboard
@@ -94,9 +94,9 @@ npm install @settlegrid/mcp
 - Dashboard analytics may take a few seconds to update
 
 "How do I test locally?":
-- Use sandbox mode with sg_test_ prefixed API keys — no real charges are made
-- Test keys work identically to live keys but skip actual payment processing
-- Switch to sg_live_ keys when you're ready to go to production
+- Initialize the SDK with debug: true for debug logging and synchronous metering
+- Call your tool with your own sg_live_ consumer key and a small credit balance; invocations appear in the dashboard
+- There is no separate sandbox or test-key mode
 
 "How do I get paid?":
 - Go to Dashboard > Settings > Payouts and connect your Stripe account

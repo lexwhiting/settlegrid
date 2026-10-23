@@ -2,35 +2,16 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { calculateTakeCents } from '@/lib/pricing'
 
 const REVENUE_LEVELS = [500, 1000, 5000, 10000, 25000, 50000, 100000]
-
-function calculateSettleGridTake(cents: number): number {
-  let take = 0
-  const brackets = [
-    { upTo: 100_000, rate: 0 },
-    { upTo: 1_000_000, rate: 0.02 },
-    { upTo: 5_000_000, rate: 0.025 },
-    { upTo: Infinity, rate: 0.05 },
-  ]
-  let remaining = cents
-  let prev = 0
-  for (const b of brackets) {
-    const span = Math.min(remaining, b.upTo - prev)
-    if (span <= 0) break
-    take += span * b.rate
-    remaining -= span
-    prev = b.upTo
-  }
-  return Math.round(take)
-}
 
 export function SavingsCalculator() {
   const [selectedIdx, setSelectedIdx] = useState(2) // default $5,000
 
   const revenue = REVENUE_LEVELS[selectedIdx]
   const revenueCents = revenue * 100
-  const sgTakeCents = calculateSettleGridTake(revenueCents)
+  const sgTakeCents = calculateTakeCents(revenueCents)
   const sgKeep = revenue - sgTakeCents / 100
   const mcpizeKeep = revenue * 0.85
   const xpayKeep = revenue * 0.975

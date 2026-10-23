@@ -15,7 +15,6 @@ const builderTier = [
   "200,000 ops/month",
   "30-day log retention",
   "3 webhook endpoints",
-  "Sandbox mode",
   "Slack & Discord alerts",
   "Tool health monitoring",
   "Category benchmarking",

@@ -195,6 +195,12 @@ describe('Middleware gate with password configured', () => {
     expect(response.headers.get('location')).toContain('/gate')
   })
 
+  it('leaves /status reachable without the gate cookie', async () => {
+    const response = await middleware(createRequest('/status'))
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.status).toBe(200)
+  })
+
   it('allows access when no gate password is configured', async () => {
     mockGetGatePassword.mockImplementation(() => { throw new Error('not set') })
     mockGetGateSecret.mockImplementation(() => { throw new Error('not set') })

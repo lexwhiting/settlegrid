@@ -40,7 +40,7 @@ export default function TermsPage() {
       <main className="flex-1 px-6 py-16">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-4xl font-bold text-indigo dark:text-gray-100 mb-2">Terms of Service</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-10">Last updated: March 11, 2026</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-10">Last updated: October 23, 2026</p>
 
           <div className="text-gray-600 dark:text-gray-400 leading-relaxed space-y-0">
             <Section title="1. Acceptance of Terms">
@@ -79,8 +79,9 @@ export default function TermsPage() {
                   tools through the platform.
                 </li>
                 <li>
-                  SettleGrid retains a progressive platform fee on each transaction based on monthly revenue
-                  (0% on first $1,000/mo, 2% on $1,001-$10,000, 3% on $10,001-$50,000, 5% above $50,000).
+                  SettleGrid retains a progressive platform fee, applied to your earnings when they are
+                  paid out (0% on the first $1,000, 2% on $1,001-$10,000, 2.5% on $10,001-$50,000, 5%
+                  above $50,000).
                   Payout schedules and minimums are detailed in your dashboard.
                 </li>
                 <li>
@@ -102,10 +103,6 @@ export default function TermsPage() {
                   page at the time of the call.
                 </li>
                 <li>
-                  Auto-refill, if enabled, will automatically purchase additional credits when your
-                  balance falls below your configured threshold.
-                </li>
-                <li>
                   API keys must be kept confidential. You are responsible for all usage incurred
                   through your keys.
                 </li>
@@ -121,10 +118,6 @@ export default function TermsPage() {
                 <li>
                   You must not reverse-engineer, decompile, or attempt to extract the source code of
                   the Service (except as permitted by law).
-                </li>
-                <li>
-                  Sandbox mode is provided for testing only. Test-mode transactions do not incur real
-                  charges and must not be used for production workloads.
                 </li>
               </ul>
             </Section>
