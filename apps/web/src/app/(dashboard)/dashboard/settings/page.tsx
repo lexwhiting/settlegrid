@@ -98,7 +98,7 @@ const PLANS: Record<string, PlanInfo> = {
   builder: {
     name: 'Builder',
     price: '$19/mo',
-    features: ['Unlimited tools', '200,000 ops/mo', 'Progressive take rate', 'Full analytics & sandbox mode', 'IP allowlisting & CSV export'],
+    features: ['Unlimited tools', '200,000 ops/mo', 'Progressive take rate', 'Full analytics', 'IP allowlisting & CSV export'],
   },
   scale: {
     name: 'Scale',

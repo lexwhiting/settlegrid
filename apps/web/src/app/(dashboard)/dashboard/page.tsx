@@ -1353,7 +1353,7 @@ export default function DeveloperDashboardPage() {
                 </svg>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Unlock sandbox mode, notifications, benchmarking, and more
+                    Unlock higher limits, notifications, benchmarking, and more
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     Builder plan starts at $19/mo with 200K ops and priority listing.
