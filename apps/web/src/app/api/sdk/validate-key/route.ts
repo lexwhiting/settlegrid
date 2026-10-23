@@ -90,7 +90,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
 
     // Look up developer tier for tiered rate limiting
     const [dev] = await db
-      .select({ tier: developers.tier })
+      .select({ tier: developers.tier, isFoundingMember: developers.isFoundingMember })
       .from(developers)
       .where(eq(developers.id, row.developerId))
       .limit(1)
@@ -98,7 +98,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
     const tier = dev?.tier ?? 'free'
 
     // Apply tiered rate limit
-    const tieredRl = await checkTieredRateLimit(`sdk-validate:${row.consumerId}`, tier, 'sdk')
+    const tieredRl = await checkTieredRateLimit(`sdk-validate:${row.consumerId}`, tier, 'sdk', dev?.isFoundingMember)
     if (!tieredRl.success) {
       return errorResponse('Too many requests for your plan tier.', 429, 'RATE_LIMIT_EXCEEDED')
     }

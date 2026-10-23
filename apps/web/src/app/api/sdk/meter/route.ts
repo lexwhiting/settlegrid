@@ -76,6 +76,7 @@ export const POST = withCors(async function POST(request: NextRequest) {
       .select({
         developerId: tools.developerId,
         developerTier: developers.tier,
+        developerIsFoundingMember: developers.isFoundingMember,
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
@@ -90,7 +91,8 @@ export const POST = withCors(async function POST(request: NextRequest) {
     const tieredRl = await checkTieredRateLimit(
       `sdk-meter:${body.consumerId}`,
       toolDev.developerTier ?? 'free',
-      'sdk'
+      'sdk',
+      toolDev.developerIsFoundingMember
     )
     if (!tieredRl.success) {
       return errorResponse('Too many requests for your plan tier.', 429, 'RATE_LIMIT_EXCEEDED')
