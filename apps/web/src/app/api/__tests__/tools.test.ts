@@ -96,6 +96,11 @@ vi.mock('drizzle-orm', () => ({
   desc: vi.fn().mockImplementation((a: unknown) => ({ desc: a })),
 }))
 
+vi.mock('@/lib/marketplace-visibility', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/marketplace-visibility')>()),
+  marketplaceInclusionSql: vi.fn(() => ({ marketplaceInclusion: true })),
+}))
+
 vi.mock('@/lib/quality-gates', () => ({
   validateToolForActivation: mockValidateToolForActivation,
 }))
@@ -572,6 +577,16 @@ describe('Public Tool (GET /api/tools/public/[slug])', () => {
     const response = await getPublic(request, { params: Promise.resolve({ slug: 'nonexistent' }) })
 
     expect(response.status).toBe(404)
+  })
+
+  it('looks the slug up through the canonical marketplace predicate (which hides internal test tools)', async () => {
+    mockDb.limit.mockResolvedValueOnce([])
+
+    await getPublic(makeRequest('/api/tools/public/connect-test'), { params: Promise.resolve({ slug: 'connect-test' }) })
+
+    expect(mockDb.where).toHaveBeenCalledWith({
+      and: [{ field: 'slug', value: 'connect-test' }, { marketplaceInclusion: true }],
+    })
   })
 
   // P2.INTL2 hostile-review regression: previously the public detail route

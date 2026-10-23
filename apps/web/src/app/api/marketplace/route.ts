@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 
 export const maxDuration = 60
 
@@ -119,6 +120,8 @@ export async function GET(request: NextRequest) {
         eq(tools.status, 'unclaimed'),
         and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
       )!,
+      // Kept separate from conditions[0], which the status filter replaces.
+      excludeInternalTestToolsSql(),
     ]
 
     if (typeParam) {
@@ -239,6 +242,7 @@ export async function GET(request: NextRequest) {
         eq(tools.status, 'unclaimed'),
         and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
       )!,
+      excludeInternalTestToolsSql(),
     ]
     const facetWhere = and(...facetConditions)
 

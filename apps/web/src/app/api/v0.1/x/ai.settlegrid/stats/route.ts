@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools, toolChangelogs } from '@/lib/db/schema'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -33,16 +34,16 @@ export async function GET(request: NextRequest) {
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(tools)
-          .where(eq(tools.status, 'active')),
+          .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql())),
         db.select({ count: sql<number>`count(*)::int` }).from(toolChangelogs),
         db
           .select({ count: sql<number>`count(distinct ${tools.developerId})::int` })
           .from(tools)
-          .where(eq(tools.status, 'active')),
+          .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql())),
         db
           .select({ total: sql<number>`coalesce(sum(${tools.totalInvocations}), 0)::int` })
           .from(tools)
-          .where(eq(tools.status, 'active')),
+          .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql())),
       ])
 
     const response: RegistryStatsResponse = {

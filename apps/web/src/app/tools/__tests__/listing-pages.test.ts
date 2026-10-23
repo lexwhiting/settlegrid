@@ -5,6 +5,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 
 // The test transform emits classic React.createElement calls.
 ;(globalThis as { React?: typeof React }).React = React
@@ -38,7 +40,13 @@ import ExplorePage, { revalidate as exploreRevalidate } from '@/app/explore/page
 describe('public tool listing pages', () => {
   beforeEach(() => {
     mockLogger.error.mockClear()
+    ;(mockDb.where as ReturnType<typeof vi.fn>).mockClear()
   })
+
+  function renderedWhereClauses(): string[] {
+    const dialect = new PgDialect()
+    return (mockDb.where as ReturnType<typeof vi.fn>).mock.calls.map((c) => dialect.sqlToQuery(c[0] as SQL).sql)
+  }
 
   it('revalidate every 5 minutes', () => {
     expect(showcaseRevalidate).toBe(300)
@@ -62,5 +70,16 @@ describe('public tool listing pages', () => {
         'explore.recent_tools_failed',
       ]),
     )
+  })
+
+  it('/tools and /explore leave out tools owned by internal test accounts', async () => {
+    await ShowcasePage()
+    await ExplorePage()
+    const clauses = renderedWhereClauses()
+    expect(clauses).toHaveLength(4) // showcase list + explore counts, total, recent
+    for (const clause of clauses) {
+      expect(clause).toContain('"tools"."status" = $1')
+      expect(clause).toContain('not exists (select 1 from "developers" "internal_test_developer"')
+    }
   })
 })

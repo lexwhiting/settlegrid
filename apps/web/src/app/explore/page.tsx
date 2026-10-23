@@ -9,6 +9,7 @@ import { ExploreCategoryFilter } from '@/components/explore-category-filter'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, sql, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { logger } from '@/lib/logger'
 
 /** Re-render at most every 5 minutes so counts and recent tools stay fresh */
@@ -50,7 +51,7 @@ async function getCategoryCounts(): Promise<Map<string, number>> {
         count: sql<number>`count(*)::int`,
       })
       .from(tools)
-      .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`))
+      .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`, excludeInternalTestToolsSql()))
       .groupBy(tools.category)
 
     return new Map(counts.map((c) => [c.category!, c.count]))
@@ -65,7 +66,7 @@ async function getTotalToolCount(): Promise<number> {
     const [row] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
     return row?.count ?? 0
   } catch (err) {
     logger.error('explore.total_tool_count_failed', {}, err)
@@ -95,7 +96,7 @@ async function getRecentTools(): Promise<RecentTool[]> {
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.createdAt))
       .limit(6)
   } catch (err) {

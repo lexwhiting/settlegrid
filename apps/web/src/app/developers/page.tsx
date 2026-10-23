@@ -5,6 +5,7 @@ import { SettleGridLogo } from '@/components/ui/logo'
 import { db } from '@/lib/db'
 import { developers, tools, developerReputation } from '@/lib/db/schema'
 import { eq, desc, sql, gt, and } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { getRevenueTier, getLeaderboardTier, formatCentsCompact } from '@/lib/revenue'
 
 // ─── SEO Metadata ──────────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ async function getPublicDevelopers(): Promise<DeveloperCard[]> {
     })
     .from(developers)
     .leftJoin(developerReputation, eq(developerReputation.developerId, developers.id))
-    .leftJoin(tools, eq(tools.developerId, developers.id))
+    .leftJoin(tools, and(eq(tools.developerId, developers.id), excludeInternalTestToolsSql()))
     .where(eq(developers.publicProfile, true))
     .groupBy(
       developers.id,
@@ -133,7 +134,7 @@ async function getTopDevelopers(): Promise<LeaderboardEntry[]> {
     })
     .from(developers)
     .leftJoin(developerReputation, eq(developerReputation.developerId, developers.id))
-    .innerJoin(tools, eq(tools.developerId, developers.id))
+    .innerJoin(tools, and(eq(tools.developerId, developers.id), excludeInternalTestToolsSql()))
     .where(and(
       eq(developers.publicProfile, true),
     ))
@@ -166,7 +167,7 @@ async function getDirectoryStats(): Promise<DirectoryStats> {
       totalRevenueCents: sql<number>`coalesce(sum(${tools.totalRevenueCents}), 0)`.as('total_revenue_cents'),
     })
     .from(developers)
-    .leftJoin(tools, eq(tools.developerId, developers.id))
+    .leftJoin(tools, and(eq(tools.developerId, developers.id), excludeInternalTestToolsSql()))
     .where(eq(developers.publicProfile, true))
 
   return {

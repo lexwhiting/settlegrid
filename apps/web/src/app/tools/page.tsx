@@ -5,7 +5,8 @@ import { ShowcaseSearch } from '@/components/showcase-search'
 import type { ShowcaseTool } from '@/components/showcase-search'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { logger } from '@/lib/logger'
 
 /** Re-render at most every 5 minutes so newly published tools appear */
@@ -31,7 +32,7 @@ export default async function ShowcasePage() {
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.createdAt))
 
     activeTools = rows.map((r) => ({

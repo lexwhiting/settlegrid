@@ -8,6 +8,7 @@ import { getCategoryBySlug } from '@/lib/categories'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ async function getCollectionTools(toolSlugs: string[]): Promise<CollectionTool[]
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(and(eq(tools.status, 'active'), inArray(tools.slug, toolSlugs)))
+      .where(and(eq(tools.status, 'active'), inArray(tools.slug, toolSlugs), excludeInternalTestToolsSql()))
       .limit(50)
 
     // Preserve the editorial ordering from the collection definition

@@ -9,10 +9,13 @@ import {
   canPurchaseCredits,
   listedInMarketplacePatchSchema,
   marketplaceInclusionSql,
+  excludeInternalTestToolsSql,
   MARKETPLACE_ALWAYS_VISIBLE_STATUSES,
   MARKETPLACE_CONDITIONALLY_VISIBLE_STATUSES,
 } from '../marketplace-visibility'
 import { tools } from '../db/schema'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { INTERNAL_TEST_DEVELOPER_SLUGS, isInternalTestDeveloperSlug } from '../internal-accounts'
 
 describe('shouldIncludeInMarketplace — P2.INTL2 marketplace inclusion rule', () => {
   describe('unclaimed tools', () => {
@@ -326,6 +329,105 @@ describe('marketplaceInclusionSql — canonical Drizzle predicate', () => {
         `status='${cond}' is both always-visible AND conditionally-visible — predicate semantics break`,
       ).toBe(false)
     }
+  })
+})
+
+describe('internal test accounts — not listed on public surfaces', () => {
+  const dialect = new PgDialect()
+
+  it('lists settlegrid-support as the only internal test developer slug', () => {
+    expect(INTERNAL_TEST_DEVELOPER_SLUGS).toEqual(['settlegrid-support'])
+    expect(isInternalTestDeveloperSlug('settlegrid-support')).toBe(true)
+  })
+
+  it('does not treat the system principal, the seed account or other owners as test accounts', () => {
+    for (const slug of ['settlegrid-system', 'lexwhiting', 'some-dev', '', null, undefined]) {
+      expect(isInternalTestDeveloperSlug(slug)).toBe(false)
+    }
+  })
+
+  it('shouldIncludeInMarketplace excludes internal test tools whatever their status', () => {
+    expect(shouldIncludeInMarketplace('active', true, 'settlegrid-support')).toBe(false)
+    expect(shouldIncludeInMarketplace('unclaimed', true, 'settlegrid-support')).toBe(false)
+    expect(shouldIncludeInMarketplace('draft', true, 'settlegrid-support')).toBe(false)
+  })
+
+  it('shouldIncludeInMarketplace keeps the status rule for other owners', () => {
+    for (const owner of ['settlegrid-system', 'lexwhiting', 'some-dev', null, undefined]) {
+      expect(shouldIncludeInMarketplace('active', false, owner)).toBe(true)
+      expect(shouldIncludeInMarketplace('unclaimed', false, owner)).toBe(true)
+      expect(shouldIncludeInMarketplace('draft', true, owner)).toBe(true)
+      expect(shouldIncludeInMarketplace('draft', false, owner)).toBe(false)
+      expect(shouldIncludeInMarketplace('deleted', true, owner)).toBe(false)
+    }
+  })
+
+  it('excludeInternalTestToolsSql renders a NOT EXISTS on an aliased developers table, slugs bound as params', () => {
+    const q = dialect.sqlToQuery(excludeInternalTestToolsSql())
+    expect(q.sql).toBe(
+      'not exists (select 1 from "developers" "internal_test_developer" where "internal_test_developer"."id" = "tools"."developer_id" and "internal_test_developer"."slug" in ($1))',
+    )
+    expect(q.params).toEqual(['settlegrid-support'])
+  })
+
+  it('marketplaceInclusionSql combines the status rule with the internal test exclusion', () => {
+    const q = dialect.sqlToQuery(marketplaceInclusionSql())
+    expect(q.sql).toMatch(/^\(\(.*"tools"\."status" = \$1.*\) and not exists \(select 1 from "developers" "internal_test_developer"/)
+    expect(q.params).toEqual(['unclaimed', 'active', 'draft', true, 'settlegrid-support'])
+  })
+})
+
+describe('public listing surfaces apply the internal test exclusion (drift guard)', () => {
+  // Every public page or API that lists, counts or looks up tools for
+  // discovery must go through one of the two helpers. Owner, proxy, SDK and
+  // billing paths are deliberately not in this list.
+  const PUBLIC_SURFACES = [
+    'app/.well-known/mpp.json/route.ts',
+    'app/api/activity/route.ts',
+    'app/api/ask/route.ts',
+    'app/api/developers/[id]/profile/route.ts',
+    'app/api/feed/route.ts',
+    'app/api/marketplace/bundles/route.ts',
+    'app/api/marketplace/route.ts',
+    'app/api/marketplace/stats/route.ts',
+    'app/api/spotlight/route.ts',
+    'app/api/tools/categories/route.ts',
+    'app/api/tools/directory/route.ts',
+    'app/api/tools/public/[slug]/route.ts',
+    'app/api/v0.1/servers/[serverName]/versions/[version]/route.ts',
+    'app/api/v0.1/servers/[serverName]/versions/route.ts',
+    'app/api/v0.1/servers/route.ts',
+    'app/api/v0.1/x/ai.settlegrid/pricing/[serverName]/route.ts',
+    'app/api/v0.1/x/ai.settlegrid/revenue/[serverName]/route.ts',
+    'app/api/v0.1/x/ai.settlegrid/reviews/[serverName]/route.ts',
+    'app/api/v0.1/x/ai.settlegrid/stats/route.ts',
+    'app/api/v1/discover/[slug]/route.ts',
+    'app/api/v1/discover/categories/route.ts',
+    'app/api/v1/discover/developers/[slug]/route.ts',
+    'app/api/v1/discover/route.ts',
+    'app/api/v1/discover/route/route.ts',
+    'app/dev/[slug]/page.tsx',
+    'app/developers/page.tsx',
+    'app/explore/category/[cat]/cheapest/page.tsx',
+    'app/explore/category/[cat]/page.tsx',
+    'app/explore/category/[cat]/reliable/page.tsx',
+    'app/explore/category/[cat]/top/page.tsx',
+    'app/explore/collections/[slug]/page.tsx',
+    'app/explore/for/[framework]/page.tsx',
+    'app/explore/page.tsx',
+    'app/marketplace/marketplace-content.tsx',
+    'app/marketplace/spotlight-card.tsx',
+    'app/marketplace/trending/page.tsx',
+    'app/sitemap.ts',
+    'app/tools/[slug]/page.tsx',
+    'app/tools/[slug]/with/[framework]/page.tsx',
+    'app/tools/page.tsx',
+    'app/try/page.tsx',
+  ]
+
+  it.each(PUBLIC_SURFACES)('%s uses excludeInternalTestToolsSql or marketplaceInclusionSql', (file) => {
+    const src = readFileSync(resolve(__dirname, '..', '..', file), 'utf8')
+    expect(src).toMatch(/excludeInternalTestToolsSql\(\)|marketplaceInclusionSql\(\)/)
   })
 })
 

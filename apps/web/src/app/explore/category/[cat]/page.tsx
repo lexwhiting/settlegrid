@@ -7,6 +7,7 @@ import { CATEGORIES, CATEGORY_SLUGS, getCategoryBySlug } from '@/lib/categories'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ async function getCategoryTools(categorySlug: string): Promise<CategoryTool[]> {
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(and(eq(tools.status, 'active'), eq(tools.category, categorySlug)))
+      .where(and(eq(tools.status, 'active'), eq(tools.category, categorySlug), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.totalInvocations))
       .limit(200)
 

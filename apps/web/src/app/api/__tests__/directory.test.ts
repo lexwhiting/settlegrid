@@ -67,6 +67,10 @@ vi.mock('drizzle-orm', () => ({
   ),
 }))
 
+vi.mock('@/lib/marketplace-visibility', () => ({
+  excludeInternalTestToolsSql: vi.fn(() => ({ excludeInternalTestTools: true })),
+}))
+
 import { GET as getDirectory } from '@/app/api/tools/directory/route'
 import { GET as getCategories } from '@/app/api/tools/categories/route'
 
@@ -158,6 +162,18 @@ describe('Tool Directory (GET /api/tools/directory)', () => {
     expect(data.tools[0].category).toBe('finance')
   })
 
+  it('leaves out tools owned by internal test accounts', async () => {
+    await getDirectory(makeRequest('/api/tools/directory?category=finance'))
+
+    expect(mockDb.where).toHaveBeenCalledWith({
+      and: [
+        { field: 'status', value: 'active' },
+        { excludeInternalTestTools: true },
+        { field: 'category', value: 'finance' },
+      ],
+    })
+  })
+
   it('rejects invalid category', async () => {
     const response = await getDirectory(makeRequest('/api/tools/directory?category=invalid'))
     const data = await response.json()
@@ -231,6 +247,13 @@ describe('Tool Categories (GET /api/tools/categories)', () => {
     const security = data.categories.find((c: { slug: string }) => c.slug === 'security')
     expect(security.name).toBe('Security & Compliance')
     expect(security.count).toBe(0)
+  })
+
+  it('leaves out tools owned by internal test accounts from the counts', async () => {
+    await getCategories(makeRequest('/api/tools/categories'))
+
+    const whereArg = mockDb.where.mock.calls[0][0] as { and: unknown[] }
+    expect(whereArg.and).toContainEqual({ excludeInternalTestTools: true })
   })
 
   it('returns 429 when rate limited', async () => {

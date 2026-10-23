@@ -10,9 +10,9 @@ import { ReviewForm } from '@/components/storefront/review-form'
 import { HeaderAuthLinks } from '@/components/storefront/header-auth-links'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { getCategoryBySlug } from '@/lib/categories'
-import { canPurchaseCredits } from '@/lib/marketplace-visibility'
+import { canPurchaseCredits, excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export async function generateStaticParams() {
     const activeTools = await db
       .select({ slug: tools.slug })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .limit(500)
 
     return activeTools

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { eq, and, desc, ilike, or, type SQL } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { createRateLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -385,7 +386,7 @@ export async function POST(request: NextRequest) {
 
     if (category) {
       // Search across all tool types within the category
-      const conditions = [eq(tools.status, 'active'), eq(tools.category, category)]
+      const conditions = [eq(tools.status, 'active'), eq(tools.category, category), excludeInternalTestToolsSql()]
 
       // If user's question implies a specific tool type, also try filtering by it
       if (preferredToolType) {
@@ -461,7 +462,7 @@ export async function POST(request: NextRequest) {
         broadTools = await db
           .select(TOOL_SELECT)
           .from(tools)
-          .where(and(eq(tools.status, 'active'), or(...textConditions)!))
+          .where(and(eq(tools.status, 'active'), or(...textConditions)!, excludeInternalTestToolsSql()))
           .orderBy(desc(tools.totalInvocations))
           .limit(20)
       } else {
@@ -469,7 +470,7 @@ export async function POST(request: NextRequest) {
         broadTools = await db
           .select(TOOL_SELECT)
           .from(tools)
-          .where(eq(tools.status, 'active'))
+          .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
           .orderBy(desc(tools.totalInvocations))
           .limit(20)
       }

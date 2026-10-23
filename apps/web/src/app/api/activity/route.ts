@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { desc, sql, gte, count } from 'drizzle-orm'
+import { and, desc, sql, gte, count } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools, developers, invocations } from '@/lib/db/schema'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
             createdAt: tools.createdAt,
           })
           .from(tools)
-          .where(gte(tools.createdAt, oneDayAgo))
+          .where(and(gte(tools.createdAt, oneDayAgo), excludeInternalTestToolsSql()))
           .orderBy(desc(tools.createdAt))
           .limit(10),
 
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
           })
           .from(invocations)
           .innerJoin(tools, sql`${invocations.toolId} = ${tools.id}`)
-          .where(gte(invocations.createdAt, oneHourAgo))
+          .where(and(gte(invocations.createdAt, oneHourAgo), excludeInternalTestToolsSql()))
           .orderBy(desc(invocations.createdAt))
           .limit(15),
 
@@ -78,13 +79,14 @@ export async function GET(request: NextRequest) {
         db
           .select({ count: count() })
           .from(invocations)
-          .where(gte(invocations.createdAt, oneHourAgo)),
+          .innerJoin(tools, sql`${invocations.toolId} = ${tools.id}`)
+          .where(and(gte(invocations.createdAt, oneHourAgo), excludeInternalTestToolsSql())),
 
         // Tools published today (count)
         db
           .select({ count: count() })
           .from(tools)
-          .where(gte(tools.createdAt, oneDayAgo)),
+          .where(and(gte(tools.createdAt, oneDayAgo), excludeInternalTestToolsSql())),
 
         // Developers joined this week (count)
         db
@@ -99,7 +101,7 @@ export async function GET(request: NextRequest) {
             count: count(),
           })
           .from(tools)
-          .where(gte(tools.createdAt, oneDayAgo))
+          .where(and(gte(tools.createdAt, oneDayAgo), excludeInternalTestToolsSql()))
           .groupBy(tools.toolType),
       ])
 
