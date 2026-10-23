@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockValidate, mockRequireDeveloper, mockQueueSeed, mockOnToolActivated } = vi.hoisted(() => {
+const { mockDb, mockValidate, mockRequireDeveloper, mockQueueSeed, mockOnToolActivated, mockEmit } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -26,6 +26,7 @@ const { mockDb, mockValidate, mockRequireDeveloper, mockQueueSeed, mockOnToolAct
     mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-1', email: 'dev@example.com' }),
     mockQueueSeed: vi.fn(),
     mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
+    mockEmit: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -62,6 +63,12 @@ vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 vi.mock('@/lib/seed-invocations', () => ({ queueSeedInvocations: mockQueueSeed }))
 vi.mock('@/lib/quality-gates', () => ({ validateToolForActivation: mockValidate }))
 vi.mock('@/lib/tool-activation', () => ({ onToolActivated: mockOnToolActivated }))
+vi.mock('@/lib/webhooks', () => ({ emitToolStatusChanged: mockEmit }))
+// after() defers the webhook past the response; run the callback inline here.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: vi.fn((cb: () => unknown) => cb()),
+}))
 
 import { POST } from '../route'
 
@@ -136,6 +143,9 @@ describe('POST /api/tools/quick-publish', () => {
     expect(mockOnToolActivated).toHaveBeenCalledWith({
       developerId: 'dev-1', toolId: 'tool-1', toolName: 'Example Search', toolSlug: 'example-search', fromStatus: 'draft',
     })
+    expect(mockEmit).toHaveBeenCalledWith({
+      developerId: 'dev-1', toolId: 'tool-1', fromStatus: 'draft', toStatus: 'active', slug: 'example-search', name: 'Example Search',
+    })
   })
 
   it('returns 422 with the gate reasons and leaves the tool as a draft', async () => {
@@ -159,6 +169,7 @@ describe('POST /api/tools/quick-publish', () => {
     expect(mockDb.update).not.toHaveBeenCalled()
     expect(mockQueueSeed).not.toHaveBeenCalled()
     expect(mockOnToolActivated).not.toHaveBeenCalled()
+    expect(mockEmit).not.toHaveBeenCalled()
   })
 
   it('rejects a category outside the canonical list before inserting', async () => {

@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -14,6 +14,7 @@ import { logger } from '@/lib/logger'
 import { isPublicUrlString } from '@/lib/safe-egress'
 import { validateToolForActivation } from '@/lib/quality-gates'
 import { onToolActivated } from '@/lib/tool-activation'
+import { emitToolStatusChanged } from '@/lib/webhooks'
 
 export const maxDuration = 60
 
@@ -249,6 +250,17 @@ export async function POST(request: NextRequest) {
         toolSlug: tool.slug,
         fromStatus: draft.status,
       })
+      // Delivered after the response; dispatchWebhook logs its own failures.
+      after(() =>
+        emitToolStatusChanged({
+          developerId: auth.id,
+          toolId: tool.id,
+          fromStatus: draft.status,
+          toStatus: activated.status,
+          slug: tool.slug,
+          name: tool.name,
+        }).catch((err) => logger.error('quick_publish.webhook_failed', { toolId: tool.id }, err)),
+      )
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://settlegrid.ai'

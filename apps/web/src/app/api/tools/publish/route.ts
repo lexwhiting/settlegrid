@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -10,6 +10,7 @@ import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { validateToolForActivation } from '@/lib/quality-gates'
 import { onToolActivated } from '@/lib/tool-activation'
+import { emitToolStatusChanged } from '@/lib/webhooks'
 import { PUBLISHER_API_KEY_PREFIX, apiKeyHashCandidates } from '@/lib/crypto'
 
 export const maxDuration = 60
@@ -420,6 +421,18 @@ export async function PUT(request: NextRequest) {
           toolSlug: toolRecord.slug,
           fromStatus: statusOnInitialWrite,
         })
+        const activatedTool = toolRecord
+        // Delivered after the response; dispatchWebhook logs its own failures.
+        after(() =>
+          emitToolStatusChanged({
+            developerId: auth.id,
+            toolId: activatedTool.id,
+            fromStatus: statusOnInitialWrite,
+            toStatus: activatedTool.status,
+            slug: activatedTool.slug,
+            name: activatedTool.name,
+          }).catch((err) => logger.error('tools_publish.webhook_failed', { toolId: activatedTool.id }, err)),
+        )
       }
     }
 

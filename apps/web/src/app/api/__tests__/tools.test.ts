@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation, mockOnToolActivated } = vi.hoisted(() => {
+const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation, mockOnToolActivated, mockEmitToolStatusChanged } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -21,6 +21,7 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForAct
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
     mockValidateToolForActivation: vi.fn().mockResolvedValue({ passed: true, failures: [] }),
     mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
+    mockEmitToolStatusChanged: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -100,6 +101,16 @@ vi.mock('@/lib/quality-gates', () => ({
 
 vi.mock('@/lib/tool-activation', () => ({
   onToolActivated: mockOnToolActivated,
+}))
+
+vi.mock('@/lib/webhooks', () => ({
+  emitToolStatusChanged: mockEmitToolStatusChanged,
+}))
+
+// after() defers the webhook past the response; run the callback inline here.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: vi.fn((cb: () => unknown) => cb()),
 }))
 
 import { GET, POST } from '@/app/api/tools/route'
@@ -425,6 +436,61 @@ describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
     )
 
     expect(mockOnToolActivated).not.toHaveBeenCalled()
+  })
+
+  it('emits tool.status_changed when the status changes', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+    expect(mockEmitToolStatusChanged).toHaveBeenCalledWith({
+      developerId: 'dev-123', toolId: statusUuid, fromStatus: 'draft', toStatus: 'active', slug: 'tool', name: 'Tool',
+    })
+
+    mockEmitToolStatusChanged.mockClear()
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'draft', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'draft' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+    expect(mockEmitToolStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ fromStatus: 'active', toStatus: 'draft' })
+    )
+  })
+
+  it('does not emit tool.status_changed when the status is unchanged or the gate fails', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockValidateToolForActivation.mockResolvedValueOnce({ passed: false, failures: ['A category must be selected'] })
+    const res = await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockEmitToolStatusChanged).not.toHaveBeenCalled()
+  })
+
+  it('still returns 200 when the webhook emit rejects', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'draft' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    mockEmitToolStatusChanged.mockRejectedValueOnce(new Error('dispatch failed'))
+
+    const res = await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(res.status).toBe(200)
   })
 
   it('returns 400 for deleted tool', async () => {
