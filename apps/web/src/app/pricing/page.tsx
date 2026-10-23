@@ -117,7 +117,6 @@ const plans = [
       'Full dashboard',
       'Progressive take rate (0% on first $1K)',
       'Scheduled invocations (up to 10)',
-      'Consumer referral program',
       '1 webhook endpoint',
       '7-day log retention',
       'Community support',

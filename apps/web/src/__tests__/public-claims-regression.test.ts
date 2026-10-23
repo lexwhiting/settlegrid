@@ -127,3 +127,13 @@ describe('academic page', () => {
     )
   })
 })
+
+// ─── No consumer referral promise ───────────────────────────────────────────
+
+describe('pricing plan features', () => {
+  it('does not list a consumer referral program', () => {
+    expect(repoFile('apps/web/src/app/pricing/page.tsx')).not.toMatch(
+      /consumer referral/i,
+    )
+  })
+})
