@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockValidate } = vi.hoisted(() => {
+const { mockDb, mockValidate, mockOnToolActivated } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -30,6 +30,7 @@ const { mockDb, mockValidate } = vi.hoisted(() => {
   return {
     mockDb,
     mockValidate: vi.fn(),
+    mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -83,6 +84,10 @@ vi.mock('@/lib/audit', () => ({
 
 vi.mock('@/lib/quality-gates', () => ({
   validateToolForActivation: mockValidate,
+}))
+
+vi.mock('@/lib/tool-activation', () => ({
+  onToolActivated: mockOnToolActivated,
 }))
 
 vi.mock('@/lib/request-id', () => ({
@@ -163,6 +168,7 @@ describe('PUT /api/tools/publish — producer-audit #8 quality gate', () => {
     expect(res.status).toBe(201)
     expect(data.tool.status).toBe('active')
     expect(mockValidate).toHaveBeenCalledWith('tool-new', 'dev-123')
+    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-123', toolId: 'tool-new' })
   })
 
   it('CREATE: inserts the draft hidden from the marketplace', async () => {
@@ -269,6 +275,24 @@ describe('PUT /api/tools/publish — regression guard: UPDATE preserves existing
 
     expect(res.status).toBe(200)
     expect(data.tool.status).toBe('active')
+    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-123', toolId: 'tool-u' })
+  })
+
+  it('UPDATE: re-publishing an already-active tool does not re-run activation side effects', async () => {
+    mockAuth()
+    mockDb.limit.mockResolvedValueOnce([
+      { id: 'tool-live', developerId: 'dev-123', name: 'T', status: 'active' },
+    ])
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'tool-live', slug: 'my-tool', name: 'T', status: 'active', currentVersion: '1.0.1', createdAt: new Date(), updatedAt: new Date() },
+    ])
+    mockDb.returning.mockResolvedValueOnce([{ status: 'active', updatedAt: new Date() }])
+    mockValidate.mockResolvedValueOnce({ passed: true, failures: [] })
+
+    const res = await PUT(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockOnToolActivated).not.toHaveBeenCalled()
   })
 
   it('UPDATE: rejects with 409 when a different developer owns the slug', async () => {

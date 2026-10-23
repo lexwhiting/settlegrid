@@ -8,6 +8,7 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { validateToolForActivation } from '@/lib/quality-gates'
+import { onToolActivated } from '@/lib/tool-activation'
 
 export const maxDuration = 60
 
@@ -112,6 +113,10 @@ export async function PATCH(
       details: { fromStatus: existing.status, toStatus: body.status },
       ipAddress: ip,
     }).catch(() => {})
+
+    if (body.status === 'active' && existing.status !== 'active') {
+      await onToolActivated({ developerId: auth.id, toolId: tool.id })
+    }
 
     return successResponse({ tool })
   } catch (error) {

@@ -9,6 +9,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
 import { logger } from '@/lib/logger'
 import { validateToolForActivation } from '@/lib/quality-gates'
+import { onToolActivated } from '@/lib/tool-activation'
 import { PUBLISHER_API_KEY_PREFIX, apiKeyHashCandidates } from '@/lib/crypto'
 
 export const maxDuration = 60
@@ -411,6 +412,9 @@ export async function PUT(request: NextRequest) {
 
     if (activated) {
       toolRecord = { ...toolRecord, status: activated.status, updatedAt: activated.updatedAt }
+      if (statusOnInitialWrite !== 'active') {
+        await onToolActivated({ developerId: auth.id, toolId: toolRecord.id })
+      }
     }
 
     // Audit log

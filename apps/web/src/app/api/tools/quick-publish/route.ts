@@ -13,6 +13,7 @@ import { CATEGORY_SLUGS } from '@/lib/categories'
 import { logger } from '@/lib/logger'
 import { isPublicUrlString } from '@/lib/safe-egress'
 import { validateToolForActivation } from '@/lib/quality-gates'
+import { onToolActivated } from '@/lib/tool-activation'
 
 export const maxDuration = 60
 
@@ -239,6 +240,10 @@ export async function POST(request: NextRequest) {
       .returning({ status: tools.status })
 
     const tool = { ...draft, status: activated?.status ?? draft.status }
+
+    if (activated) {
+      await onToolActivated({ developerId: auth.id, toolId: tool.id })
+    }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://settlegrid.ai'
     const proxyUrl = `${appUrl}/api/proxy/${tool.slug}`

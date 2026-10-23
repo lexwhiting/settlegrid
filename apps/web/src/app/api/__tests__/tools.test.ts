@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation } = vi.hoisted(() => {
+const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForActivation, mockOnToolActivated } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -20,6 +20,7 @@ const { mockDb, mockRequireDeveloper, mockCheckRateLimit, mockValidateToolForAct
     mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-123', email: 'dev@example.com' }),
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
     mockValidateToolForActivation: vi.fn().mockResolvedValue({ passed: true, failures: [] }),
+    mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -95,6 +96,10 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/quality-gates', () => ({
   validateToolForActivation: mockValidateToolForActivation,
+}))
+
+vi.mock('@/lib/tool-activation', () => ({
+  onToolActivated: mockOnToolActivated,
 }))
 
 import { GET, POST } from '@/app/api/tools/route'
@@ -399,6 +404,25 @@ describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
 
     expect(response.status).toBe(200)
     expect(data.tool.status).toBe('active')
+    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-123', toolId: statusUuid })
+  })
+
+  it('does not run activation side effects for an already-active tool or on deactivate', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'active', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'active' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    mockDb.limit.mockResolvedValueOnce([{ id: statusUuid, status: 'active' }])
+    mockDb.returning.mockResolvedValueOnce([{ id: statusUuid, name: 'Tool', slug: 'tool', status: 'draft', updatedAt: new Date() }])
+    await patchStatus(
+      makeRequest(`/api/tools/${statusUuid}/status`, 'PATCH', { status: 'draft' }),
+      { params: Promise.resolve({ id: statusUuid }) }
+    )
+
+    expect(mockOnToolActivated).not.toHaveBeenCalled()
   })
 
   it('returns 400 for deleted tool', async () => {

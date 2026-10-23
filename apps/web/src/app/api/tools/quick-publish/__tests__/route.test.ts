@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockValidate, mockRequireDeveloper, mockQueueSeed } = vi.hoisted(() => {
+const { mockDb, mockValidate, mockRequireDeveloper, mockQueueSeed, mockOnToolActivated } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -25,6 +25,7 @@ const { mockDb, mockValidate, mockRequireDeveloper, mockQueueSeed } = vi.hoisted
     mockValidate: vi.fn(),
     mockRequireDeveloper: vi.fn().mockResolvedValue({ id: 'dev-1', email: 'dev@example.com' }),
     mockQueueSeed: vi.fn(),
+    mockOnToolActivated: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -60,6 +61,7 @@ vi.mock('@/lib/request-id', () => ({ getOrCreateRequestId: vi.fn().mockReturnVal
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('@/lib/seed-invocations', () => ({ queueSeedInvocations: mockQueueSeed }))
 vi.mock('@/lib/quality-gates', () => ({ validateToolForActivation: mockValidate }))
+vi.mock('@/lib/tool-activation', () => ({ onToolActivated: mockOnToolActivated }))
 
 import { POST } from '../route'
 
@@ -131,6 +133,7 @@ describe('POST /api/tools/quick-publish', () => {
     expect(data.tool.status).toBe('active')
     expect(data.tool.proxyUrl).toMatch(/\/api\/proxy\/example-search$/)
     expect(mockQueueSeed).toHaveBeenCalled()
+    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-1', toolId: 'tool-1' })
   })
 
   it('returns 422 with the gate reasons and leaves the tool as a draft', async () => {
@@ -153,6 +156,7 @@ describe('POST /api/tools/quick-publish', () => {
     expect(data.currentStatus).toBe('draft')
     expect(mockDb.update).not.toHaveBeenCalled()
     expect(mockQueueSeed).not.toHaveBeenCalled()
+    expect(mockOnToolActivated).not.toHaveBeenCalled()
   })
 
   it('rejects a category outside the canonical list before inserting', async () => {
