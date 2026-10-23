@@ -110,6 +110,62 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
     expect(data).toHaveProperty('calculatedAt')
   })
 
+  function mockFreshCompute(row: Record<string, unknown>) {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: validUuid, name: 'Dev Name', publicProfile: true }])
+      .mockResolvedValueOnce([])
+    let whereCount = 0
+    mockDb.where.mockImplementation(() => {
+      whereCount++
+      if (whereCount <= 2) return mockDb
+      return Promise.resolve([row])
+    })
+    mockDb.onConflictDoUpdate.mockResolvedValueOnce(undefined)
+  }
+
+  it('returns null uptime and response time when there are no checks or invocations', async () => {
+    // 2 active tools, 4.0 avg review, 2 consumers; zero checks and zero invocations in 30 days
+    mockFreshCompute({ count: 2, avg: 4, id: 'tool-1', total: 0, pct: 0, median: 0 })
+
+    const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.breakdown.uptimePct).toBeNull()
+    expect(data.breakdown.responseTimePct).toBeNull()
+    // Missing dimensions are left out: (80*0.25 + 10*0.15 + 40*0.10) / 0.5 = 51
+    expect(data.score).toBe(51)
+    // NOT NULL cache columns store 0 for missing data
+    expect(mockDb.values).toHaveBeenCalledWith(expect.objectContaining({ uptimePct: 0, responseTimePct: 0 }))
+  })
+
+  it('includes uptime and response time when there is data', async () => {
+    // 10 checks at 90% up, median latency 100ms -> response score 80
+    mockFreshCompute({ count: 2, avg: 4.5, id: 'tool-1', total: 10, pct: 90, median: 100 })
+
+    const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
+    const data = await res.json()
+    expect(data.breakdown.uptimePct).toBe(90)
+    expect(data.breakdown.responseTimePct).toBe(80)
+    // 90*0.3 + 90*0.25 + 80*0.2 + 10*0.15 + 40*0.1 = 71
+    expect(data.score).toBe(71)
+  })
+
+  it('returns null dimensions from a cached row when nothing was measured', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: validUuid, name: 'Dev Name', publicProfile: true }])
+      .mockResolvedValueOnce([{
+        score: 51, responseTimePct: 0, uptimePct: 0, reviewAvg: 400, totalTools: 2, totalConsumers: 2, calculatedAt: new Date().toISOString(),
+      }])
+      .mockResolvedValueOnce([{ hasChecks: false, hasInvocations: false }])
+
+    const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.breakdown.uptimePct).toBeNull()
+    expect(data.breakdown.responseTimePct).toBeNull()
+    expect(data.score).toBe(51)
+  })
+
   it('returns 404 when developer not found', async () => {
     mockDb.limit.mockResolvedValueOnce([])
     const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })

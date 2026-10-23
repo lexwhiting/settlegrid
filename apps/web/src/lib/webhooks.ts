@@ -1,9 +1,10 @@
 import crypto from 'crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { webhookEndpoints, webhookDeliveries, developers } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
 import { safeFetch, isPublicUrlString } from '@/lib/safe-egress'
+import { parseWebhookEvents, type WebhookEventName } from '@/lib/webhook-events'
 
 /**
  * Compute the next retry timestamp using exponential backoff.
@@ -141,7 +142,7 @@ export async function attemptWebhookDelivery(
  */
 export async function dispatchWebhook(
   developerId: string,
-  event: string,
+  event: WebhookEventName,
   payload: Record<string, unknown>
 ): Promise<void> {
   try {
@@ -164,13 +165,15 @@ export async function dispatchWebhook(
         customHeaders: webhookEndpoints.customHeaders,
       })
       .from(webhookEndpoints)
-      .where(eq(webhookEndpoints.developerId, developerId))
+      .where(
+        and(
+          eq(webhookEndpoints.developerId, developerId),
+          eq(webhookEndpoints.status, 'active'),
+        )
+      )
       .limit(10)
 
-    const activeEndpoints = endpoints.filter((ep) => {
-      const events = Array.isArray(ep.events) ? ep.events : JSON.parse(String(ep.events))
-      return events.includes(event)
-    })
+    const activeEndpoints = endpoints.filter((ep) => parseWebhookEvents(ep.events).includes(event))
 
     for (const ep of activeEndpoints) {
       const { httpStatus, status } = await attemptWebhookDelivery(
@@ -199,4 +202,25 @@ export async function dispatchWebhook(
   } catch (err) {
     logger.error('webhook.dispatch_failed', { developerId, event }, err)
   }
+}
+
+/**
+ * Emit `tool.status_changed` to the developer's subscribed endpoints.
+ * Fire-and-forget: never throws (dispatchWebhook logs its own failures).
+ */
+export function emitToolStatusChanged(params: {
+  developerId: string
+  toolId: string
+  fromStatus: string
+  toStatus: string
+  slug?: string | null
+  name?: string | null
+}): Promise<void> {
+  return dispatchWebhook(params.developerId, 'tool.status_changed', {
+    toolId: params.toolId,
+    slug: params.slug ?? null,
+    name: params.name ?? null,
+    fromStatus: params.fromStatus,
+    toStatus: params.toStatus,
+  })
 }

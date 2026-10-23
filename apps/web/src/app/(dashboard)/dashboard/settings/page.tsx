@@ -23,6 +23,23 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { useToast } from '@/components/ui/toast'
 import { ApiKeyRevealDialog } from '@/components/api-key-reveal-dialog'
+import {
+  SETTINGS_NOTIFICATION_EVENTS,
+  MARKETING_PREFERENCE_KEY,
+  isNotificationOptedOut,
+  type NotificationEventDef,
+} from '@/lib/notification-events'
+import { getProgressiveTakeDescription } from '@/lib/pricing'
+import { getEffectiveTier } from '@/lib/tier-config'
+import {
+  LOG_RETENTION_OPTIONS,
+  WEBHOOK_LOG_RETENTION_OPTIONS,
+  AUDIT_LOG_RETENTION_OPTIONS,
+  DEFAULT_LOG_RETENTION_DAYS,
+  DEFAULT_WEBHOOK_LOG_RETENTION_DAYS,
+  DEFAULT_AUDIT_LOG_RETENTION_DAYS,
+  toRetentionOption,
+} from '@/lib/retention-options'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -32,6 +49,7 @@ interface DeveloperProfile {
   name: string | null
   slug: string | null
   tier: string
+  isFoundingMember?: boolean
   stripeConnectStatus: string
   stripeSubscriptionId: string | null
   balanceCents: number
@@ -65,34 +83,14 @@ interface NavItem {
 
 // ─── Notification Types ─────────────────────────────────────────────────────────
 
-interface NotificationEvent {
-  key: string
-  label: string
-  category: 'billing' | 'tools' | 'security' | 'webhooks'
-  critical: boolean
+interface NotificationEvent extends NotificationEventDef {
   emailEnabled: boolean
 }
 
-const DEFAULT_NOTIFICATIONS: NotificationEvent[] = [
-  { key: 'payout_completed', label: 'Payout completed', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'payout_failed', label: 'Payout failed', category: 'billing', critical: true, emailEnabled: true },
-  { key: 'balance_low', label: 'Balance below threshold', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'invoice_generated', label: 'Invoice generated', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'tool_published', label: 'Tool published', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'tool_status_changed', label: 'Tool status changed', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'tool_health_down', label: 'Tool health check failed', category: 'tools', critical: true, emailEnabled: true },
-  { key: 'usage_spike', label: 'Unusual usage spike detected', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'login_new_device', label: 'Login from new device', category: 'security', critical: true, emailEnabled: true },
-  { key: 'password_changed', label: 'Password changed', category: 'security', critical: true, emailEnabled: true },
-  { key: 'api_key_created', label: 'API key created', category: 'security', critical: false, emailEnabled: true },
-  { key: 'suspicious_activity', label: 'Suspicious activity detected', category: 'security', critical: true, emailEnabled: true },
-  { key: 'webhook_delivery_failed', label: 'Webhook delivery failed', category: 'webhooks', critical: false, emailEnabled: true },
-  { key: 'webhook_endpoint_disabled', label: 'Webhook endpoint disabled', category: 'webhooks', critical: true, emailEnabled: true },
-  { key: 'new_review', label: 'New review received', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'monthly_summary', label: 'Monthly earnings summary', category: 'billing', critical: false, emailEnabled: true },
-  { key: 'onboarding_tips', label: 'Onboarding tips & best practices', category: 'tools', critical: false, emailEnabled: true },
-  { key: 'quality_alert', label: 'Tool quality alerts (slow response, errors)', category: 'tools', critical: false, emailEnabled: true },
-]
+const DEFAULT_NOTIFICATIONS: NotificationEvent[] = SETTINGS_NOTIFICATION_EVENTS.map((e) => ({
+  ...e,
+  emailEnabled: true,
+}))
 
 // ─── Plan Data ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +109,7 @@ const PLANS: Record<string, PlanInfo> = {
   builder: {
     name: 'Builder',
     price: '$19/mo',
-    features: ['Unlimited tools', '200,000 ops/mo', 'Progressive take rate', 'Full analytics & sandbox mode', 'IP allowlisting & CSV export'],
+    features: ['Unlimited tools', '200,000 ops/mo', 'Progressive take rate', 'Full analytics', 'IP allowlisting & CSV export'],
   },
   scale: {
     name: 'Scale',
@@ -376,9 +374,9 @@ export default function SettingsPage() {
   const [deletingAccount, setDeletingAccount] = useState(false)
 
   // Data retention state
-  const [logRetentionDays, setLogRetentionDays] = useState(90)
-  const [webhookLogRetentionDays, setWebhookLogRetentionDays] = useState(30)
-  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(365)
+  const [logRetentionDays, setLogRetentionDays] = useState(DEFAULT_LOG_RETENTION_DAYS)
+  const [webhookLogRetentionDays, setWebhookLogRetentionDays] = useState(DEFAULT_WEBHOOK_LOG_RETENTION_DAYS)
+  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(DEFAULT_AUDIT_LOG_RETENTION_DAYS)
   const [savingRetention, setSavingRetention] = useState(false)
 
   // Marketing communications toggle
@@ -422,9 +420,9 @@ export default function SettingsPage() {
       setPublicProfile(dev.publicProfile)
       setPayoutSchedule(dev.payoutSchedule)
       setPayoutMinimumDollars(String(dev.payoutMinimumCents / 100))
-      setLogRetentionDays(dev.logRetentionDays ?? 90)
-      setWebhookLogRetentionDays(dev.webhookLogRetentionDays ?? 30)
-      setAuditLogRetentionDays(dev.auditLogRetentionDays ?? 365)
+      setLogRetentionDays(toRetentionOption(dev.logRetentionDays, LOG_RETENTION_OPTIONS, DEFAULT_LOG_RETENTION_DAYS))
+      setWebhookLogRetentionDays(toRetentionOption(dev.webhookLogRetentionDays, WEBHOOK_LOG_RETENTION_OPTIONS, DEFAULT_WEBHOOK_LOG_RETENTION_DAYS))
+      setAuditLogRetentionDays(toRetentionOption(dev.auditLogRetentionDays, AUDIT_LOG_RETENTION_OPTIONS, DEFAULT_AUDIT_LOG_RETENTION_DAYS))
 
       // Load saved notification preferences
       try {
@@ -434,11 +432,11 @@ export default function SettingsPage() {
           const saved = prefsData.preferences as Record<string, boolean>
           if (saved && Object.keys(saved).length > 0) {
             setNotifications((prev) =>
-              prev.map((n) => saved[n.key] !== undefined ? { ...n, emailEnabled: saved[n.key] } : n)
+              prev.map((n) => n.critical ? n : { ...n, emailEnabled: !isNotificationOptedOut(saved, n.key) })
             )
             // Load marketing communications preference
-            if (saved.marketing_updates !== undefined) {
-              setMarketingUpdates(saved.marketing_updates)
+            if (saved[MARKETING_PREFERENCE_KEY] !== undefined) {
+              setMarketingUpdates(saved[MARKETING_PREFERENCE_KEY])
             }
           }
         }
@@ -925,7 +923,7 @@ export default function SettingsPage() {
     fetch('/api/dashboard/developer/notification-preferences', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ marketing_updates: newValue }),
+      body: JSON.stringify({ [MARKETING_PREFERENCE_KEY]: newValue }),
     })
       .then(async (res) => {
         if (!res.ok) toast('Failed to update preference', 'error')
@@ -1094,7 +1092,9 @@ export default function SettingsPage() {
 
   // ─── Derived Values ─────────────────────────────────────────────────────────
 
-  const rawTier = profile?.tier ?? 'free'
+  const isFoundingMember = profile?.isFoundingMember === true
+  // Founding members have Scale for life; their stored tier stays at the default.
+  const rawTier = getEffectiveTier(profile?.tier ?? 'free', isFoundingMember)
   const currentPlanKey = rawTier === 'enterprise' ? 'enterprise' : normalizePlanKey(rawTier)
   const currentPlanIndex = PLAN_ORDER.indexOf(currentPlanKey === 'standard' ? 'free' : currentPlanKey)
   const notificationCategories = ['billing', 'tools', 'security', 'webhooks'] as const
@@ -1196,7 +1196,7 @@ export default function SettingsPage() {
                   </label>
                   <div className="flex items-center gap-0 max-w-lg">
                     <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-[#2A2D3E] dark:bg-[#252836] dark:text-gray-400 whitespace-nowrap">
-                      settlegrid.ai/developers/
+                      settlegrid.ai/dev/
                     </span>
                     <Input
                       id="profile-slug"
@@ -1219,7 +1219,7 @@ export default function SettingsPage() {
                   </p>
                   {profileSlug && /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(profileSlug) && profileSlug.length >= 3 && (
                     <p className="mt-1 text-xs text-brand dark:text-amber-400">
-                      Your profile: settlegrid.ai/developers/{profileSlug}
+                      Your profile: settlegrid.ai/dev/{profileSlug}
                     </p>
                   )}
                 </div>
@@ -1313,6 +1313,9 @@ export default function SettingsPage() {
                       <Badge variant={currentPlanKey === 'enterprise' ? 'default' : 'secondary'}>
                         {currentPlanKey === 'standard' ? 'Free' : currentPlanKey.charAt(0).toUpperCase() + currentPlanKey.slice(1)}
                       </Badge>
+                      {isFoundingMember && (
+                        <Badge variant="outline" className="ml-2">Founding Member (lifetime)</Badge>
+                      )}
                     </dd>
                   </div>
                   <div>
@@ -1320,7 +1323,7 @@ export default function SettingsPage() {
                     <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">
                       Progressive
                       <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-                        (0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K)
+                        ({getProgressiveTakeDescription().replace(/^Progressive:\s*/, '')}, applied at payout)
                       </span>
                     </dd>
                   </div>
@@ -1841,6 +1844,9 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-3 mb-3">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Plan:</span>
                         <Badge variant="default">{plan?.name ?? 'Free'}</Badge>
+                        {isFoundingMember && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Included with Founding Member, for life</span>
+                        )}
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
@@ -1892,6 +1898,10 @@ export default function SettingsPage() {
                         </ul>
                         {isCurrent ? (
                           <Badge variant="outline" className="w-full justify-center">Current Plan</Badge>
+                        ) : isFoundingMember ? (
+                          <Button size="sm" variant="ghost" className="w-full" disabled>
+                            Included with Founding Member
+                          </Button>
                         ) : isUpgrade && isPaidPlan ? (
                           profile?.stripeSubscriptionId ? (
                             /* Has subscription — use change-plan API for instant upgrade */
@@ -2008,9 +2018,9 @@ export default function SettingsPage() {
                         onChange={(e) => setWebhookLogRetentionDays(Number(e.target.value))}
                         className="w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                       >
-                        <option value={7}>7 days</option>
+                        <option value={7}>7 days (default)</option>
                         <option value={14}>14 days</option>
-                        <option value={30}>30 days (default)</option>
+                        <option value={30}>30 days</option>
                         <option value={60}>60 days</option>
                         <option value={90}>90 days</option>
                       </select>
@@ -2026,9 +2036,9 @@ export default function SettingsPage() {
                         onChange={(e) => setAuditLogRetentionDays(Number(e.target.value))}
                         className="w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#1A1F3A] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
                       >
-                        <option value={90}>90 days (minimum)</option>
+                        <option value={90}>90 days (default, minimum)</option>
                         <option value={180}>180 days</option>
-                        <option value={365}>365 days (default)</option>
+                        <option value={365}>365 days</option>
                         <option value={730}>730 days</option>
                       </select>
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">How long to keep audit trail records</p>

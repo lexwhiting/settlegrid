@@ -1,12 +1,22 @@
 import { db } from '@/lib/db'
 import { auditLogs } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
+import type { AuditAction, AuditResourceType } from '@/lib/audit-actions'
+
+export {
+  AUDIT_ACTIONS,
+  AUDIT_RESOURCE_TYPES,
+  DEVELOPER_AUDIT_ACTIONS,
+  DEVELOPER_AUDIT_RESOURCE_TYPES,
+  type AuditAction,
+  type AuditResourceType,
+} from '@/lib/audit-actions'
 
 export async function writeAuditLog(params: {
   developerId?: string
   consumerId?: string
-  action: string
-  resourceType: string
+  action: AuditAction
+  resourceType: AuditResourceType
   resourceId?: string
   details?: Record<string, unknown>
   ipAddress?: string

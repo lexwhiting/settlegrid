@@ -5,6 +5,7 @@ import { developers, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { getEffectiveTier } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
       .limit(1)
 
     const isFoundingMember = developer?.isFoundingMember ?? false
-    const tier = isFoundingMember ? 'scale' : (developer?.tier ?? 'standard')
+    const tier = getEffectiveTier(developer?.tier ?? 'standard', isFoundingMember)
     const tierLimit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard
 
     // Get developer's tool IDs

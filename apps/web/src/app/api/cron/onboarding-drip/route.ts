@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
             const tpl = onboardingNudgeToolEmail(devName)
             await sendNotificationEmail({
               developerId: dev.id,
-              eventKey: 'onboarding_drip',
+              eventKey: 'onboarding_tips',
               email: dev.email,
               subject: tpl.subject,
               html: tpl.html,
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
             const tpl = onboardingStuckEmail(devName)
             await sendNotificationEmail({
               developerId: dev.id,
-              eventKey: 'onboarding_drip',
+              eventKey: 'onboarding_tips',
               email: dev.email,
               subject: tpl.subject,
               html: tpl.html,
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
               const tpl = onboardingNudgePricingEmail(devName, tool.name)
               await sendNotificationEmail({
                 developerId: dev.id,
-                eventKey: 'onboarding_drip',
+                eventKey: 'onboarding_tips',
                 email: dev.email,
                 subject: tpl.subject,
                 html: tpl.html,
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
               const tpl = onboardingNudgeStripeEmail(devName)
               await sendNotificationEmail({
                 developerId: dev.id,
-                eventKey: 'onboarding_drip',
+                eventKey: 'onboarding_tips',
                 email: dev.email,
                 subject: tpl.subject,
                 html: tpl.html,
@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
               const tpl = onboardingDraftToolEmail(devName, tool.name, missing)
               await sendNotificationEmail({
                 developerId: dev.id,
-                eventKey: 'onboarding_drip',
+                eventKey: 'onboarding_tips',
                 email: dev.email,
                 subject: tpl.subject,
                 html: tpl.html,
@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
               const tpl = onboardingStripeIncompleteEmail(devName)
               await sendNotificationEmail({
                 developerId: dev.id,
-                eventKey: 'onboarding_drip',
+                eventKey: 'onboarding_tips',
                 email: dev.email,
                 subject: tpl.subject,
                 html: tpl.html,

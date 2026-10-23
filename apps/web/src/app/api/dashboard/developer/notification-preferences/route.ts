@@ -7,34 +7,12 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse, parseBody } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
+import { NOTIFICATION_PREFERENCE_KEYS } from '@/lib/notification-events'
 
 export const maxDuration = 30
 
-// Valid notification event keys — must match the client-side DEFAULT_NOTIFICATIONS list
-const VALID_EVENT_KEYS = [
-  'payout_completed',
-  'payout_failed',
-  'balance_low',
-  'invoice_generated',
-  'tool_published',
-  'tool_status_changed',
-  'tool_health_down',
-  'usage_spike',
-  'login_new_device',
-  'password_changed',
-  'api_key_created',
-  'suspicious_activity',
-  'webhook_delivery_failed',
-  'webhook_endpoint_disabled',
-  'marketing_updates',
-  // Phase 2: additional event types
-  'invocation_milestone',
-  'new_consumer_signup',
-  'tool.anomaly_detected',
-] as const
-
 const notificationPreferencesSchema = z.record(
-  z.enum(VALID_EVENT_KEYS),
+  z.enum(NOTIFICATION_PREFERENCE_KEYS),
   z.boolean()
 )
 

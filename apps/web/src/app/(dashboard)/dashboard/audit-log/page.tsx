@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
+import { DEVELOPER_AUDIT_ACTIONS, DEVELOPER_AUDIT_RESOURCE_TYPES } from '@/lib/audit-actions'
 
 interface AuditEntry {
   id: string
@@ -17,31 +18,10 @@ interface AuditEntry {
   createdAt: string
 }
 
-const ACTION_TYPES = [
-  'All',
-  'tool.created',
-  'tool.updated',
-  'tool.activated',
-  'tool.deactivated',
-  'key.created',
-  'key.revoked',
-  'credit.purchased',
-  'payout.requested',
-  'webhook.created',
-  'webhook.deleted',
-  'login',
-  'logout',
-] as const
+// Built from the actions/resource types writeAuditLog actually records
+const ACTION_TYPES = ['All', ...DEVELOPER_AUDIT_ACTIONS] as const
 
-const RESOURCE_TYPES = [
-  'All',
-  'tool',
-  'apiKey',
-  'credit',
-  'payout',
-  'webhook',
-  'session',
-] as const
+const RESOURCE_TYPES = ['All', ...DEVELOPER_AUDIT_RESOURCE_TYPES] as const
 
 const PAGE_SIZE = 20
 
@@ -122,9 +102,9 @@ export default function AuditLogPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const actionBadgeVariant = (action: string) => {
-    if (action.includes('created') || action.includes('activated') || action === 'login') return 'success' as const
-    if (action.includes('deleted') || action.includes('revoked') || action.includes('deactivated')) return 'destructive' as const
-    if (action.includes('updated') || action.includes('requested')) return 'warning' as const
+    if (action.includes('created') || action.includes('enabled') || action === 'auth.login') return 'success' as const
+    if (action.includes('deleted') || action.includes('revoked') || action.includes('removed') || action.includes('disabled')) return 'destructive' as const
+    if (action.includes('updated') || action.includes('changed') || action.includes('requested')) return 'warning' as const
     return 'secondary' as const
   }
 

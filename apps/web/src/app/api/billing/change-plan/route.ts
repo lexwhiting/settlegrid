@@ -158,7 +158,8 @@ export async function POST(request: NextRequest) {
       .update(developers)
       .set({
         tier: body.plan,
-        logRetentionDays: newTierConfig.logRetentionDays,
+        // Keep within the range the settings API accepts (0 = forever, or 30-365)
+        logRetentionDays: Math.min(365, Math.max(30, newTierConfig.logRetentionDays)),
         // Progressive take rate — calculated dynamically at payout time. See lib/pricing.ts
         updatedAt: new Date(),
       })

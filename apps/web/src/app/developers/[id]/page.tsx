@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { permanentRedirect } from 'next/navigation'
 import { SettleGridLogo } from '@/components/ui/logo'
 
 interface ProfileData {
@@ -67,13 +68,16 @@ export async function generateMetadata({
   const { id } = await params
   const profile = await getProfile(id)
   if (!profile) return { title: 'Profile Not Found | SettleGrid' }
-  const canonicalSlug = profile.slug ?? id
+  // /dev/{slug} is the canonical profile URL; this route redirects there.
+  const canonical = profile.slug
+    ? `https://settlegrid.ai/dev/${profile.slug}`
+    : `https://settlegrid.ai/developers/${id}`
   return {
     title: `${profile.name} | SettleGrid Developer`,
     description: profile.bio
       ? `${profile.bio.slice(0, 150)} — ${profile.stats.toolCount} tools on SettleGrid.`
       : `${profile.name} has ${profile.stats.toolCount} tools on SettleGrid.`,
-    alternates: { canonical: `https://settlegrid.ai/developers/${canonicalSlug}` },
+    alternates: { canonical },
     openGraph: {
       title: `${profile.name} | SettleGrid Developer`,
       description: profile.bio || `Developer profile for ${profile.name} on SettleGrid.`,
@@ -89,6 +93,10 @@ export default async function DeveloperProfilePage({
 }) {
   const { id } = await params
   const profile = await getProfile(id)
+
+  if (profile?.slug) {
+    permanentRedirect(`/dev/${encodeURIComponent(profile.slug)}`)
+  }
 
   if (!profile) {
     return (
