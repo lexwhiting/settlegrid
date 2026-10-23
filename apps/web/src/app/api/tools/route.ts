@@ -8,6 +8,7 @@ import { parseBody, successResponse, errorResponse, internalErrorResponse } from
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { CATEGORY_SLUGS } from '@/lib/categories'
 
 export const maxDuration = 60
 
@@ -124,6 +125,10 @@ const createToolSchema = z.object({
     .max(100, 'Slug too long')
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(2000, 'Description too long').optional(),
+  category: z
+    .string()
+    .refine((c) => CATEGORY_SLUGS.includes(c), 'Invalid category')
+    .optional(),
   pricingConfig: pricingConfigSchema,
   healthEndpoint: z.string().url().max(500).optional(),
   currentVersion: z
@@ -234,6 +239,7 @@ export async function POST(request: NextRequest) {
         name: body.name,
         slug: body.slug,
         description: body.description ?? null,
+        category: body.category ?? null,
         pricingConfig: body.pricingConfig,
         healthEndpoint: body.healthEndpoint ?? null,
         currentVersion: body.currentVersion ?? '1.0.0',
@@ -248,6 +254,7 @@ export async function POST(request: NextRequest) {
         description: tools.description,
         pricingConfig: tools.pricingConfig,
         status: tools.status,
+        category: tools.category,
         totalInvocations: tools.totalInvocations,
         totalRevenueCents: tools.totalRevenueCents,
         healthEndpoint: tools.healthEndpoint,

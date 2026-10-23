@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { useToast } from '@/components/ui/toast'
+import { MCP_CATEGORIES, SERVICE_CATEGORIES, getCategoryBySlug } from '@/lib/categories'
 
 type PricingModelType = 'per-invocation' | 'per-token' | 'per-byte' | 'per-second' | 'tiered' | 'outcome'
 
@@ -176,6 +177,32 @@ interface ChangelogForm {
 
 const EMPTY_CHANGELOG_FORM: ChangelogForm = { version: '', changeType: 'feature', summary: '' }
 
+interface ToolDetailsUpdate {
+  description: string
+  category: string
+}
+
+const SELECT_CLASS = 'flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand'
+
+/** Category picker built from the canonical list in lib/categories.ts. */
+function CategorySelect({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <select id={id} required value={value} onChange={(e) => onChange(e.target.value)} className={SELECT_CLASS}>
+      <option value="" disabled>Select a category</option>
+      <optgroup label="MCP tools">
+        {MCP_CATEGORIES.map((c) => (
+          <option key={c.slug} value={c.slug}>{c.name}</option>
+        ))}
+      </optgroup>
+      <optgroup label="AI services">
+        {SERVICE_CATEGORIES.map((c) => (
+          <option key={c.slug} value={c.slug}>{c.name}</option>
+        ))}
+      </optgroup>
+    </select>
+  )
+}
+
 export default function ToolsPage() {
   const { toast } = useToast()
   const [tools, setTools] = useState<Tool[]>([])
@@ -183,11 +210,13 @@ export default function ToolsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [qualityFailures, setQualityFailures] = useState<string[]>([])
+  const [qualityFailuresToolId, setQualityFailuresToolId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({
     name: '',
     slug: '',
     description: '',
+    category: '',
     defaultCostCents: '1',
     pricingModel: 'per-invocation' as PricingModelType,
     costPerToken: '10',
@@ -271,6 +300,7 @@ export default function ToolsPage() {
           name: form.name,
           slug: form.slug,
           description: form.description,
+          category: form.category || undefined,
           pricingConfig: buildPricingConfig(),
         }),
       })
@@ -281,7 +311,7 @@ export default function ToolsPage() {
       }
       setShowCreate(false)
       setForm({
-        name: '', slug: '', description: '', defaultCostCents: '1',
+        name: '', slug: '', description: '', category: '', defaultCostCents: '1',
         pricingModel: 'per-invocation', costPerToken: '10', costPerMB: '5',
         costPerSecond: '1', successCostCents: '10', failureCostCents: '0',
         successCondition: 'result.success === true',
@@ -299,6 +329,7 @@ export default function ToolsPage() {
     const newStatus = currentStatus === 'active' ? 'draft' : 'active'
     setError('')
     setQualityFailures([])
+    setQualityFailuresToolId(null)
     try {
       const res = await fetch(`/api/tools/${toolId}/status`, {
         method: 'PATCH',
@@ -310,6 +341,7 @@ export default function ToolsPage() {
         if (data.code === 'QUALITY_GATE_FAILED' && Array.isArray(data.failures)) {
           setError(data.error || 'Tool does not meet quality requirements')
           setQualityFailures(data.failures)
+          setQualityFailuresToolId(toolId)
         } else {
           setError(data.error || 'Failed to toggle status')
         }
@@ -319,6 +351,31 @@ export default function ToolsPage() {
       fetchTools()
     } catch {
       setError('Network error toggling status. Please try again.')
+    }
+  }
+
+  /** Saves a tool's description and category. Returns an error message, or null on success. */
+  async function saveToolDetails(toolId: string, update: ToolDetailsUpdate): Promise<string | null> {
+    try {
+      const res = await fetch(`/api/tools/${toolId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(update),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        return data.error || 'Failed to save tool details'
+      }
+      if (qualityFailuresToolId === toolId) {
+        setError('')
+        setQualityFailures([])
+        setQualityFailuresToolId(null)
+      }
+      toast('Tool details saved', 'success')
+      fetchTools()
+      return null
+    } catch {
+      return 'Network error saving tool details. Please try again.'
     }
   }
 
@@ -390,7 +447,7 @@ export default function ToolsPage() {
       {error && (
         <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">
           <p className="font-medium">{error}</p>
-          {qualityFailures.length > 0 && (
+          {qualityFailures.length > 0 && !qualityFailuresToolId && (
             <ul className="mt-2 space-y-1 list-disc list-inside" aria-label="Quality gate failures">
               {qualityFailures.map((failure, i) => (
                 <li key={i}>{failure}</li>
@@ -424,6 +481,11 @@ export default function ToolsPage() {
                 <textarea id="tool-desc" required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="flex w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]" />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Describe what your tool does. This is shown to consumers in the showcase. Minimum {MIN_DESCRIPTION_LENGTH} characters to activate.</p>
+              </div>
+              <div className="md:w-1/2">
+                <label htmlFor="tool-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                <CategorySelect id="tool-category" value={form.category} onChange={(category) => setForm({ ...form, category })} />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Where your tool is listed in the showcase. Required to activate.</p>
               </div>
 
               {/* Pricing Model Selector */}
@@ -642,7 +704,9 @@ export default function ToolsPage() {
               changelogToolId={changelogToolId}
               changelogForm={changelogForm}
               submittingChangelog={submittingChangelog}
+              activationFailures={qualityFailuresToolId === tool.id ? qualityFailures : []}
               onToggleStatus={toggleStatus}
+              onSaveDetails={saveToolDetails}
               onToggleListedInMarketplace={toggleListedInMarketplace}
               onToggleChangelog={(toolId) => {
                 if (changelogToolId === toolId) {
@@ -671,7 +735,9 @@ function ToolCard({
   changelogToolId,
   changelogForm,
   submittingChangelog,
+  activationFailures,
   onToggleStatus,
+  onSaveDetails,
   onToggleListedInMarketplace,
   onToggleChangelog,
   onChangelogFormChange,
@@ -682,7 +748,9 @@ function ToolCard({
   changelogToolId: string | null
   changelogForm: ChangelogForm
   submittingChangelog: boolean
+  activationFailures: string[]
   onToggleStatus: (id: string, status: string) => void
+  onSaveDetails: (id: string, update: ToolDetailsUpdate) => Promise<string | null>
   onToggleListedInMarketplace: (id: string, currentListed: boolean) => void
   onToggleChangelog: (id: string) => void
   onChangelogFormChange: (form: ChangelogForm) => void
@@ -694,6 +762,32 @@ function ToolCard({
   )
   const allPassed = checklist.every((c) => c.passed)
   const isDraft = tool.status === 'draft'
+  const [editing, setEditing] = useState(false)
+  const [editDescription, setEditDescription] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [savingDetails, setSavingDetails] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  function startEditing() {
+    setEditDescription(tool.description ?? '')
+    // A non-canonical legacy value can't be saved back; make the user pick one.
+    setEditCategory(tool.category && getCategoryBySlug(tool.category) ? tool.category : '')
+    setEditError('')
+    setEditing(true)
+  }
+
+  async function handleSaveDetails(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingDetails(true)
+    setEditError('')
+    const err = await onSaveDetails(tool.id, { description: editDescription, category: editCategory })
+    setSavingDetails(false)
+    if (err) {
+      setEditError(err)
+      return
+    }
+    setEditing(false)
+  }
 
   return (
     <Card>
@@ -725,11 +819,19 @@ function ToolCard({
               <span>{formatCents(tool.totalRevenueCents)} revenue</span>
               <span>{getToolPricingDisplay(tool.pricingConfig)}</span>
               {tool.category && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-[#252836] px-2 py-0.5 text-xs">{tool.category}</span>
+                <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-[#252836] px-2 py-0.5 text-xs">{getCategoryBySlug(tool.category)?.name ?? tool.category}</span>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => (editing ? setEditing(false) : startEditing())}
+              aria-label={editing ? 'Cancel editing' : `Edit details for ${tool.name}`}
+            >
+              {editing ? 'Cancel' : 'Edit'}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -773,6 +875,51 @@ function ToolCard({
             </Link>
           </div>
         </div>
+
+        {/* Gate reasons from the last failed Activate attempt */}
+        {activationFailures.length > 0 && (
+          <div className="mt-4 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">
+            <p className="font-medium">This tool can&apos;t be activated yet:</p>
+            <ul className="mt-2 space-y-1 list-disc list-inside" aria-label="Quality gate failures">
+              {activationFailures.map((failure, i) => (
+                <li key={i}>{failure}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Edit description and category */}
+        {editing && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2A2D3E]">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Edit Details</h4>
+            <form onSubmit={handleSaveDetails} className="space-y-3">
+              <div>
+                <label htmlFor={`edit-desc-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
+                <textarea
+                  id={`edit-desc-${tool.id}`}
+                  required
+                  maxLength={2000}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="flex w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand min-h-[80px]"
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  {editDescription.length} characters (minimum {MIN_DESCRIPTION_LENGTH} to activate)
+                </p>
+              </div>
+              <div className="md:w-1/2">
+                <label htmlFor={`edit-category-${tool.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
+                <CategorySelect id={`edit-category-${tool.id}`} value={editCategory} onChange={setEditCategory} />
+              </div>
+              {editError && (
+                <p className="text-sm text-red-600 dark:text-red-400" role="alert">{editError}</p>
+              )}
+              <Button type="submit" size="sm" disabled={savingDetails}>
+                {savingDetails ? 'Saving...' : 'Save Details'}
+              </Button>
+            </form>
+          </div>
+        )}
 
         {/* Quality checklist for draft tools */}
         {isDraft && !allPassed && (

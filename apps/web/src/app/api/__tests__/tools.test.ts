@@ -193,6 +193,32 @@ describe('Create Tool (POST /api/tools)', () => {
     )
   })
 
+  it('saves a valid category', async () => {
+    const request = makeRequest('/api/tools', 'POST', {
+      name: 'Test Tool',
+      slug: 'test-tool',
+      category: 'data',
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(201)
+    expect(mockDb.values).toHaveBeenCalledWith(expect.objectContaining({ category: 'data' }))
+  })
+
+  it('returns 422 for a category outside the canonical list', async () => {
+    const request = makeRequest('/api/tools', 'POST', {
+      name: 'Test Tool',
+      slug: 'test-tool',
+      category: 'not-a-category',
+      pricingConfig: { model: 'per-invocation', defaultCostCents: 5 },
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(422)
+    expect(mockDb.insert).not.toHaveBeenCalled()
+  })
+
   it('returns 409 for duplicate slug', async () => {
     mockDb.limit.mockResolvedValueOnce([{ id: 'existing-tool' }])
 
@@ -286,6 +312,26 @@ describe('Update Tool (PATCH /api/tools/[id])', () => {
 
     expect(response.status).toBe(200)
     expect(data.tool.name).toBe('Updated Tool')
+  })
+
+  it('updates category and description', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: toolUuid, currentVersion: '1.0.0' }])
+    mockDb.returning.mockResolvedValueOnce([{ ...mockTool, category: 'search' }])
+
+    const description = 'Searches public datasets and returns ranked, de-duplicated results.'
+    const request = makeRequest(`/api/tools/${toolUuid}`, 'PATCH', { category: 'search', description })
+    const response = await PATCH(request, { params: Promise.resolve({ id: toolUuid }) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.set).toHaveBeenCalledWith(expect.objectContaining({ category: 'search', description }))
+  })
+
+  it('returns 422 for an invalid category', async () => {
+    const request = makeRequest(`/api/tools/${toolUuid}`, 'PATCH', { category: 'nope' })
+    const response = await PATCH(request, { params: Promise.resolve({ id: toolUuid }) })
+
+    expect(response.status).toBe(422)
+    expect(mockDb.update).not.toHaveBeenCalled()
   })
 
   it('returns 404 for tool not belonging to developer', async () => {
