@@ -10,6 +10,35 @@ export const maxDuration = 60
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
+// Weighted scoring: uptime 30%, reviews 25%, response time 20%, consumers 15%, tools 10%.
+// Dimensions with no data (null) are left out and the remaining weights renormalised.
+function computeReputationScore(d: {
+  uptimePct: number | null
+  responseTimePct: number | null
+  reviewAvg: number
+  totalConsumers: number
+  totalTools: number
+}): number {
+  const parts: Array<[number | null, number]> = [
+    [d.uptimePct, 0.30],
+    [Math.min(d.reviewAvg / 5, 1) * 100, 0.25],
+    [d.responseTimePct, 0.20],
+    [Math.min(d.totalConsumers / 20, 1) * 100, 0.15],
+    [Math.min(d.totalTools / 5, 1) * 100, 0.10],
+  ]
+  let weighted = 0
+  let weight = 0
+  for (const [value, w] of parts) {
+    if (value === null) continue
+    weighted += value * w
+    weight += w
+  }
+  if (weight === 0) return 0
+  return Math.min(100, Math.max(0, Math.round(weighted / weight)))
+}
+
 /** GET /api/developers/[id]/reputation — developer reputation (resolves by UUID or slug) */
 export async function GET(
   request: NextRequest,
@@ -50,13 +79,34 @@ export async function GET(
     if (cached) {
       const age = Date.now() - new Date(cached.calculatedAt).getTime()
       if (age < 3600000) {
+        // The cache columns are NOT NULL, so whether uptime / response time had
+        // any data is re-checked here (cheap EXISTS queries).
+        let hasChecks = true
+        let hasInvocations = true
+        try {
+          const since = new Date(Date.now() - WINDOW_MS).toISOString()
+          const [presence] = await db
+            .select({
+              hasChecks: sql<boolean>`exists(select 1 from ${toolHealthChecks} inner join ${tools} on ${tools.id} = ${toolHealthChecks.toolId} where ${tools.developerId} = ${developerId} and ${tools.status} = 'active' and ${toolHealthChecks.checkedAt} >= ${since}::timestamptz)`,
+              hasInvocations: sql<boolean>`exists(select 1 from ${invocations} inner join ${tools} on ${tools.id} = ${invocations.toolId} where ${tools.developerId} = ${developerId} and ${tools.status} = 'active' and ${invocations.createdAt} >= ${since}::timestamptz)`,
+            })
+            .from(developers)
+            .where(eq(developers.id, developerId))
+            .limit(1)
+          if (presence) {
+            hasChecks = Boolean(presence.hasChecks)
+            hasInvocations = Boolean(presence.hasInvocations)
+          }
+        } catch {
+          // Fall back to the cached values
+        }
         return successResponse({
           developerId: developer.id,
           name: developer.name,
           score: cached.score,
           breakdown: {
-            responseTimePct: cached.responseTimePct,
-            uptimePct: cached.uptimePct,
+            responseTimePct: hasInvocations ? cached.responseTimePct : null,
+            uptimePct: hasChecks ? cached.uptimePct : null,
             reviewAvg: cached.reviewAvg / 100,
             totalTools: cached.totalTools,
             totalConsumers: cached.totalConsumers,
@@ -101,46 +151,41 @@ export async function GET(
         .catch(() => 0)
     }
 
-    // uptimePct: compute from toolHealthChecks in the last 30 days
-    let uptimePct = 100
+    // uptimePct: share of 'up' health checks in the last 30 days (null = no checks)
+    let uptimePct: number | null = null
     if (toolIds.length > 0) {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      const thirtyDaysAgo = new Date(Date.now() - WINDOW_MS)
       uptimePct = await db
         .select({
+          total: sql<number>`count(*)::int`,
           pct: sql<number>`round(100.0 * count(*) filter (where ${toolHealthChecks.status} = 'up') / greatest(count(*), 1))::int`,
         })
         .from(toolHealthChecks)
         .where(sql`${inArray(toolHealthChecks.toolId, toolIds)} AND ${toolHealthChecks.checkedAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
-        .then(r => r[0]?.pct ?? 100)
-        .catch(() => 100)
+        .then(r => (r[0] && Number(r[0].total) > 0 ? Number(r[0].pct) : null))
+        .catch(() => null)
     }
 
-    // responseTimePct: compute median latency and convert to a score
-    let responseTimePct = 100
+    // responseTimePct: score from median latency (null = no invocations)
+    let responseTimePct: number | null = null
     if (toolIds.length > 0) {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      const thirtyDaysAgo = new Date(Date.now() - WINDOW_MS)
       const medianLatency = await db
         .select({
+          total: sql<number>`count(*)::int`,
           median: sql<number>`coalesce(percentile_cont(0.50) within group (order by ${invocations.latencyMs}), 0)::int`,
         })
         .from(invocations)
         .where(sql`${inArray(invocations.toolId, toolIds)} AND ${invocations.createdAt} >= ${thirtyDaysAgo.toISOString()}::timestamptz`)
-        .then(r => r[0]?.median ?? 0)
-        .catch(() => 0)
+        .then(r => (r[0] && Number(r[0].total) > 0 ? Number(r[0].median ?? 0) : null))
+        .catch(() => null)
 
-      responseTimePct = medianLatency > 0
-        ? Math.max(0, Math.min(100, Math.round(100 - (medianLatency / 5))))
-        : 100
+      responseTimePct = medianLatency === null
+        ? null
+        : Math.max(0, Math.min(100, Math.round(100 - (medianLatency / 5))))
     }
 
-    // Weighted scoring: uptime 30%, reviews 25%, response time 20%, consumers 15%, tools 10%
-    const score = Math.min(100, Math.max(0, Math.round(
-      (uptimePct * 0.30) +
-      (Math.min(reviewAvg / 5, 1) * 100 * 0.25) +
-      (responseTimePct * 0.20) +
-      (Math.min(totalConsumers / 20, 1) * 100 * 0.15) +
-      (Math.min(totalTools / 5, 1) * 100 * 0.10)
-    )))
+    const score = computeReputationScore({ uptimePct, responseTimePct, reviewAvg, totalConsumers, totalTools })
 
     // Upsert reputation
     try {
@@ -149,8 +194,9 @@ export async function GET(
         .values({
           developerId,
           score,
-          responseTimePct,
-          uptimePct,
+          // NOT NULL columns: 0 when there is no data (the cache read re-checks presence)
+          responseTimePct: responseTimePct ?? 0,
+          uptimePct: uptimePct ?? 0,
           reviewAvg: Math.round(reviewAvg * 100),
           totalTools,
           totalConsumers,
@@ -159,8 +205,8 @@ export async function GET(
           target: developerReputation.developerId,
           set: {
             score,
-            responseTimePct,
-            uptimePct,
+            responseTimePct: responseTimePct ?? 0,
+            uptimePct: uptimePct ?? 0,
             reviewAvg: Math.round(reviewAvg * 100),
             totalTools,
             totalConsumers,

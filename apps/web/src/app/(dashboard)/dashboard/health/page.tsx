@@ -21,14 +21,21 @@ interface HealthData {
   toolName: string
   currentStatus: string
   lastCheckedAt: string | null
-  uptimePct30d: number
-  avgResponseTimeMs: number
+  /** null (or an API default) when there are no checks in the window */
+  uptimePct30d: number | null
+  avgResponseTimeMs: number | null
   incidents?: Array<{
     status: string
     responseTimeMs: number | null
     checkedAt: string
   }>
   totalChecks30d?: number
+}
+
+/** True when the tool has at least one health check in the last 30 days. */
+function hasChecks(h: HealthData | undefined): h is HealthData & { uptimePct30d: number; avgResponseTimeMs: number } {
+  if (!h || h.uptimePct30d == null || h.avgResponseTimeMs == null) return false
+  return (h.totalChecks30d ?? (h.lastCheckedAt ? 1 : 0)) > 0
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -108,13 +115,14 @@ export default function HealthPage() {
   const monitoredTools = tools.filter((t) => t.healthEndpoint)
   const healthEntries = monitoredTools.map((t) => healthMap[t.id]).filter(Boolean) as HealthData[]
 
-  // Overall stats
-  const currentUptime = healthEntries.length > 0
-    ? Math.round(healthEntries.reduce((sum, h) => sum + h.uptimePct30d, 0) / healthEntries.length * 100) / 100
-    : 100
-  const avgResponseTime = healthEntries.length > 0
-    ? Math.round(healthEntries.reduce((sum, h) => sum + h.avgResponseTimeMs, 0) / healthEntries.length)
-    : 0
+  // Overall stats — only tools with checks count; null means no data yet
+  const checkedEntries = healthEntries.filter(hasChecks)
+  const currentUptime = checkedEntries.length > 0
+    ? Math.round(checkedEntries.reduce((sum, h) => sum + h.uptimePct30d, 0) / checkedEntries.length * 100) / 100
+    : null
+  const avgResponseTime = checkedEntries.length > 0
+    ? Math.round(checkedEntries.reduce((sum, h) => sum + h.avgResponseTimeMs, 0) / checkedEntries.length)
+    : null
   const incidentsToday = healthEntries.reduce((count, h) => {
     const todayIncidents = (h.incidents ?? []).filter((inc) => {
       const checked = new Date(inc.checkedAt)
@@ -190,13 +198,13 @@ export default function HealthPage() {
         />
         <StatCard
           title="Current Uptime"
-          value={`${currentUptime}%`}
-          subtitle="Average across all tools"
+          value={currentUptime === null ? '—' : `${currentUptime}%`}
+          subtitle={currentUptime === null ? 'No data yet' : 'Average across monitored tools'}
         />
         <StatCard
           title="Avg Response Time"
-          value={`${avgResponseTime}ms`}
-          subtitle="Last 30 days"
+          value={avgResponseTime === null ? '—' : `${avgResponseTime}ms`}
+          subtitle={avgResponseTime === null ? 'No data yet' : 'Last 30 days'}
         />
         <StatCard
           title="Incidents Today"
@@ -272,6 +280,7 @@ export default function HealthPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {monitoredTools.map((tool) => {
             const health = healthMap[tool.id]
+            const checked = hasChecks(health) ? health : null
             return (
               <Card key={tool.id}>
                 <CardContent className="p-6">
@@ -283,15 +292,15 @@ export default function HealthPage() {
                     <div>
                       <dt className="text-xs text-gray-500 dark:text-gray-400">Response Time</dt>
                       <dd className="font-medium text-gray-900 dark:text-gray-100">
-                        {health ? `${health.avgResponseTimeMs}ms` : '-'}
+                        {checked ? `${checked.avgResponseTimeMs}ms` : '—'}
                       </dd>
                     </div>
                     <div>
                       <dt className="text-xs text-gray-500 dark:text-gray-400">Uptime (30d)</dt>
                       <dd className={`font-medium ${
-                        health && health.uptimePct30d < 99 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'
+                        checked && checked.uptimePct30d < 99 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'
                       }`}>
-                        {health ? `${health.uptimePct30d}%` : '-'}
+                        {checked ? `${checked.uptimePct30d}%` : 'No data yet'}
                       </dd>
                     </div>
                     <div>
@@ -310,15 +319,15 @@ export default function HealthPage() {
                     </div>
                   </dl>
                   {/* Uptime bar */}
-                  {health && (
+                  {checked && (
                     <div className="mt-4">
                       <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all ${
-                            health.uptimePct30d >= 99.5 ? 'bg-green-500' :
-                            health.uptimePct30d >= 95 ? 'bg-yellow-500' : 'bg-red-500'
+                            checked.uptimePct30d >= 99.5 ? 'bg-green-500' :
+                            checked.uptimePct30d >= 95 ? 'bg-yellow-500' : 'bg-red-500'
                           }`}
-                          style={{ width: `${Math.min(100, health.uptimePct30d)}%` }}
+                          style={{ width: `${Math.min(100, checked.uptimePct30d)}%` }}
                         />
                       </div>
                     </div>

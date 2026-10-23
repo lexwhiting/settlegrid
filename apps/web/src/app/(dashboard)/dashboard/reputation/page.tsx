@@ -13,8 +13,10 @@ interface ReputationData {
   name: string | null
   score: number
   breakdown: {
-    responseTimePct: number
-    uptimePct: number
+    /** null when there were no invocations in the last 30 days */
+    responseTimePct: number | null
+    /** null when there were no health checks in the last 30 days */
+    uptimePct: number | null
     reviewAvg: number
     totalTools: number
     totalConsumers: number
@@ -114,8 +116,8 @@ const TIER_INFO: Record<ReputationTier, Omit<TierInfo, 'tier'>> = {
 }
 
 function computeTier(score: number, data: ReputationData['breakdown']): ReputationTier {
-  if (score >= 90 && data.totalConsumers >= 50 && data.reviewAvg >= 4.5 && data.uptimePct >= 99.9) return 'premier'
-  if (score >= 75 && data.totalConsumers >= 10 && data.reviewAvg >= 4.0 && data.uptimePct >= 99) return 'trusted'
+  if (score >= 90 && data.totalConsumers >= 50 && data.reviewAvg >= 4.5 && (data.uptimePct ?? 0) >= 99.9) return 'premier'
+  if (score >= 75 && data.totalConsumers >= 10 && data.reviewAvg >= 4.0 && (data.uptimePct ?? 0) >= 99) return 'trusted'
   if (score >= 60 && data.totalConsumers >= 3 && data.reviewAvg > 0) return 'established'
   if (score >= 40 && data.totalTools >= 1) return 'verified'
   return 'new'
@@ -147,13 +149,15 @@ function getNextTierRequirements(
       if (score < 75) requirements.push(`Score 75+ (currently ${score})`)
       if (data.totalConsumers < 10) requirements.push(`10+ consumers (currently ${data.totalConsumers})`)
       if (data.reviewAvg < 4.0) requirements.push(`4.0+ review avg (currently ${data.reviewAvg.toFixed(1)})`)
-      if (data.uptimePct < 99) requirements.push(`99%+ uptime (currently ${data.uptimePct}%)`)
+      if (data.uptimePct === null) requirements.push('99%+ uptime (no health checks yet)')
+      else if (data.uptimePct < 99) requirements.push(`99%+ uptime (currently ${data.uptimePct}%)`)
       break
     case 'premier':
       if (score < 90) requirements.push(`Score 90+ (currently ${score})`)
       if (data.totalConsumers < 50) requirements.push(`50+ consumers (currently ${data.totalConsumers})`)
       if (data.reviewAvg < 4.5) requirements.push(`4.5+ review avg (currently ${data.reviewAvg.toFixed(1)})`)
-      if (data.uptimePct < 99.9) requirements.push(`99.9%+ uptime (currently ${data.uptimePct}%)`)
+      if (data.uptimePct === null) requirements.push('99.9%+ uptime (no health checks yet)')
+      else if (data.uptimePct < 99.9) requirements.push(`99.9%+ uptime (currently ${data.uptimePct}%)`)
       break
   }
 
@@ -176,14 +180,16 @@ function generateRecommendations(
   const { uptimePct, reviewAvg, responseTimePct, totalConsumers, totalTools } = breakdown
 
   // --- Uptime recommendations ---
-  if (totalTools > 0 && uptimePct === 0) {
-    recs.push({
-      priority: 'critical',
-      title: 'No uptime monitoring detected',
-      body: `None of your tools have health monitoring. Add a health endpoint to start tracking uptime -- this dimension is worth up to 30 points.`,
-      action: { label: 'Configure health endpoints', href: '/dashboard/tools' },
-      impact: '+30 points',
-    })
+  if (uptimePct === null) {
+    if (totalTools > 0) {
+      recs.push({
+        priority: 'high',
+        title: 'No uptime data yet',
+        body: 'None of your tools have health checks in the last 30 days. Add a health endpoint to start tracking uptime -- it counts for 30% of your score once measured.',
+        action: { label: 'Configure health endpoints', href: '/dashboard/tools' },
+        impact: 'Adds uptime to your score',
+      })
+    }
   } else if (uptimePct < 95) {
     const lostPoints = Math.round((99.9 - uptimePct) * 0.30)
     recs.push({
@@ -234,7 +240,9 @@ function generateRecommendations(
   }
 
   // --- Response time recommendations ---
-  if (responseTimePct < 50) {
+  if (responseTimePct === null) {
+    // No invocations in the last 30 days — nothing to recommend on latency yet
+  } else if (responseTimePct < 50) {
     const gainPoints = Math.round((80 - responseTimePct) * 0.20)
     recs.push({
       priority: 'high',
@@ -348,7 +356,18 @@ const PRIORITY_STYLES: Record<Recommendation['priority'], { badge: string; badge
   low: { badge: 'text-gray-700 dark:text-gray-300', badgeBg: 'bg-gray-100 dark:bg-gray-800' },
 }
 
-function ScoreBreakdownBar({ label, value, max, unit }: { label: string; value: number; max: number; unit: string }) {
+function ScoreBreakdownBar({ label, value, max, unit }: { label: string; value: number | null; max: number; unit: string }) {
+  if (value === null) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">No data yet</span>
+        </div>
+        <div className="w-full bg-gray-100 dark:bg-[#252836] rounded-full h-2.5" />
+      </div>
+    )
+  }
   const pct = Math.min(100, (value / max) * 100)
   return (
     <div>
@@ -534,16 +553,16 @@ export default function ReputationPage() {
               <CardHeader>
                 <CardTitle className="text-lg">Score Breakdown</CardTitle>
                 <CardDescription>
-                  Weighted factors: Uptime 30%, Reviews 25%, Response Time 20%, Consumers 15%, Tools 10%
+                  Weighted factors: Uptime 30%, Reviews 25%, Response Time 20%, Consumers 15%, Tools 10%. Factors with no data yet are left out.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-5">
                   <ScoreBreakdownBar
-                    label="Response Time Percentile"
+                    label="Response Time Score"
                     value={reputation.breakdown.responseTimePct}
                     max={100}
-                    unit="th pctl"
+                    unit=" / 100"
                   />
                   <ScoreBreakdownBar
                     label="Uptime (30 days)"
@@ -663,7 +682,7 @@ export default function ReputationPage() {
                       </div>
                       <div className="text-gray-500 dark:text-gray-400">|</div>
                       <div>
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{reputation.breakdown.uptimePct}%</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{reputation.breakdown.uptimePct === null ? '—' : `${reputation.breakdown.uptimePct}%`}</span>
                         <span className="text-gray-500 dark:text-gray-400 ml-1">uptime</span>
                       </div>
                       {reputation.breakdown.reviewAvg > 0 && (
