@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { SettleGridLogo } from '@/components/ui/logo'
 import { Confetti } from '@/components/ui/confetti'
 import { SocialShare } from '@/components/ui/social-share'
+import { MCP_CATEGORIES, SERVICE_CATEGORIES, CATEGORY_SLUGS, getCategoryBySlug } from '@/lib/categories'
 // Metadata is in layout.tsx
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -19,6 +20,8 @@ interface DetectionResult {
   suggestedName: string
   suggestedSlug: string
   suggestedDescription: string
+  /** True when suggestedDescription is a note to the user, not a description. */
+  descriptionIsPlaceholder?: boolean
   suggestedPriceCents: number
   suggestedPricingModel: string
   confidence: number
@@ -58,21 +61,12 @@ const SERVICE_TYPE_LABELS: Record<string, string> = {
   'agent-service': 'Agent Service',
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  data: 'Data & APIs',
-  nlp: 'Natural Language Processing',
-  image: 'Image & Vision',
-  code: 'Code & Development',
-  search: 'Search & Discovery',
-  finance: 'Finance & Payments',
-  science: 'Science & Research',
-  media: 'Media & Content',
-  security: 'Security & Compliance',
-  communication: 'Communication',
-  productivity: 'Productivity',
-  analytics: 'Analytics & BI',
-  utility: 'Utility',
+function categoryLabel(slug: string): string {
+  return getCategoryBySlug(slug)?.name ?? slug
 }
+
+/** Mirrors MIN_DESCRIPTION_LENGTH in lib/quality-gates.ts (server-only module). */
+const MIN_DESCRIPTION_LENGTH = 50
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -87,6 +81,9 @@ export default function StartPage() {
   const [error, setError] = useState<string | null>(null)
   const [priceCents, setPriceCents] = useState(5)
   const [editName, setEditName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [gateFailures, setGateFailures] = useState<string[] | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -132,6 +129,10 @@ export default function StartPage() {
       setDetection(result)
       setPriceCents(result.suggestedPriceCents)
       setEditName(result.suggestedName)
+      // Never carry a "could not probe" note into the published description.
+      setEditDescription(result.descriptionIsPlaceholder ? '' : result.suggestedDescription)
+      setEditCategory(CATEGORY_SLUGS.includes(result.suggestedCategory) ? result.suggestedCategory : '')
+      setGateFailures(null)
       setStep('review')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze URL. Please check the URL and try again.')
@@ -192,10 +193,10 @@ export default function StartPage() {
         body: JSON.stringify({
           url: url.trim(),
           name: editName || detection.suggestedName,
-          category: detection.suggestedCategory,
+          category: editCategory,
           pricingModel: detection.suggestedPricingModel,
           costCents: priceCents,
-          description: detection.suggestedDescription,
+          description: editDescription.trim(),
         }),
       })
 
@@ -204,6 +205,11 @@ export default function StartPage() {
         if (response.status === 401) {
           setShowAuthModal(true)
           setPublishing(false)
+          return
+        }
+        if (data.code === 'QUALITY_GATE_FAILED' && Array.isArray(data.failures)) {
+          // Saved as a draft; the developer finishes it in the dashboard.
+          setGateFailures(data.failures)
           return
         }
         throw new Error(data.error || `Publish failed (${response.status})`)
@@ -217,7 +223,11 @@ export default function StartPage() {
     } finally {
       setPublishing(false)
     }
-  }, [detection, url, editName, priceCents, isAuthenticated])
+  }, [detection, url, editName, editCategory, editDescription, priceCents, isAuthenticated])
+
+  const descriptionLength = editDescription.trim().length
+  const canPublish =
+    !!editName.trim() && !!editCategory && descriptionLength >= MIN_DESCRIPTION_LENGTH
 
   // ─── Copy to Clipboard ────────────────────────────────────────────────────
 
@@ -412,18 +422,54 @@ export default function StartPage() {
                 </div>
 
                 {/* Category */}
-                <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Category</span>
-                  <span className="text-sm font-medium text-indigo dark:text-gray-200">
-                    {CATEGORY_LABELS[detection.suggestedCategory] ?? detection.suggestedCategory}
-                  </span>
+                <div>
+                  <label htmlFor="start-category" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Category
+                  </label>
+                  <select
+                    id="start-category"
+                    required
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full h-10 px-3 text-sm rounded-md border border-gray-200 bg-white text-indigo focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 dark:border-[#2A2D3E] dark:bg-[#161822] dark:text-gray-100"
+                  >
+                    <option value="" disabled>Select a category</option>
+                    <optgroup label="MCP tools">
+                      {MCP_CATEGORIES.map((c) => (
+                        <option key={c.slug} value={c.slug}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="AI services">
+                      {SERVICE_CATEGORIES.map((c) => (
+                        <option key={c.slug} value={c.slug}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
 
                 {/* Description */}
                 <div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Description</span>
-                  <p className="mt-1 text-sm text-indigo dark:text-gray-200">
-                    {detection.suggestedDescription}
+                  <label htmlFor="start-description" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    id="start-description"
+                    required
+                    minLength={MIN_DESCRIPTION_LENGTH}
+                    maxLength={2000}
+                    rows={3}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Describe what your service does and what it returns."
+                    className="w-full px-3 py-2 text-sm rounded-md border border-gray-200 bg-white text-indigo focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 dark:border-[#2A2D3E] dark:bg-[#161822] dark:text-gray-100"
+                  />
+                  {detection.descriptionIsPlaceholder && (
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      We couldn&apos;t reach this URL to suggest a description. Please write one.
+                    </p>
+                  )}
+                  <p className={`mt-1 text-xs ${descriptionLength >= MIN_DESCRIPTION_LENGTH ? 'text-gray-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                    {descriptionLength}/{MIN_DESCRIPTION_LENGTH} characters minimum. Shown to buyers on your tool page.
                   </p>
                 </div>
 
@@ -455,7 +501,7 @@ export default function StartPage() {
                   {detection.pricingContext && detection.pricingContext.toolCount > 0 && (
                     <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30 rounded-lg p-3 text-sm">
                       <p className="text-amber-800 dark:text-amber-300">
-                        Tools in <span className="font-medium">{CATEGORY_LABELS[detection.suggestedCategory] ?? detection.suggestedCategory}</span> charge{' '}
+                        Tools in <span className="font-medium">{categoryLabel(detection.suggestedCategory)}</span> charge{' '}
                         <span className="font-semibold">{formatCents(detection.pricingContext.p25Cents)}-{formatCents(detection.pricingContext.p75Cents)}</span>/call
                         {detection.pricingContext.toolCount > 0 && (
                           <span className="text-amber-600 dark:text-amber-400"> (based on {detection.pricingContext.toolCount} tools)</span>
@@ -490,6 +536,26 @@ export default function StartPage() {
               </div>
             )}
 
+            {gateFailures && (
+              <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40 rounded-lg p-4 text-sm text-amber-800 dark:text-amber-300" role="alert">
+                <p className="font-medium">Saved as a draft — not published yet</p>
+                <p className="mt-1">Fix the following, then activate the tool from your dashboard:</p>
+                <ul className="mt-2 space-y-1 list-disc list-inside" aria-label="Quality gate failures">
+                  {gateFailures.map((failure, i) => (
+                    <li key={i}>{failure}</li>
+                  ))}
+                </ul>
+                <div className="mt-3 flex flex-wrap gap-4">
+                  <Link href="/dashboard/tools" className="text-brand hover:text-brand-dark underline">
+                    Open your tools
+                  </Link>
+                  <Link href="/dashboard/settings" className="text-brand hover:text-brand-dark underline">
+                    Edit your profile
+                  </Link>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <Button
                 variant="outline"
@@ -497,6 +563,7 @@ export default function StartPage() {
                   setStep('paste')
                   setDetection(null)
                   setError(null)
+                  setGateFailures(null)
                 }}
                 className="flex-shrink-0"
               >
@@ -504,7 +571,7 @@ export default function StartPage() {
               </Button>
               <Button
                 onClick={publish}
-                disabled={publishing || !editName.trim()}
+                disabled={publishing || !canPublish || gateFailures !== null}
                 className="flex-1 h-12 text-base font-semibold bg-brand hover:bg-brand-dark text-white rounded-xl shadow-lg shadow-brand/20 hover:shadow-brand/30 transition-all"
               >
                 {publishing ? (

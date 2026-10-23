@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -12,6 +12,7 @@ import { queueSeedInvocations } from '@/lib/seed-invocations'
 import { CATEGORY_SLUGS } from '@/lib/categories'
 import { logger } from '@/lib/logger'
 import { isPublicUrlString } from '@/lib/safe-egress'
+import { validateToolForActivation } from '@/lib/quality-gates'
 
 export const maxDuration = 60
 
@@ -91,8 +92,11 @@ const quickPublishSchema = z.object({
 /**
  * POST /api/tools/quick-publish
  *
- * Instant publish: creates a tool with status='active', sets the proxy endpoint,
- * and returns the proxy URL immediately. Auth required.
+ * Instant publish: creates the tool as a draft with the proxy endpoint set,
+ * runs the same quality gate as the dashboard Activate button, and flips it to
+ * 'active' only if the gate passes. On a failed gate it returns 422
+ * QUALITY_GATE_FAILED with the reasons; the draft stays in the dashboard so the
+ * developer can fix it there. Auth required.
  */
 export async function POST(request: NextRequest) {
   const requestId = getOrCreateRequestId(request)
@@ -158,9 +162,9 @@ export async function POST(request: NextRequest) {
     const pricingModel = body.pricingModel ?? 'per-invocation'
     const pricingConfig = buildPricingConfig(pricingModel, costCents)
 
-    // Create tool with active status and proxy endpoint
+    // Create the tool as a hidden draft; it goes live only after the gate.
     const toolType = body.toolType ?? 'mcp-server'
-    const [tool] = await db
+    const [draft] = await db
       .insert(tools)
       .values({
         developerId: auth.id,
@@ -168,7 +172,8 @@ export async function POST(request: NextRequest) {
         slug,
         description: body.description ?? null,
         pricingConfig,
-        status: 'active',
+        status: 'draft',
+        listedInMarketplace: false,
         category: body.category ?? null,
         toolType,
         proxyEndpoint: body.url,
@@ -187,26 +192,57 @@ export async function POST(request: NextRequest) {
         createdAt: tools.createdAt,
       })
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://settlegrid.ai'
-    const proxyUrl = `${appUrl}/api/proxy/${tool.slug}`
-    const toolPageUrl = `${appUrl}/tools/${tool.slug}`
+    const gateResult = await validateToolForActivation(draft.id, auth.id)
 
     // Audit log
     writeAuditLog({
       developerId: auth.id,
       action: 'tool.quick_published',
       resourceType: 'tool',
-      resourceId: tool.id,
+      resourceId: draft.id,
       details: {
         name: body.name,
-        slug: tool.slug,
+        slug: draft.slug,
         url: body.url,
         toolType,
         category: body.category ?? null,
         costCents: body.costCents,
+        status: gateResult.passed ? 'active' : 'draft',
       },
       ipAddress: ip,
     }).catch(() => {})
+
+    if (!gateResult.passed) {
+      logger.info('quick_publish.gate_failed', {
+        toolId: draft.id,
+        developerId: auth.id,
+        failureCount: gateResult.failures.length,
+      })
+      return errorResponse(
+        'Tool does not meet quality requirements for the Showcase',
+        422,
+        'QUALITY_GATE_FAILED',
+        requestId,
+        {
+          failures: gateResult.failures,
+          toolId: draft.id,
+          toolSlug: draft.slug,
+          currentStatus: draft.status,
+        },
+      )
+    }
+
+    const [activated] = await db
+      .update(tools)
+      .set({ status: 'active', updatedAt: new Date() })
+      .where(and(eq(tools.id, draft.id), eq(tools.developerId, auth.id)))
+      .returning({ status: tools.status })
+
+    const tool = { ...draft, status: activated?.status ?? draft.status }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://settlegrid.ai'
+    const proxyUrl = `${appUrl}/api/proxy/${tool.slug}`
+    const toolPageUrl = `${appUrl}/tools/${tool.slug}`
 
     // Fire-and-forget: queue seed invocations
     queueSeedInvocations({
