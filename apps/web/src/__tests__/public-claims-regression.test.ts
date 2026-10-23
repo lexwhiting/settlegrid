@@ -30,3 +30,14 @@ describe('Smart Proxy homepage snippet', () => {
     expect(SMART_PROXY_TSX).not.toMatch(/Authorization:\s*Bearer\s+sg_/)
   })
 })
+
+// ─── Docs API reference lists only routes that exist ────────────────────────
+
+describe('Docs API reference', () => {
+  const DOCS_PAGE_TSX = repoFile('apps/web/src/app/docs/page.tsx')
+
+  it('does not list developer register/login REST endpoints', () => {
+    expect(DOCS_PAGE_TSX).not.toContain('/api/auth/developer/register')
+    expect(DOCS_PAGE_TSX).not.toContain('/api/auth/developer/login')
+  })
+})

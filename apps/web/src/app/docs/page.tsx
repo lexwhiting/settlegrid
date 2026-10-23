@@ -1127,11 +1127,10 @@ try {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               The SettleGrid REST API is available at{' '}
               <a href="https://settlegrid.ai/api" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 bg-gray-100 dark:bg-[#252836] px-2 py-0.5 rounded text-xs font-mono text-brand hover:text-brand-dark dark:text-brand-light dark:hover:text-brand transition-colors">https://settlegrid.ai/api<svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>.
+              {' '}Developer sign-up and sign-in happen on the /register and /login pages (Supabase Auth), not through REST endpoints.
             </p>
             <div className="space-y-4">
               {[
-                { method: 'POST', path: '/api/auth/developer/register', desc: 'Register developer account' },
-                { method: 'POST', path: '/api/auth/developer/login', desc: 'Developer login' },
                 { method: 'GET', path: '/api/auth/developer/me', desc: 'Get developer profile' },
                 { method: 'POST', path: '/api/tools', desc: 'Create tool' },
                 { method: 'GET', path: '/api/tools', desc: 'List developer tools' },
