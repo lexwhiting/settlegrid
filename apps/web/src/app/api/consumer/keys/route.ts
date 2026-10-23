@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { apiKeys, tools } from '@/lib/db/schema'
+import { apiKeys, tools, consumerToolBalances, consumers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { generateApiKey } from '@/lib/crypto'
@@ -119,6 +119,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Require a usable balance before issuing a key: a positive per-tool
+    // balance for this tool, or a positive global (credit pack) balance.
+    // These are the same two balances the proxy charges against.
+    const [toolBalance] = await db
+      .select({ balanceCents: consumerToolBalances.balanceCents })
+      .from(consumerToolBalances)
+      .where(
+        and(
+          eq(consumerToolBalances.consumerId, auth.id),
+          eq(consumerToolBalances.toolId, body.toolId)
+        )
+      )
+      .limit(1)
+
+    if (!toolBalance || toolBalance.balanceCents <= 0) {
+      const [consumer] = await db
+        .select({ globalBalanceCents: consumers.globalBalanceCents })
+        .from(consumers)
+        .where(eq(consumers.id, auth.id))
+        .limit(1)
+
+      if ((consumer?.globalBalanceCents ?? 0) <= 0) {
+        return errorResponse(
+          'You need credit before creating an API key. Buy credits for this tool or a credit pack, then try again.',
+          402,
+          'INSUFFICIENT_BALANCE'
+        )
+      }
+    }
+
     const { key, hash, prefix } = generateApiKey()
 
     const [created] = await db
@@ -147,7 +177,9 @@ export async function POST(request: NextRequest) {
       ipAddress: ip,
     }).catch(() => {})
 
-    // Fire-and-forget API key creation notification email
+    // Fire-and-forget API key creation notification email. This is an
+    // account-security email to the consumer, so it is sent as critical and
+    // is not gated on the tool developer's notification preferences.
     try {
       const toolName = tool.name ?? 'Unknown Tool'
       const template = apiKeyCreatedEmail(auth.email, prefix, toolName)
@@ -157,6 +189,7 @@ export async function POST(request: NextRequest) {
         email: auth.email,
         subject: template.subject,
         html: template.html,
+        critical: true,
       }).catch(() => {})
     } catch {
       // Never let email generation crash the response
