@@ -17,6 +17,12 @@ import { logger } from '@/lib/logger'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { processDataDeletion } from '@/lib/settlement/compliance'
+import {
+  effectiveRetentionDays,
+  MIN_LOG_RETENTION_DAYS,
+  MIN_WEBHOOK_LOG_RETENTION_DAYS,
+  MIN_AUDIT_LOG_RETENTION_DAYS,
+} from '@/lib/retention-options'
 
 export const maxDuration = 300 // 5 minutes — may process many developers
 
@@ -71,10 +77,15 @@ export async function GET(request: NextRequest) {
       .limit(10000)
 
     for (const dev of allDevelopers) {
+      // Never purge below the minimums the settings form allows.
+      const logDays = effectiveRetentionDays(dev.logRetentionDays, MIN_LOG_RETENTION_DAYS)
+      const webhookDays = effectiveRetentionDays(dev.webhookLogRetentionDays, MIN_WEBHOOK_LOG_RETENTION_DAYS)
+      const auditDays = effectiveRetentionDays(dev.auditLogRetentionDays, MIN_AUDIT_LOG_RETENTION_DAYS)
+
       // a. Purge invocations older than logRetentionDays (0 = keep forever)
-      if (dev.logRetentionDays > 0) {
+      if (logDays > 0) {
         const cutoff = new Date()
-        cutoff.setDate(cutoff.getDate() - dev.logRetentionDays)
+        cutoff.setDate(cutoff.getDate() - logDays)
         const cutoffIso = cutoff.toISOString()
 
         // Get tool IDs for this developer
@@ -112,9 +123,9 @@ export async function GET(request: NextRequest) {
       }
 
       // b. Purge webhook_deliveries older than webhookLogRetentionDays
-      if (dev.webhookLogRetentionDays > 0) {
+      if (webhookDays > 0) {
         const cutoff = new Date()
-        cutoff.setDate(cutoff.getDate() - dev.webhookLogRetentionDays)
+        cutoff.setDate(cutoff.getDate() - webhookDays)
         const cutoffIso = cutoff.toISOString()
 
         // Get webhook endpoint IDs for this developer
@@ -152,9 +163,9 @@ export async function GET(request: NextRequest) {
       }
 
       // c. Purge audit_logs older than auditLogRetentionDays
-      if (dev.auditLogRetentionDays > 0) {
+      if (auditDays > 0) {
         const cutoff = new Date()
-        cutoff.setDate(cutoff.getDate() - dev.auditLogRetentionDays)
+        cutoff.setDate(cutoff.getDate() - auditDays)
         const cutoffIso = cutoff.toISOString()
 
         let deleted = BATCH_SIZE

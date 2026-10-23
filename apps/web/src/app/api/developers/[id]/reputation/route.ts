@@ -80,39 +80,41 @@ export async function GET(
       const age = Date.now() - new Date(cached.calculatedAt).getTime()
       if (age < 3600000) {
         // The cache columns are NOT NULL, so whether uptime / response time had
-        // any data is re-checked here (cheap EXISTS queries).
-        let hasChecks = true
-        let hasInvocations = true
+        // any data is re-checked here (cheap EXISTS queries, read as 0/1 so the
+        // driver's boolean encoding can't matter). If the check fails, the cache
+        // is not used and the reputation is recomputed below.
+        let presence: { hasChecks: number; hasInvocations: number } | undefined
         try {
           const since = new Date(Date.now() - WINDOW_MS).toISOString()
-          const [presence] = await db
+          ;[presence] = await db
             .select({
-              hasChecks: sql<boolean>`exists(select 1 from ${toolHealthChecks} inner join ${tools} on ${tools.id} = ${toolHealthChecks.toolId} where ${tools.developerId} = ${developerId} and ${tools.status} = 'active' and ${toolHealthChecks.checkedAt} >= ${since}::timestamptz)`,
-              hasInvocations: sql<boolean>`exists(select 1 from ${invocations} inner join ${tools} on ${tools.id} = ${invocations.toolId} where ${tools.developerId} = ${developerId} and ${tools.status} = 'active' and ${invocations.createdAt} >= ${since}::timestamptz)`,
+              hasChecks: sql<number>`(exists(select 1 from ${toolHealthChecks} inner join ${tools} on ${tools.id} = ${toolHealthChecks.toolId} where ${tools.developerId} = ${developerId} and ${tools.status} = 'active' and ${toolHealthChecks.checkedAt} >= ${since}::timestamptz))::int`,
+              hasInvocations: sql<number>`(exists(select 1 from ${invocations} inner join ${tools} on ${tools.id} = ${invocations.toolId} where ${tools.developerId} = ${developerId} and ${tools.status} = 'active' and ${invocations.createdAt} >= ${since}::timestamptz))::int`,
             })
             .from(developers)
             .where(eq(developers.id, developerId))
             .limit(1)
-          if (presence) {
-            hasChecks = Boolean(presence.hasChecks)
-            hasInvocations = Boolean(presence.hasInvocations)
-          }
-        } catch {
-          // Fall back to the cached values
+        } catch (e) {
+          logger.warn('reputation.presence_check_failed', { developerId, error: (e as Error).message })
+          presence = undefined
         }
-        return successResponse({
-          developerId: developer.id,
-          name: developer.name,
-          score: cached.score,
-          breakdown: {
-            responseTimePct: hasInvocations ? cached.responseTimePct : null,
-            uptimePct: hasChecks ? cached.uptimePct : null,
-            reviewAvg: cached.reviewAvg / 100,
-            totalTools: cached.totalTools,
-            totalConsumers: cached.totalConsumers,
-          },
-          calculatedAt: cached.calculatedAt,
-        })
+        if (presence) {
+          const hasChecks = Number(presence.hasChecks) === 1
+          const hasInvocations = Number(presence.hasInvocations) === 1
+          return successResponse({
+            developerId: developer.id,
+            name: developer.name,
+            score: cached.score,
+            breakdown: {
+              responseTimePct: hasInvocations ? cached.responseTimePct : null,
+              uptimePct: hasChecks ? cached.uptimePct : null,
+              reviewAvg: cached.reviewAvg / 100,
+              totalTools: cached.totalTools,
+              totalConsumers: cached.totalConsumers,
+            },
+            calculatedAt: cached.calculatedAt,
+          })
+        }
       }
     }
 
