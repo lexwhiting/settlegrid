@@ -7,6 +7,10 @@ import {
   DEFAULT_WEBHOOK_LOG_RETENTION_DAYS,
   DEFAULT_AUDIT_LOG_RETENTION_DAYS,
   toRetentionOption,
+  effectiveRetentionDays,
+  MIN_LOG_RETENTION_DAYS,
+  MIN_WEBHOOK_LOG_RETENTION_DAYS,
+  MIN_AUDIT_LOG_RETENTION_DAYS,
 } from '../retention-options'
 
 describe('retention options', () => {
@@ -36,3 +40,23 @@ describe('retention options', () => {
     expect(toRetentionOption(undefined, WEBHOOK_LOG_RETENTION_OPTIONS, 7)).toBe(7)
   })
 })
+
+describe('effectiveRetentionDays', () => {
+  it('keeps 0 (keep forever) and values at or above the minimum', () => {
+    expect(effectiveRetentionDays(0, MIN_LOG_RETENTION_DAYS)).toBe(0)
+    expect(effectiveRetentionDays(90, MIN_LOG_RETENTION_DAYS)).toBe(90)
+    expect(effectiveRetentionDays(7, MIN_WEBHOOK_LOG_RETENTION_DAYS)).toBe(7)
+  })
+
+  it('raises a stored value below the settings minimum', () => {
+    expect(effectiveRetentionDays(7, MIN_LOG_RETENTION_DAYS)).toBe(30)
+    expect(effectiveRetentionDays(7, MIN_AUDIT_LOG_RETENTION_DAYS)).toBe(90)
+  })
+
+  it('minimums match the smallest non-forever dropdown option', () => {
+    expect(MIN_LOG_RETENTION_DAYS).toBe(Math.min(...LOG_RETENTION_OPTIONS.filter((v) => v > 0)))
+    expect(MIN_WEBHOOK_LOG_RETENTION_DAYS).toBe(Math.min(...WEBHOOK_LOG_RETENTION_OPTIONS))
+    expect(MIN_AUDIT_LOG_RETENTION_DAYS).toBe(Math.min(...AUDIT_LOG_RETENTION_OPTIONS))
+  })
+})
+
