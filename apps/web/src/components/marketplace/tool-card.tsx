@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ToolTypeBadge, type ToolType } from '@/components/ui/tool-type-badge'
 import { EcosystemIcon, type SourceEcosystem } from '@/components/ui/ecosystem-icon'
-import { shouldShowClaimedBadge, shouldShowUnclaimedBadge } from '@/lib/marketplace-visibility'
+import { isClaimedDraft, shouldShowUnclaimedBadge } from '@/lib/marketplace-visibility'
 
 export interface MarketplaceTool {
   id: string
@@ -130,9 +130,10 @@ export function ToolCard({ tool }: ToolCardProps) {
             )}
             {/* P2.INTL2: surface claimed-but-not-yet-monetized tools that
                 opted into marketplace visibility (status='draft' shows
-                here only because listedInMarketplace=true). Condition is
-                a pure helper so the JSX-level rule has a regression test. */}
-            {shouldShowClaimedBadge(tool.status) && (
+                here only because listedInMarketplace=true). Only claimed
+                directory listings get the badge (same rule as the tool
+                page); a developer's own listed draft does not. */}
+            {isClaimedDraft(tool.status, tool.sourceEcosystem) && (
               <span
                 className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded"
                 title="Claimed by the developer; pricing and monetization not yet configured"
