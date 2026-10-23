@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { developers, tools, developerReputation } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getRevenueTier } from '@/lib/revenue'
+import { hasRecentHealthChecksSql } from '@/lib/developer-health'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,14 @@ async function getDevProfile(slug: string) {
       .limit(50)
 
     const [reputation] = await db
-      .select()
+      .select({
+        score: developerReputation.score,
+        uptimePct: developerReputation.uptimePct,
+        reviewAvg: developerReputation.reviewAvg,
+        totalTools: developerReputation.totalTools,
+        totalConsumers: developerReputation.totalConsumers,
+        hasChecks: hasRecentHealthChecksSql(dev.id),
+      })
       .from(developerReputation)
       .where(eq(developerReputation.developerId, dev.id))
       .limit(1)
@@ -66,7 +74,9 @@ async function getDevProfile(slug: string) {
       developer: dev,
       isPrivate: false as const,
       tools: devTools as DevTool[],
-      reputation: reputation ?? null,
+      reputation: reputation
+        ? { ...reputation, uptimePct: reputation.hasChecks ? reputation.uptimePct : null }
+        : null,
     }
   } catch {
     return null
@@ -194,7 +204,7 @@ export default async function DevProfilePage({
                 <>
                   <StatCard label="Tools" value={String(reputation.totalTools)} />
                   <StatCard label="Consumers" value={String(reputation.totalConsumers)} />
-                  <StatCard label="Uptime" value={`${reputation.uptimePct}%`} />
+                  <StatCard label="Uptime" value={reputation.uptimePct != null ? `${reputation.uptimePct}%` : '--'} />
                   <StatCard
                     label="Avg Rating"
                     value={reputation.reviewAvg > 0 ? (reputation.reviewAvg / 100).toFixed(1) : '--'}
