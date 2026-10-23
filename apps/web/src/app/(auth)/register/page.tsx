@@ -221,7 +221,7 @@ export default function RegisterPage() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
                 </span>
                 <p className="text-sm font-semibold text-amber-300">
-                  You&apos;re joining the first 100 — lifetime free tier included
+                  Publish your first tool to claim one of the first 100 founding-member spots
                 </p>
               </div>
               <div className="flex items-center gap-3">
