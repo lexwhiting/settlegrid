@@ -128,7 +128,8 @@ describe('R16: Tool Health (GET /api/tools/[id]/health)', () => {
     const data = await res.json()
     expect(res.status).toBe(200)
     expect(data.currentStatus).toBe('unknown')
-    expect(data.uptimePct30d).toBe(100)
+    expect(data.uptimePct30d).toBeNull()
+    expect(data.avgResponseTimeMs).toBeNull()
   })
 
   it('returns avgResponseTimeMs', async () => {
