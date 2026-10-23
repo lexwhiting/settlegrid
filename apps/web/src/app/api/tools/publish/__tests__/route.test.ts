@@ -168,7 +168,9 @@ describe('PUT /api/tools/publish — producer-audit #8 quality gate', () => {
     expect(res.status).toBe(201)
     expect(data.tool.status).toBe('active')
     expect(mockValidate).toHaveBeenCalledWith('tool-new', 'dev-123')
-    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-123', toolId: 'tool-new' })
+    expect(mockOnToolActivated).toHaveBeenCalledWith(
+      expect.objectContaining({ developerId: 'dev-123', toolId: 'tool-new', toolSlug: 'my-tool', fromStatus: 'draft' })
+    )
   })
 
   it('CREATE: inserts the draft hidden from the marketplace', async () => {
@@ -275,7 +277,9 @@ describe('PUT /api/tools/publish — regression guard: UPDATE preserves existing
 
     expect(res.status).toBe(200)
     expect(data.tool.status).toBe('active')
-    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-123', toolId: 'tool-u' })
+    expect(mockOnToolActivated).toHaveBeenCalledWith(
+      expect.objectContaining({ developerId: 'dev-123', toolId: 'tool-u', fromStatus: 'draft' })
+    )
   })
 
   it('UPDATE: re-publishing an already-active tool does not re-run activation side effects', async () => {

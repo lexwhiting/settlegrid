@@ -115,7 +115,13 @@ export async function PATCH(
     }).catch(() => {})
 
     if (body.status === 'active' && existing.status !== 'active') {
-      await onToolActivated({ developerId: auth.id, toolId: tool.id })
+      await onToolActivated({
+        developerId: auth.id,
+        toolId: tool.id,
+        toolName: tool.name,
+        toolSlug: tool.slug,
+        fromStatus: existing.status,
+      })
     }
 
     return successResponse({ tool })

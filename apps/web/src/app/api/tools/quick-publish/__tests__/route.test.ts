@@ -133,7 +133,9 @@ describe('POST /api/tools/quick-publish', () => {
     expect(data.tool.status).toBe('active')
     expect(data.tool.proxyUrl).toMatch(/\/api\/proxy\/example-search$/)
     expect(mockQueueSeed).toHaveBeenCalled()
-    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-1', toolId: 'tool-1' })
+    expect(mockOnToolActivated).toHaveBeenCalledWith({
+      developerId: 'dev-1', toolId: 'tool-1', toolName: 'Example Search', toolSlug: 'example-search', fromStatus: 'draft',
+    })
   })
 
   it('returns 422 with the gate reasons and leaves the tool as a draft', async () => {

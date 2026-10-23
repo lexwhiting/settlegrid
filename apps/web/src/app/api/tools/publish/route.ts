@@ -413,7 +413,13 @@ export async function PUT(request: NextRequest) {
     if (activated) {
       toolRecord = { ...toolRecord, status: activated.status, updatedAt: activated.updatedAt }
       if (statusOnInitialWrite !== 'active') {
-        await onToolActivated({ developerId: auth.id, toolId: toolRecord.id })
+        await onToolActivated({
+          developerId: auth.id,
+          toolId: toolRecord.id,
+          toolName: toolRecord.name,
+          toolSlug: toolRecord.slug,
+          fromStatus: statusOnInitialWrite,
+        })
       }
     }
 

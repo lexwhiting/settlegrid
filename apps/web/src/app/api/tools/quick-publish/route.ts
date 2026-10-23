@@ -242,7 +242,13 @@ export async function POST(request: NextRequest) {
     const tool = { ...draft, status: activated?.status ?? draft.status }
 
     if (activated) {
-      await onToolActivated({ developerId: auth.id, toolId: tool.id })
+      await onToolActivated({
+        developerId: auth.id,
+        toolId: tool.id,
+        toolName: tool.name,
+        toolSlug: tool.slug,
+        fromStatus: draft.status,
+      })
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://settlegrid.ai'

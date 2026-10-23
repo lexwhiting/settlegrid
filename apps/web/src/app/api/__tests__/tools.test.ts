@@ -404,7 +404,9 @@ describe('Toggle Tool Status (PATCH /api/tools/[id]/status)', () => {
 
     expect(response.status).toBe(200)
     expect(data.tool.status).toBe('active')
-    expect(mockOnToolActivated).toHaveBeenCalledWith({ developerId: 'dev-123', toolId: statusUuid })
+    expect(mockOnToolActivated).toHaveBeenCalledWith({
+      developerId: 'dev-123', toolId: statusUuid, toolName: 'Tool', toolSlug: 'tool', fromStatus: 'draft',
+    })
   })
 
   it('does not run activation side effects for an already-active tool or on deactivate', async () => {
