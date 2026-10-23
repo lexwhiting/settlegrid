@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { mockDb, mockCheckRateLimit, mockRequireConsumer } = vi.hoisted(() => {
+const { mockDb, mockCheckRateLimit, mockRequireConsumer, mockSendNotificationEmail } = vi.hoisted(() => {
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -19,6 +19,7 @@ const { mockDb, mockCheckRateLimit, mockRequireConsumer } = vi.hoisted(() => {
     mockDb,
     mockCheckRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 5, remaining: 4, reset: 0 }),
     mockRequireConsumer: vi.fn().mockResolvedValue({ id: 'con-123', email: 'consumer@example.com' }),
+    mockSendNotificationEmail: vi.fn().mockResolvedValue(undefined),
   }
 })
 
@@ -42,6 +43,7 @@ vi.mock('@/lib/db/schema', () => ({
     email: 'email',
     passwordHash: 'password_hash',
     stripeCustomerId: 'stripe_customer_id',
+    globalBalanceCents: 'global_balance_cents',
     createdAt: 'created_at',
   },
   apiKeys: {
@@ -83,6 +85,10 @@ vi.mock('@/lib/db/schema', () => ({
 
 vi.mock('@/lib/middleware/auth', () => ({
   requireConsumer: mockRequireConsumer,
+}))
+
+vi.mock('@/lib/notifications', () => ({
+  sendNotificationEmail: mockSendNotificationEmail,
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -191,6 +197,7 @@ describe('API Key Management', () => {
     mockDb.limit
       .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ balanceCents: 500 }]) // per-tool balance
 
     mockDb.returning.mockResolvedValueOnce([
       { id: 'key-new', keyPrefix: 'sg_live_', toolId: 'tool-1', status: 'active', createdAt: new Date() },
@@ -208,6 +215,147 @@ describe('API Key Management', () => {
     expect(data.key).toContain('sg_live_')
   })
 
+  it('creates a key from a per-tool balance without reading the global balance', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }]) // tool
+      .mockResolvedValueOnce([]) // no existing key
+      .mockResolvedValueOnce([{ balanceCents: 1 }]) // per-tool balance
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'key-new', keyPrefix: 'sg_live_', toolId: 'tool-1', status: 'active', createdAt: new Date() },
+    ])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+
+    expect(response.status).toBe(201)
+    expect(mockDb.limit).toHaveBeenCalledTimes(3)
+    expect(mockDb.insert).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates a key from the global balance when there is no per-tool balance', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }]) // tool
+      .mockResolvedValueOnce([]) // no existing key
+      .mockResolvedValueOnce([]) // no per-tool balance row
+      .mockResolvedValueOnce([{ globalBalanceCents: 1000 }]) // global balance
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'key-new', keyPrefix: 'sg_live_', toolId: 'tool-1', status: 'active', createdAt: new Date() },
+    ])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+    const data = await response.json()
+
+    expect(response.status).toBe(201)
+    expect(data.key).toContain('sg_live_')
+    expect(mockDb.insert).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates a key from the global balance when the per-tool balance is zero', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ balanceCents: 0 }])
+      .mockResolvedValueOnce([{ globalBalanceCents: 250 }])
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'key-new', keyPrefix: 'sg_live_', toolId: 'tool-1', status: 'active', createdAt: new Date() },
+    ])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+
+    expect(response.status).toBe(201)
+  })
+
+  it('returns 402 and creates no key when neither balance is usable', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ balanceCents: 0 }])
+      .mockResolvedValueOnce([{ globalBalanceCents: 0 }])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+    const data = await response.json()
+
+    expect(response.status).toBe(402)
+    expect(data.code).toBe('INSUFFICIENT_BALANCE')
+    expect(data.key).toBeUndefined()
+    expect(mockDb.insert).not.toHaveBeenCalled()
+    expect(mockSendNotificationEmail).not.toHaveBeenCalled()
+  })
+
+  it('returns 402 when there is no balance row and no consumer balance row', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+
+    expect(response.status).toBe(402)
+    expect(mockDb.insert).not.toHaveBeenCalled()
+  })
+
+  it('returns 402 when the per-tool balance is negative and the global balance is zero', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ balanceCents: -5 }])
+      .mockResolvedValueOnce([{ globalBalanceCents: 0 }])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+
+    expect(response.status).toBe(402)
+    expect(mockDb.insert).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 for an inactive tool even with a balance', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'draft' }])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data.code).toBe('TOOL_NOT_ACTIVE')
+    expect(mockDb.insert).not.toHaveBeenCalled()
+  })
+
+  it('sends the key-created email to the consumer without developer preference gating', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'Tool One', status: 'active', developerId: 'dev-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ balanceCents: 500 }])
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'key-new', keyPrefix: 'sg_live_', toolId: 'tool-1', status: 'active', createdAt: new Date() },
+    ])
+
+    const response = await createKey(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440001',
+    }))
+
+    expect(response.status).toBe(201)
+    expect(mockSendNotificationEmail).toHaveBeenCalledTimes(1)
+    expect(mockSendNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventKey: 'api_key_created',
+        email: 'consumer@example.com',
+        critical: true,
+      })
+    )
+  })
+
   it('returns 409 when key already exists for tool', async () => {
     mockDb.limit
       .mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
@@ -219,6 +367,7 @@ describe('API Key Management', () => {
 
     const response = await createKey(request)
     expect(response.status).toBe(409)
+    expect(mockDb.insert).not.toHaveBeenCalled()
   })
 
   it('revokes an API key', async () => {

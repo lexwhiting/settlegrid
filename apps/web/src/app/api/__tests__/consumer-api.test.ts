@@ -48,7 +48,7 @@ vi.mock('@/lib/db/schema', () => ({
     method: 'method', costCents: 'cost_cents', latencyMs: 'latency_ms',
     status: 'status', createdAt: 'created_at',
   },
-  consumers: { id: 'id', email: 'email' },
+  consumers: { id: 'id', email: 'email', globalBalanceCents: 'global_balance_cents' },
 }))
 
 vi.mock('@/lib/middleware/auth', () => ({
@@ -143,6 +143,8 @@ describe('Consumer Keys - POST /api/consumer/keys', () => {
     mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }])
     // Second limit call: existing key check (none)
     mockDb.limit.mockResolvedValueOnce([])
+    // Third limit call: per-tool balance (usable)
+    mockDb.limit.mockResolvedValueOnce([{ balanceCents: 500 }])
     mockDb.returning.mockResolvedValueOnce([
       { id: 'key-new', keyPrefix: 'sg_live_', toolId: 'tool-1', status: 'active', createdAt: new Date() },
     ])
@@ -154,6 +156,36 @@ describe('Consumer Keys - POST /api/consumer/keys', () => {
     expect(response.status).toBe(201)
     expect(data.key).toBeDefined()
     expect(data.apiKey).toBeDefined()
+  })
+
+  it('creates a new API key from the global balance alone', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }]) // tool
+    mockDb.limit.mockResolvedValueOnce([]) // no existing key
+    mockDb.limit.mockResolvedValueOnce([]) // no per-tool balance row
+    mockDb.limit.mockResolvedValueOnce([{ globalBalanceCents: 1000 }]) // global balance
+    mockDb.returning.mockResolvedValueOnce([
+      { id: 'key-new', keyPrefix: 'sg_live_', toolId: 'tool-1', status: 'active', createdAt: new Date() },
+    ])
+
+    const response = await POST(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440000',
+    }))
+    expect(response.status).toBe(201)
+  })
+
+  it('returns 402 when the consumer has no usable balance', async () => {
+    mockDb.limit.mockResolvedValueOnce([{ id: 'tool-1', status: 'active' }]) // tool
+    mockDb.limit.mockResolvedValueOnce([]) // no existing key
+    mockDb.limit.mockResolvedValueOnce([]) // no per-tool balance row
+    mockDb.limit.mockResolvedValueOnce([{ globalBalanceCents: 0 }]) // global balance
+
+    const response = await POST(makeRequest('/api/consumer/keys', 'POST', {
+      toolId: '550e8400-e29b-41d4-a716-446655440000',
+    }))
+    const data = await response.json()
+    expect(response.status).toBe(402)
+    expect(data.code).toBe('INSUFFICIENT_BALANCE')
+    expect(mockDb.insert).not.toHaveBeenCalled()
   })
 
   it('returns 404 for non-existent tool', async () => {
