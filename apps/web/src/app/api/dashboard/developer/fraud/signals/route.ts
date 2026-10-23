@@ -325,8 +325,6 @@ export async function GET(request: NextRequest) {
         flaggedThisWeek: perSignalFlagged,
         lastTriggeredAt: lastFlaggedAt?.toISOString() ?? null,
         riskContribution: def.riskContribution,
-        redisKeyPattern: def.redisKeyPattern,
-        fallbackBehavior: def.fallbackBehavior,
         category: def.category,
       }
     })
@@ -340,7 +338,6 @@ export async function GET(request: NextRequest) {
         degradedSignals: signals.filter((s) => s.status === 'degraded').length,
         scannedToday: scannedTodayTotal,
         flaggedThisWeek: flaggedThisWeekTotal,
-        redisHealthy,
       },
     })
   } catch (error) {

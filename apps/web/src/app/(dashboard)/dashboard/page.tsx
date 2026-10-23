@@ -14,6 +14,12 @@ import { calculateTakeCents } from '@/lib/pricing'
 import { showAchievementToasts } from '@/components/ui/achievement-toast'
 import { SocialShare } from '@/components/ui/social-share'
 import type { AchievementWithProgress, BadgeDefinition } from '@/lib/achievements'
+import {
+  toConsumerInsights,
+  toFraudSignals,
+  type ConsumerInsightsData,
+  type FraudSignalsData,
+} from '@/lib/dashboard-summaries'
 
 interface DeveloperStats {
   totalRevenueCents: number
@@ -104,22 +110,6 @@ interface ForecastData {
 interface NotificationConfig {
   slack?: string
   discord?: string
-}
-
-interface ConsumerInsightsData {
-  totalConsumers: number
-  activeConsumers: number
-  churnRate: number
-  avgLifetimeValueCents: number
-  atRiskConsumers: number
-}
-
-interface FraudSignalsData {
-  totalSignals: number
-  highSeverity: number
-  mediumSeverity: number
-  lowSeverity: number
-  lastCheckedAt: string | null
 }
 
 interface HealthStatusData {
@@ -484,11 +474,11 @@ export default function DeveloperDashboardPage() {
         ])
         if (insightsRes?.ok) {
           const data = await insightsRes.json()
-          setConsumerInsights(data as ConsumerInsightsData)
+          setConsumerInsights(toConsumerInsights(data))
         }
         if (fraudRes?.ok) {
           const data = await fraudRes.json()
-          setFraudSignals(data as FraudSignalsData)
+          setFraudSignals(toFraudSignals(data))
         }
         if (healthRes?.ok) {
           const data = await healthRes.json()
@@ -971,11 +961,15 @@ export default function DeveloperDashboardPage() {
             {consumerInsights ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Active</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{consumerInsights.activeConsumers}/{consumerInsights.totalConsumers}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Active (30d)</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{consumerInsights.activeConsumers}{consumerInsights.activeCapped ? '+' : ''}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Avg LTV</span>
+                  <span className="text-gray-500 dark:text-gray-400">New (30d)</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{consumerInsights.newConsumers}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Avg est. LTV</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100">{formatCents(consumerInsights.avgLifetimeValueCents)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -1011,15 +1005,19 @@ export default function DeveloperDashboardPage() {
             {fraudSignals ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Total signals</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{fraudSignals.totalSignals}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Checks active</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{fraudSignals.activeSignals}/{fraudSignals.totalSignals}</span>
                 </div>
-                {fraudSignals.highSeverity > 0 && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">High severity</span>
-                    <span className="font-medium text-red-600 dark:text-red-400">{fraudSignals.highSeverity}</span>
-                  </div>
-                )}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Scanned today</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{fraudSignals.scannedToday.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Flagged (7d)</span>
+                  <span className={`font-medium ${fraudSignals.flaggedThisWeek > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                    {fraudSignals.flaggedThisWeek.toLocaleString()}
+                  </span>
+                </div>
                 <Link href="/dashboard/fraud" className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand/80 font-medium transition-colors mt-1">
                   View details
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
@@ -1353,7 +1351,7 @@ export default function DeveloperDashboardPage() {
                 </svg>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                    Unlock sandbox mode, notifications, benchmarking, and more
+                    Unlock higher limits, notifications, benchmarking, and more
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     Builder plan starts at $19/mo with 200K ops and priority listing.

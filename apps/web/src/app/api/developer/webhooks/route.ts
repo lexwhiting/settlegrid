@@ -9,17 +9,12 @@ import { successResponse, errorResponse, internalErrorResponse, parseBody } from
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { writeAuditLog } from '@/lib/audit'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
-import { getTierConfig } from '@/lib/tier-config'
+import { WEBHOOK_EVENT_NAMES, parseWebhookEvents } from '@/lib/webhook-events'
+import { getTierConfig, getEffectiveTier } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
-
-const VALID_EVENTS = [
-  'invocation.completed',
-  'payout.initiated',
-  'tool.status_changed',
-  'balance.low',
-] as const
+const VALID_EVENTS = WEBHOOK_EVENT_NAMES
 
 const createWebhookSchema = z.object({
   url: z.string().url('Must be a valid HTTPS URL').refine(
@@ -59,7 +54,9 @@ export async function GET(request: NextRequest) {
       .where(eq(webhookEndpoints.developerId, auth.id))
       .limit(50)
 
-    return successResponse({ endpoints })
+    return successResponse({
+      endpoints: endpoints.map((ep) => ({ ...ep, events: parseWebhookEvents(ep.events) })),
+    })
   } catch (error) {
     return internalErrorResponse(error)
   }
@@ -94,7 +91,7 @@ export async function POST(request: NextRequest) {
       .where(eq(developers.id, auth.id))
       .limit(1)
 
-    const effectiveTier = dev?.isFoundingMember ? 'scale' : (dev?.tier ?? 'free')
+    const effectiveTier = getEffectiveTier(dev?.tier ?? 'free', dev?.isFoundingMember)
     const tierConfig = getTierConfig(effectiveTier)
     const maxEndpoints = tierConfig.maxWebhookEndpoints
 
@@ -147,6 +144,7 @@ export async function POST(request: NextRequest) {
     return successResponse({
       endpoint: {
         ...endpoint,
+        events: parseWebhookEvents(endpoint.events),
         secret, // Only returned on creation
         tier: dev?.tier ?? 'standard',
       },

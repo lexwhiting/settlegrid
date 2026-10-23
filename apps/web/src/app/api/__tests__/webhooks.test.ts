@@ -129,6 +129,24 @@ describe('List Webhooks (GET /api/developer/webhooks)', () => {
     expect(data.endpoints[0].url).toBe('https://example.com/webhook')
   })
 
+  it('returns events as an array when stored JSON-encoded', async () => {
+    mockDb.limit.mockResolvedValueOnce([
+      {
+        id: 'wh-2',
+        url: 'https://example.com/webhook',
+        events: '["tool.status_changed"]',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      },
+    ])
+
+    const response = await listWebhooks(makeRequest('/api/developer/webhooks'))
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.endpoints[0].events).toEqual(['tool.status_changed'])
+  })
+
   it('returns 401 when not authenticated', async () => {
     mockRequireDeveloper.mockRejectedValueOnce(new Error('Authentication required.'))
 
@@ -164,14 +182,14 @@ describe('Create Webhook (POST /api/developer/webhooks)', () => {
     mockDb.returning.mockResolvedValueOnce([{
       id: 'wh-new',
       url: 'https://example.com/hook',
-      events: '["invocation.completed"]',
+      events: '["tool.status_changed"]',
       status: 'active',
       createdAt: new Date().toISOString(),
     }])
 
     const response = await createWebhook(makeRequest('/api/developer/webhooks', 'POST', {
       url: 'https://example.com/hook',
-      events: ['invocation.completed'],
+      events: ['tool.status_changed'],
     }))
     const data = await response.json()
 
@@ -183,7 +201,7 @@ describe('Create Webhook (POST /api/developer/webhooks)', () => {
   it('rejects non-HTTPS URLs', async () => {
     const response = await createWebhook(makeRequest('/api/developer/webhooks', 'POST', {
       url: 'http://example.com/hook',
-      events: ['invocation.completed'],
+      events: ['tool.status_changed'],
     }))
 
     expect(response.status).toBe(422)
@@ -198,7 +216,7 @@ describe('Create Webhook (POST /api/developer/webhooks)', () => {
 
     const response = await createWebhook(makeRequest('/api/developer/webhooks', 'POST', {
       url: 'https://example.com/hook',
-      events: ['invocation.completed'],
+      events: ['tool.status_changed'],
     }))
     const data = await response.json()
 
@@ -211,10 +229,20 @@ describe('Create Webhook (POST /api/developer/webhooks)', () => {
 
     const response = await createWebhook(makeRequest('/api/developer/webhooks', 'POST', {
       url: 'https://example.com/hook',
-      events: ['invocation.completed'],
+      events: ['tool.status_changed'],
     }))
 
     expect(response.status).toBe(401)
+  })
+
+  it('rejects events that are not dispatched', async () => {
+    for (const event of ['invocation.completed', 'payout.initiated', 'balance.low']) {
+      const response = await createWebhook(makeRequest('/api/developer/webhooks', 'POST', {
+        url: 'https://example.com/hook',
+        events: [event],
+      }))
+      expect(response.status).toBe(422)
+    }
   })
 
   it('rejects invalid events', async () => {

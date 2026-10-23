@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 
 const navLinks = [
   { label: "Marketplace", href: "/marketplace" },
@@ -12,8 +13,44 @@ const navLinks = [
   { label: "Docs", href: "/docs" },
 ]
 
+/**
+ * Whether a Supabase session exists in this browser (null until known).
+ * UI only — reads the local session, no network round trip.
+ */
+function useSignedIn(): boolean | null {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let active = true
+    let unsubscribe = () => {}
+    try {
+      const supabase = createClient()
+      supabase.auth
+        .getSession()
+        .then(({ data }) => { if (active) setSignedIn(Boolean(data.session)) })
+        .catch(() => { if (active) setSignedIn(false) })
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (active) setSignedIn(Boolean(session))
+      })
+      unsubscribe = () => data.subscription.unsubscribe()
+    } catch {
+      // Auth client unavailable — treat as signed out
+      setSignedIn(false)
+    }
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
+
+  return signedIn
+}
+
 export function Navbar() {
   const [open, setOpen] = useState(false)
+  const signedIn = useSignedIn()
+  // Hide the auth actions until the session is known, so they don't flash
+  const pending = signedIn === null ? " invisible" : ""
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/50">
@@ -45,21 +82,32 @@ export function Navbar() {
           </nav>
 
           <div className="flex items-center gap-3">
-            {/* Sign in (returning users) */}
-            <Link
-              href="/login"
-              className="hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign in
-            </Link>
+            {signedIn ? (
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium bg-[#E5A336] text-[#0a0a0a] rounded-md hover:bg-[#d4922f] transition-colors"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                {/* Sign in (returning users) */}
+                <Link
+                  href="/login"
+                  className={`hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground transition-colors${pending}`}
+                >
+                  Sign in
+                </Link>
 
-            {/* CTA */}
-            <Link
-              href="/start"
-              className="inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium bg-[#E5A336] text-[#0a0a0a] rounded-md hover:bg-[#d4922f] transition-colors"
-            >
-              Get started
-            </Link>
+                {/* CTA */}
+                <Link
+                  href="/start"
+                  className={`inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium bg-[#E5A336] text-[#0a0a0a] rounded-md hover:bg-[#d4922f] transition-colors${pending}`}
+                >
+                  Get started
+                </Link>
+              </>
+            )}
 
             {/* Mobile menu button */}
             <button
@@ -98,11 +146,11 @@ export function Navbar() {
               </Link>
             ))}
             <Link
-              href="/login"
+              href={signedIn ? "/dashboard" : "/login"}
               onClick={() => setOpen(false)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1 border-t border-border/50 pt-3 mt-1"
+              className={`text-sm text-muted-foreground hover:text-foreground transition-colors py-1 border-t border-border/50 pt-3 mt-1${pending}`}
             >
-              Sign in
+              {signedIn ? "Dashboard" : "Sign in"}
             </Link>
           </nav>
         </div>

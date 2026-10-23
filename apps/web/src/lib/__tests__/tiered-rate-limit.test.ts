@@ -57,6 +57,12 @@ describe('Tiered Rate Limiting', () => {
     expect(limits.sdk).toBe(200)
   })
 
+  it('gives founding members scale tier limits', () => {
+    const limits = getTierLimits('free', true)
+    expect(limits.api).toBe(500)
+    expect(limits.sdk).toBe(16000)
+  })
+
   it('is case-insensitive for tier names', () => {
     const limits = getTierLimits('Enterprise')
     expect(limits.api).toBe(1000)

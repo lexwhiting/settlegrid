@@ -235,14 +235,14 @@ describe('Audit Logging on Webhook Create', () => {
     mockDb.returning.mockResolvedValueOnce([{
       id: 'wh-new',
       url: 'https://example.com/hook',
-      events: '["invocation.completed"]',
+      events: '["tool.status_changed"]',
       status: 'active',
       createdAt: new Date().toISOString(),
     }])
 
     const response = await POST(makeRequest('/api/developer/webhooks', 'POST', {
       url: 'https://example.com/hook',
-      events: ['invocation.completed'],
+      events: ['tool.status_changed'],
     }))
 
     expect(response.status).toBe(201)
