@@ -98,3 +98,32 @@ describe('no auto-refill claims', () => {
     expect(text).not.toMatch(/auto[- ]?refill/i)
   })
 })
+
+// ─── Small public text items ────────────────────────────────────────────────
+
+describe('auth page titles', () => {
+  it('register has its own title; the group default stays Sign In', () => {
+    expect(repoFile('apps/web/src/app/(auth)/register/layout.tsx')).toContain(
+      "title: 'Create Account | SettleGrid'",
+    )
+    expect(repoFile('apps/web/src/app/(auth)/layout.tsx')).toContain(
+      "title: 'Sign In | SettleGrid'",
+    )
+  })
+})
+
+describe('pricing plan price', () => {
+  it('renders a real space between the price and the period', () => {
+    expect(repoFile('apps/web/src/app/pricing/page.tsx')).toContain(
+      "{plan.price}</span>{' '}",
+    )
+  })
+})
+
+describe('academic page', () => {
+  it('makes no fixed tool-count claim', () => {
+    expect(repoFile('apps/web/src/app/academic/page.tsx')).not.toMatch(
+      /\d[\d,]*\+\s*(monetized\s+)?AI tools/i,
+    )
+  })
+})

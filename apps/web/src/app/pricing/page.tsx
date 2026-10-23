@@ -247,7 +247,7 @@ export default function PricingPage() {
                 )}
                 <h2 className="text-2xl font-bold text-gray-100">{plan.name}</h2>
                 <div className="mt-2 mb-4">
-                  <span className="text-4xl font-bold text-gray-100">{plan.price}</span>
+                  <span className="text-4xl font-bold text-gray-100">{plan.price}</span>{' '}
                   <span className="text-gray-400 ml-1">{plan.period}</span>
                 </div>
                 <p className="text-sm text-gray-400 mb-6">{plan.description}</p>

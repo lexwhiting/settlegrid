@@ -24,14 +24,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Academic Program | SettleGrid',
     description:
-      'Free access to 1,400+ AI tools for academic researchers and students. $500 in credits included.',
+      'Free access to the SettleGrid marketplace of AI tools for academic researchers and students. $500 in credits included.',
     type: 'website',
     siteName: 'SettleGrid',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Academic Program | SettleGrid',
-    description: 'Free access to 1,400+ AI tools for academic researchers and students.',
+    description: 'Free access to the SettleGrid marketplace of AI tools for academic researchers and students.',
   },
 }
 
@@ -73,7 +73,7 @@ const BENEFITS = [
     ),
   },
   {
-    title: '1,400+ AI Tools',
+    title: 'Full Tool Marketplace',
     description: 'Access the full marketplace: data, NLP, image, code, search, finance, and more categories.',
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
@@ -121,7 +121,7 @@ export default async function AcademicPage() {
               <span className="text-amber-500"> Researchers & Students</span>
             </h1>
             <p className="mt-6 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
-              Access 1,400+ monetized AI tools with $500 in free credits, Scale-tier features,
+              Access the SettleGrid marketplace of AI tools with $500 in free credits, Scale-tier features,
               and 500K operations per month. Just verify your academic email.
             </p>
           </div>
