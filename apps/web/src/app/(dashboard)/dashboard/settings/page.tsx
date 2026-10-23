@@ -29,6 +29,7 @@ import {
   isNotificationOptedOut,
   type NotificationEventDef,
 } from '@/lib/notification-events'
+import { getProgressiveTakeDescription } from '@/lib/pricing'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1306,7 +1307,7 @@ export default function SettingsPage() {
                     <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">
                       Progressive
                       <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-                        (0% on first $1K/mo, 2% on $1K-$10K, 3% on $10K-$50K, 5% above $50K)
+                        ({getProgressiveTakeDescription().replace(/^Progressive:\s*/, '')}, applied at payout)
                       </span>
                     </dd>
                   </div>
