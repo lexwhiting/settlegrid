@@ -137,3 +137,13 @@ describe('pricing plan features', () => {
     )
   })
 })
+
+// ─── /status reads its redirect target at request time ──────────────────────
+
+describe('status page', () => {
+  it('is rendered per request so the status URL env takes effect without a rebuild', () => {
+    expect(repoFile('apps/web/src/app/status/page.tsx')).toContain(
+      "export const dynamic = 'force-dynamic'",
+    )
+  })
+})
