@@ -1183,7 +1183,7 @@ export default function SettingsPage() {
                   </label>
                   <div className="flex items-center gap-0 max-w-lg">
                     <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-[#2A2D3E] dark:bg-[#252836] dark:text-gray-400 whitespace-nowrap">
-                      settlegrid.ai/developers/
+                      settlegrid.ai/dev/
                     </span>
                     <Input
                       id="profile-slug"
@@ -1206,7 +1206,7 @@ export default function SettingsPage() {
                   </p>
                   {profileSlug && /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(profileSlug) && profileSlug.length >= 3 && (
                     <p className="mt-1 text-xs text-brand dark:text-amber-400">
-                      Your profile: settlegrid.ai/developers/{profileSlug}
+                      Your profile: settlegrid.ai/dev/{profileSlug}
                     </p>
                   )}
                 </div>
