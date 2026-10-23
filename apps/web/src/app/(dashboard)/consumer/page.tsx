@@ -953,8 +953,8 @@ export default function ConsumerDashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Quick Links — Schedules, Credit Packs, Referral */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Quick Links — Schedules, Credit Packs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link href="/consumer/schedules" className="block">
           <Card className="hover:border-brand/40 transition-colors h-full">
             <CardContent className="p-5 flex items-start gap-3">
@@ -982,22 +982,6 @@ export default function ConsumerDashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Credit Packs</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Buy credits in bulk at a discount</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/consumer/referral" className="block">
-          <Card className="hover:border-brand/40 transition-colors h-full">
-            <CardContent className="p-5 flex items-start gap-3">
-              <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg p-2.5 shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Referral Program</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Share SettleGrid and earn bonus credits</p>
               </div>
             </CardContent>
           </Card>
