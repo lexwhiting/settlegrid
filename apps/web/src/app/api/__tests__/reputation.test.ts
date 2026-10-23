@@ -68,6 +68,7 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
       .mockResolvedValueOnce([{
         score: 85, responseTimePct: 90, uptimePct: 99, reviewAvg: 450, totalTools: 5, totalConsumers: 50, calculatedAt: recentTime,
       }])
+      .mockResolvedValueOnce([{ hasChecks: 1, hasInvocations: 1 }])
 
     const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
     const data = await res.json()
@@ -156,7 +157,7 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
       .mockResolvedValueOnce([{
         score: 51, responseTimePct: 0, uptimePct: 0, reviewAvg: 400, totalTools: 2, totalConsumers: 2, calculatedAt: new Date().toISOString(),
       }])
-      .mockResolvedValueOnce([{ hasChecks: false, hasInvocations: false }])
+      .mockResolvedValueOnce([{ hasChecks: 0, hasInvocations: 0 }])
 
     const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
     const data = await res.json()
@@ -164,6 +165,44 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
     expect(data.breakdown.uptimePct).toBeNull()
     expect(data.breakdown.responseTimePct).toBeNull()
     expect(data.score).toBe(51)
+  })
+
+  it('reads presence flags returned as strings (driver-dependent encoding)', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: validUuid, name: 'Dev Name', publicProfile: true }])
+      .mockResolvedValueOnce([{
+        score: 12, responseTimePct: 0, uptimePct: 0, reviewAvg: 0, totalTools: 3, totalConsumers: 0, calculatedAt: new Date().toISOString(),
+      }])
+      .mockResolvedValueOnce([{ hasChecks: '0', hasInvocations: '0' }])
+
+    const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
+    const data = await res.json()
+    expect(data.breakdown.uptimePct).toBeNull()
+    expect(data.breakdown.responseTimePct).toBeNull()
+  })
+
+  it('recomputes instead of serving cached placeholders when the presence check fails', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([{ id: validUuid, name: 'Dev Name', publicProfile: true }])
+      .mockResolvedValueOnce([{
+        score: 12, responseTimePct: 0, uptimePct: 0, reviewAvg: 0, totalTools: 3, totalConsumers: 0, calculatedAt: new Date().toISOString(),
+      }])
+      .mockRejectedValueOnce(new Error('presence query failed'))
+    let whereCount = 0
+    mockDb.where.mockImplementation(() => {
+      whereCount++
+      // developer lookup, cache lookup, presence check
+      if (whereCount <= 3) return mockDb
+      return Promise.resolve([{ count: 3, avg: 0, id: 'tool-1', total: 0, pct: 0, median: 0 }])
+    })
+    mockDb.onConflictDoUpdate.mockResolvedValueOnce(undefined)
+
+    const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.breakdown.uptimePct).toBeNull()
+    expect(data.breakdown.responseTimePct).toBeNull()
+    expect(mockDb.insert).toHaveBeenCalled()
   })
 
   it('returns 404 when developer not found', async () => {
@@ -191,6 +230,7 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
       .mockResolvedValueOnce([{
         score: 42, responseTimePct: 60, uptimePct: 80, reviewAvg: 300, totalTools: 2, totalConsumers: 10, calculatedAt: recentTime,
       }])
+      .mockResolvedValueOnce([{ hasChecks: 1, hasInvocations: 1 }])
 
     const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
     const data = await res.json()
@@ -205,6 +245,7 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
       .mockResolvedValueOnce([{
         score: 75, responseTimePct: 80, uptimePct: 95, reviewAvg: 400, totalTools: 3, totalConsumers: 20, calculatedAt: recentTime,
       }])
+      .mockResolvedValueOnce([{ hasChecks: 1, hasInvocations: 1 }])
 
     const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
     const data = await res.json()
@@ -218,6 +259,7 @@ describe('R20: Developer Reputation (GET /api/developers/[id]/reputation)', () =
       .mockResolvedValueOnce([{
         score: 50, responseTimePct: 50, uptimePct: 50, reviewAvg: 250, totalTools: 1, totalConsumers: 5, calculatedAt: recentTime,
       }])
+      .mockResolvedValueOnce([{ hasChecks: 1, hasInvocations: 1 }])
 
     const res = await GET(makeRequest(`/api/developers/${validUuid}/reputation`), { params: Promise.resolve({ id: validUuid }) })
     const data = await res.json()
