@@ -7,37 +7,26 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { EmptyState } from '@/components/dashboard/empty-state'
+import { useToast } from '@/components/ui/toast'
+import { WEBHOOK_EVENTS } from '@/lib/webhook-events'
 
 interface WebhookEndpoint {
   id: string
   url: string
   events: string[]
   status: string
-  secret: string
-  lastDeliveryAt: string | null
   createdAt: string
 }
 
+/** Shape returned by GET /api/developer/webhooks/[id]/deliveries */
 interface WebhookDelivery {
   id: string
   event: string
-  statusCode: number | null
-  success: boolean
-  attemptedAt: string
+  status: string
+  httpStatus: number | null
+  lastAttemptAt: string | null
+  createdAt: string
 }
-
-const WEBHOOK_EVENTS = [
-  'invocation.completed',
-  'invocation.failed',
-  'credit.purchased',
-  'credit.depleted',
-  'payout.completed',
-  'payout.failed',
-  'tool.activated',
-  'tool.deactivated',
-  'key.created',
-  'key.revoked',
-] as const
 
 export default function WebhooksPage() {
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([])
@@ -49,6 +38,10 @@ export default function WebhooksPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deliveries, setDeliveries] = useState<Record<string, WebhookDelivery[]>>({})
   const [loadingDeliveries, setLoadingDeliveries] = useState<string | null>(null)
+  // Signing secret of the endpoint just created — the API returns it only once.
+  const [newSecret, setNewSecret] = useState<{ url: string; secret: string } | null>(null)
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const { toast } = useToast()
 
   async function fetchEndpoints() {
     try {
@@ -79,10 +72,13 @@ export default function WebhooksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: form.url, events: form.events }),
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json()
         setError(data.error || 'Failed to create webhook')
         return
+      }
+      if (data.endpoint?.secret) {
+        setNewSecret({ url: data.endpoint.url, secret: data.endpoint.secret })
       }
       setShowCreate(false)
       setForm({ url: '', events: [] })
@@ -129,6 +125,40 @@ export default function WebhooksPage() {
     }
   }
 
+  async function sendTestEvent(endpointId: string) {
+    setTestingId(endpointId)
+    try {
+      const res = await fetch(`/api/developer/webhooks/${endpointId}/test`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(data.error || 'Failed to send test event', 'error')
+      } else if (data.success) {
+        toast(`Test event delivered (HTTP ${data.httpStatus})`, 'success')
+      } else {
+        toast(
+          data.httpStatus
+            ? `Test event sent, but your endpoint responded with HTTP ${data.httpStatus}`
+            : 'Test event could not be delivered to your endpoint',
+          'error',
+        )
+      }
+    } catch {
+      toast('Network error', 'error')
+    } finally {
+      setTestingId(null)
+    }
+  }
+
+  async function copySecret() {
+    if (!newSecret) return
+    try {
+      await navigator.clipboard.writeText(newSecret.secret)
+      toast('Signing secret copied', 'success')
+    } catch {
+      toast('Could not copy — select the secret and copy it manually', 'error')
+    }
+  }
+
   function toggleEvent(event: string) {
     setForm((prev) => ({
       ...prev,
@@ -156,6 +186,29 @@ export default function WebhooksPage() {
         <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md p-3" role="alert">{error}</div>
       )}
 
+      {/* Signing secret, shown once after creation */}
+      {newSecret && (
+        <Card className="border-amber-300 dark:border-amber-700/60">
+          <CardHeader>
+            <CardTitle>Signing secret</CardTitle>
+            <CardDescription>
+              Use this secret to verify the <code className="text-xs">X-SettleGrid-Signature</code> header
+              (HMAC-SHA256 of the request body) on deliveries to <code className="text-xs break-all">{newSecret.url}</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <code className="flex-1 text-xs bg-gray-100 dark:bg-[#252836] px-3 py-2 rounded break-all select-all">{newSecret.secret}</code>
+              <Button variant="outline" size="sm" onClick={copySecret}>Copy</Button>
+            </div>
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Copy it now — you won&apos;t see this secret again.
+            </p>
+            <Button size="sm" onClick={() => setNewSecret(null)}>I&apos;ve saved it</Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Create form */}
       {showCreate && (
         <Card>
@@ -181,14 +234,17 @@ export default function WebhooksPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Events</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {WEBHOOK_EVENTS.map((event) => (
-                    <label key={event} className="flex items-center gap-2 cursor-pointer">
+                    <label key={event.name} className="flex items-start gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={form.events.includes(event)}
-                        onChange={() => toggleEvent(event)}
-                        className="rounded border-gray-300 dark:border-[#2A2D3E] text-brand focus:ring-brand"
+                        checked={form.events.includes(event.name)}
+                        onChange={() => toggleEvent(event.name)}
+                        className="mt-0.5 rounded border-gray-300 dark:border-[#2A2D3E] text-brand focus:ring-brand"
                       />
-                      <code className="text-xs bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded">{event}</code>
+                      <span>
+                        <code className="text-xs bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded">{event.name}</code>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">{event.description}</span>
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -221,7 +277,7 @@ export default function WebhooksPage() {
                 </svg>
               }
               title="No webhook endpoints"
-              description="Webhooks keep your backend in sync by pushing real-time events for invocations, payouts, and tool changes."
+              description="Webhooks keep your backend in sync by pushing signed events when your tools change status."
               onAction={() => setShowCreate(true)}
               actionLabel="Add Endpoint"
             />
@@ -250,12 +306,18 @@ export default function WebhooksPage() {
                       ))}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      Last delivery: {ep.lastDeliveryAt ? new Date(ep.lastDeliveryAt).toLocaleString() : 'Never'}
-                      {' | '}
                       Created: {new Date(ep.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 ml-4 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => sendTestEvent(ep.id)}
+                      disabled={testingId === ep.id || ep.status !== 'active'}
+                    >
+                      {testingId === ep.id ? 'Sending...' : 'Send test event'}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -294,12 +356,12 @@ export default function WebhooksPage() {
                                   <code className="bg-gray-100 dark:bg-[#252836] px-1.5 py-0.5 rounded text-xs">{del.event}</code>
                                 </td>
                                 <td className="py-2 px-3">
-                                  <Badge variant={del.success ? 'success' : 'destructive'}>
-                                    {del.success ? 'Success' : 'Failed'}
+                                  <Badge variant={del.status === 'delivered' ? 'success' : del.status === 'failed' ? 'destructive' : 'secondary'}>
+                                    {del.status === 'delivered' ? 'Success' : del.status === 'failed' ? 'Failed' : del.status}
                                   </Badge>
                                 </td>
-                                <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{del.statusCode ?? '—'}</td>
-                                <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{new Date(del.attemptedAt).toLocaleString()}</td>
+                                <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{del.httpStatus ?? '—'}</td>
+                                <td className="py-2 px-3 text-gray-500 dark:text-gray-400">{new Date(del.lastAttemptAt ?? del.createdAt).toLocaleString()}</td>
                               </tr>
                             ))}
                           </tbody>
