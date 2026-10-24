@@ -11,6 +11,10 @@
  * So: no root app/loading.tsx (it wraps every route), and no loading.tsx on
  * any segment at or above a page that calls notFound(). Pages that need a
  * loading state get a loading.tsx on their own segment, below any such page.
+ *
+ * Without the root boundary, a statically rendered page whose segment reads
+ * useSearchParams() needs its own Suspense boundary (a segment loading.tsx,
+ * a layout <Suspense>, or one in the page), or `next build` fails.
  */
 import { describe, it, expect } from 'vitest'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -36,6 +40,29 @@ const pagesCallingNotFound = findPages(APP_DIR)
   .filter((file) => /\bnotFound\(\s*\)/.test(readFileSync(file, 'utf8')))
   .map((file) => relative(APP_DIR, file))
 
+/** Pages whose own segment directory has a file that calls useSearchParams(). */
+const pagesReadingSearchParams = findPages(APP_DIR)
+  .filter((file) =>
+    readdirSync(dirname(file), { withFileTypes: true }).some(
+      (e) => e.isFile() && /\.tsx?$/.test(e.name) && /\buseSearchParams\(/.test(readFileSync(join(dirname(file), e.name), 'utf8')),
+    ),
+  )
+  .map((file) => relative(APP_DIR, file))
+
+/** True when the page or a layout/loading file at or above it gives it a Suspense boundary. */
+function hasSuspenseBoundary(pageRel: string): boolean {
+  const page = join(APP_DIR, pageRel)
+  if (/<Suspense\b/.test(readFileSync(page, 'utf8'))) return true
+  let dir = dirname(page)
+  for (;;) {
+    if (existsSync(join(dir, 'loading.tsx'))) return true
+    const layout = join(dir, 'layout.tsx')
+    if (existsSync(layout) && /<Suspense\b/.test(readFileSync(layout, 'utf8'))) return true
+    if (dir === APP_DIR) return false
+    dir = dirname(dir)
+  }
+}
+
 /** loading.tsx files from the page's own segment up to the app root. */
 function loadingBoundariesAbove(pageRel: string): string[] {
   const found: string[] = []
@@ -60,5 +87,15 @@ describe('notFound() pages keep a 404 status', () => {
 
   it.each(pagesCallingNotFound)('%s has no loading.tsx at or above its segment', (pageRel) => {
     expect(loadingBoundariesAbove(pageRel)).toEqual([])
+  })
+})
+
+describe('useSearchParams() pages keep a Suspense boundary', () => {
+  it('finds the pages that read search params', () => {
+    expect(pagesReadingSearchParams).toContain(join('start', 'page.tsx'))
+  })
+
+  it.each(pagesReadingSearchParams)('%s has a Suspense boundary', (pageRel) => {
+    expect(hasSuspenseBoundary(pageRel)).toBe(true)
   })
 })
