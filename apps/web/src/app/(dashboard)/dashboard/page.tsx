@@ -23,6 +23,7 @@ import {
 
 interface DeveloperStats {
   totalRevenueCents: number
+  monthRevenueCents?: number
   totalInvocations: number
   toolCount: number
   recentInvocations: { hour: string; count: number; revenueCents?: number }[]
@@ -795,7 +796,7 @@ export default function DeveloperDashboardPage() {
       </div>
 
       {/* Savings Calculator */}
-      <SavingsCard monthlyRevenueCents={stats?.totalRevenueCents ?? 0} />
+      <SavingsCard monthlyRevenueCents={stats?.monthRevenueCents ?? 0} />
 
       {/* Phase 3 Cards: Benchmarking, Forecast, Notification Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

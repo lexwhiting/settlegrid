@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
     const toolIds = developerTools.map((t) => t.id)
 
     let recentInvocations: Array<{ hour: string; count: number; revenueCents: number }> = []
+    // Revenue this UTC calendar month (the basis of the progressive take)
+    let monthRevenueCents = 0
 
     if (toolIds.length > 0) {
       // Get recent invocations for all developer's tools
@@ -76,10 +78,25 @@ export async function GET(request: NextRequest) {
         count: row.count,
         revenueCents: row.revenueCents,
       }))
+
+      const now = new Date()
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      const monthRows = await db
+        .select({ revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int` })
+        .from(invocations)
+        .where(
+          and(
+            gte(invocations.createdAt, sql`${monthStart.toISOString()}::timestamptz`),
+            inArray(invocations.toolId, toolIds)
+          )
+        )
+        .limit(1)
+      monthRevenueCents = Number(monthRows[0]?.revenueCents ?? 0)
     }
 
     return successResponse({
       totalRevenueCents,
+      monthRevenueCents,
       totalInvocations,
       toolCount,
       recentInvocations,
