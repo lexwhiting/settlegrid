@@ -40,6 +40,9 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/developer-health', () => ({
   hasRecentHealthChecksSql: vi.fn(() => HAS_CHECKS),
 }))
+vi.mock('@/lib/marketplace-visibility', () => ({
+  excludeInternalTestToolsSql: vi.fn(() => ({ excludeInternalTestTools: true })),
+}))
 vi.mock('@/lib/rate-limit', () => ({
   apiLimiter: {},
   checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
@@ -93,5 +96,21 @@ describe('GET /api/v1/discover/developers/:slug', () => {
     const body = await (await call()).json()
 
     expect(body.developer.reputation.uptimePct).toBe(0)
+  })
+
+  it('leaves out tools owned by internal test accounts', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([DEVELOPER])
+      .mockResolvedValueOnce([{ ...REPUTATION, hasChecks: false }])
+
+    await call()
+
+    expect(mockDb.where).toHaveBeenCalledWith({
+      and: [
+        { eq: ['developer_id', 'dev-1'] },
+        { eq: ['status', 'active'] },
+        { excludeInternalTestTools: true },
+      ],
+    })
   })
 })

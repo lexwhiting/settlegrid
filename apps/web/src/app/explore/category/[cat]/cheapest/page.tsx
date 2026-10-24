@@ -7,6 +7,7 @@ import { CATEGORY_SLUGS, getCategoryBySlug } from '@/lib/categories'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { getEffectiveCostCents } from '@/lib/pricing-utils'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
@@ -44,7 +45,7 @@ async function getCheapestTools(categorySlug: string): Promise<RankedTool[]> {
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(and(eq(tools.status, 'active'), eq(tools.category, categorySlug)))
+      .where(and(eq(tools.status, 'active'), eq(tools.category, categorySlug), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.totalInvocations))
       .limit(200)
 

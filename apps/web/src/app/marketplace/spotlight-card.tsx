@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { desc, inArray } from 'drizzle-orm'
+import { and, desc, inArray } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { getRedis } from '@/lib/redis'
@@ -49,7 +50,7 @@ export async function SpotlightCard() {
           totalInvocations: tools.totalInvocations,
         })
         .from(tools)
-        .where(inArray(tools.status, ['active']))
+        .where(and(inArray(tools.status, ['active']), excludeInternalTestToolsSql()))
         .orderBy(desc(tools.totalInvocations))
         .limit(1)
 

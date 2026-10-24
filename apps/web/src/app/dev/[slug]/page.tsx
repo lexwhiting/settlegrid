@@ -6,6 +6,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { db } from '@/lib/db'
 import { developers, tools, developerReputation } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { getRevenueTier } from '@/lib/revenue'
 import { hasRecentHealthChecksSql } from '@/lib/developer-health'
 
@@ -54,7 +55,7 @@ async function getDevProfile(slug: string) {
         totalRevenueCents: tools.totalRevenueCents,
       })
       .from(tools)
-      .where(and(eq(tools.developerId, dev.id), eq(tools.status, 'active')))
+      .where(and(eq(tools.developerId, dev.id), eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .limit(50)
 
     const [reputation] = await db

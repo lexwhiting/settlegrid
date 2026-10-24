@@ -1,6 +1,8 @@
 import { z } from 'zod'
-import { eq, and, or, type SQL } from 'drizzle-orm'
-import { tools } from './db/schema'
+import { eq, and, or, inArray, sql, type SQL } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { tools, developers } from './db/schema'
+import { INTERNAL_TEST_DEVELOPER_SLUGS, isInternalTestDeveloperSlug } from './internal-accounts'
 
 /**
  * P2.INTL2 marketplace inclusion rule.
@@ -23,11 +25,17 @@ import { tools } from './db/schema'
  *                          corridors who can't yet publish)
  *   - any other status   → excluded (e.g., 'deleted', 'hidden', or future
  *                          statuses not yet wired into marketplace UX)
+ *   - owner is an internal test account (INTERNAL_TEST_DEVELOPER_SLUGS)
+ *                        → excluded regardless of status. Pass the owner's
+ *                          slug when the row carries it; omitting it applies
+ *                          the status rule only.
  */
 export function shouldIncludeInMarketplace(
   status: string,
   listedInMarketplace: boolean,
+  developerSlug?: string | null,
 ): boolean {
+  if (isInternalTestDeveloperSlug(developerSlug)) return false
   if (status === 'unclaimed' || status === 'active') return true
   if (status === 'draft') return listedInMarketplace
   return false
@@ -132,11 +140,32 @@ export const MARKETPLACE_CONDITIONALLY_VISIBLE_STATUSES = ['draft'] as const
  *   - status IN ('unclaimed', 'active')                           → always in
  *   - status = 'draft' AND listed_in_marketplace = true          → conditionally in
  *   - any other status                                            → excluded
+ *   - owner is an internal test account                          → excluded
  */
 export function marketplaceInclusionSql(): SQL {
-  return or(
-    eq(tools.status, 'unclaimed'),
-    eq(tools.status, 'active'),
-    and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
+  return and(
+    or(
+      eq(tools.status, 'unclaimed'),
+      eq(tools.status, 'active'),
+      and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
+    ),
+    excludeInternalTestToolsSql(),
   )!
+}
+
+/**
+ * Drizzle predicate that drops tools owned by an internal test account
+ * (`INTERNAL_TEST_DEVELOPER_SLUGS`). Included in `marketplaceInclusionSql()`;
+ * public listing, count and sitemap queries that filter on status directly
+ * (e.g. `status = 'active'`) add it alongside their own filter.
+ *
+ * Only for public listing/discovery queries. Proxy, SDK, metering, billing
+ * and owner dashboard queries must not use it: these tools keep working.
+ *
+ * NOT EXISTS against an aliased `developers` so it is safe in queries that
+ * already join `developers`.
+ */
+export function excludeInternalTestToolsSql(): SQL {
+  const internalTestDeveloper = alias(developers, 'internal_test_developer')
+  return sql`not exists (select 1 from ${developers} ${internalTestDeveloper} where ${internalTestDeveloper.id} = ${tools.developerId} and ${inArray(internalTestDeveloper.slug, [...INTERNAL_TEST_DEVELOPER_SLUGS])})`
 }

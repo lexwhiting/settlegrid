@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, sql, and } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { successResponse, internalErrorResponse, errorResponse } from '@/lib/api'
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
         count: sql<number>`count(*)::int`,
       })
       .from(tools)
-      .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`))
+      .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`, excludeInternalTestToolsSql()))
       .groupBy(tools.category)
 
     const categories = counts

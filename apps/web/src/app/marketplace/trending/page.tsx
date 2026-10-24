@@ -10,6 +10,7 @@ import { Footer } from '@/components/marketing/footer'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
+import { marketplaceInclusionSql } from '@/lib/marketplace-visibility'
 import { getCategoryBySlug } from '@/lib/categories'
 
 export const metadata: Metadata = {
@@ -90,7 +91,7 @@ async function getPopularTools(): Promise<TrendingTool[]> {
       .where(
         sql`${invocations.createdAt} >= ${oneWeekAgo}::timestamptz
           AND ${invocations.isTest} = false
-          AND (${tools.status} IN ('active', 'unclaimed') OR (${tools.status} = 'draft' AND ${tools.listedInMarketplace} = true))`
+          AND ${marketplaceInclusionSql()}`
       )
       .groupBy(tools.id, tools.name, tools.slug, tools.description, sql`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`, tools.toolType)
       .orderBy(sql`count(${invocations.id}) DESC`)
@@ -126,7 +127,7 @@ async function getPopularTools(): Promise<TrendingTool[]> {
       })
       .from(tools)
       .where(
-        sql`(${tools.status} IN ('active', 'unclaimed') OR (${tools.status} = 'draft' AND ${tools.listedInMarketplace} = true))
+        sql`${marketplaceInclusionSql()}
           AND ${tools.crawlMetadata} IS NOT NULL
           AND (${POPULARITY_EXPR}) > 0`
       )
@@ -165,7 +166,7 @@ async function getNewlyAddedTools(): Promise<NewTool[]> {
       .from(tools)
       .where(
         sql`${tools.createdAt} >= ${oneWeekAgo}::timestamptz
-          AND (${tools.status} IN ('active', 'unclaimed') OR (${tools.status} = 'draft' AND ${tools.listedInMarketplace} = true))`
+          AND ${marketplaceInclusionSql()}`
       )
       .orderBy(desc(tools.createdAt))
       .limit(TOP_LIMIT)
@@ -186,7 +187,7 @@ async function getCategoryBreakdown(): Promise<CategoryCount[]> {
       })
       .from(tools)
       .where(
-        sql`(${tools.status} IN ('active', 'unclaimed') OR (${tools.status} = 'draft' AND ${tools.listedInMarketplace} = true))
+        sql`${marketplaceInclusionSql()}
           AND COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory') IS NOT NULL`
       )
       .groupBy(sql`COALESCE(${tools.category}, ${tools.crawlMetadata}->>'detectedCategory')`)

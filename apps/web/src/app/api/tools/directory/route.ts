@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, and, desc, ilike, or, type SQL } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where conditions
-    const conditions: SQL[] = [eq(tools.status, 'active')]
+    const conditions: SQL[] = [eq(tools.status, 'active'), excludeInternalTestToolsSql()]
 
     if (category) {
       conditions.push(eq(tools.category, category))

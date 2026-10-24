@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, and, desc, sql } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools, toolReviews } from '@/lib/db/schema'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -58,7 +59,7 @@ export async function GET(
     const [tool] = await db
       .select({ id: tools.id })
       .from(tools)
-      .where(and(eq(tools.slug, slug), eq(tools.status, 'active')))
+      .where(and(eq(tools.slug, slug), eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .limit(1)
 
     if (!tool) {

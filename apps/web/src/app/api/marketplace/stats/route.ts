@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, sql, and } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { successResponse, internalErrorResponse, errorResponse } from '@/lib/api'
@@ -40,17 +41,17 @@ export async function GET(request: NextRequest) {
       growthResult,
     ] = await Promise.all([
       // Total tools
-      db.select({ count: sql<number>`count(*)::int` }).from(tools),
+      db.select({ count: sql<number>`count(*)::int` }).from(tools).where(excludeInternalTestToolsSql()),
       // Active tools
-      db.select({ count: sql<number>`count(*)::int` }).from(tools).where(eq(tools.status, 'active')),
+      db.select({ count: sql<number>`count(*)::int` }).from(tools).where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql())),
       // Claimed tools (have a developer)
       db.select({ count: sql<number>`count(*)::int` }).from(tools).where(
-        and(eq(tools.status, 'active'), sql`${tools.developerId} IS NOT NULL`, sql`${tools.claimToken} IS NULL`),
+        and(eq(tools.status, 'active'), sql`${tools.developerId} IS NOT NULL`, sql`${tools.claimToken} IS NULL`, excludeInternalTestToolsSql()),
       ),
       // Total developers
       db.select({ count: sql<number>`count(*)::int` }).from(developers),
       // Total invocations
-      db.select({ total: sql<number>`COALESCE(sum(${tools.totalInvocations}), 0)::int` }).from(tools),
+      db.select({ total: sql<number>`COALESCE(sum(${tools.totalInvocations}), 0)::int` }).from(tools).where(excludeInternalTestToolsSql()),
       // Top categories by tool count
       db
         .select({
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
           totalInvocations: sql<number>`COALESCE(sum(${tools.totalInvocations}), 0)::int`,
         })
         .from(tools)
-        .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`))
+        .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`, excludeInternalTestToolsSql()))
         .groupBy(tools.category)
         .orderBy(sql`count(*) DESC`)
         .limit(15),
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
           count: sql<number>`count(*)::int`,
         })
         .from(tools)
-        .where(and(eq(tools.status, 'active'), sql`${tools.sourceEcosystem} IS NOT NULL`))
+        .where(and(eq(tools.status, 'active'), sql`${tools.sourceEcosystem} IS NOT NULL`, excludeInternalTestToolsSql()))
         .groupBy(tools.sourceEcosystem)
         .orderBy(sql`count(*) DESC`)
         .limit(20),
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
           count: sql<number>`count(*)::int`,
         })
         .from(tools)
-        .where(eq(tools.status, 'active'))
+        .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
         .groupBy(tools.toolType)
         .orderBy(sql`count(*) DESC`)
         .limit(20),
@@ -89,12 +90,12 @@ export async function GET(request: NextRequest) {
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(tools)
-        .where(sql`${tools.createdAt} >= NOW() - INTERVAL '7 days'`),
+        .where(and(sql`${tools.createdAt} >= NOW() - INTERVAL '7 days'`, excludeInternalTestToolsSql())),
       // Growth: tools added in the last 30 days vs previous 30 days
       db.select({
         recent: sql<number>`count(*) FILTER (WHERE ${tools.createdAt} >= NOW() - INTERVAL '30 days')::int`,
         previous: sql<number>`count(*) FILTER (WHERE ${tools.createdAt} >= NOW() - INTERVAL '60 days' AND ${tools.createdAt} < NOW() - INTERVAL '30 days')::int`,
-      }).from(tools),
+      }).from(tools).where(excludeInternalTestToolsSql()),
     ])
 
     const recentCount = growthResult[0]?.recent ?? 0
