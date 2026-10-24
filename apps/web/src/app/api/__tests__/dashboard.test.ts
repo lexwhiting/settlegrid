@@ -98,6 +98,21 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
     expect(data.toolCount).toBe(2)
   })
 
+  it('returns this calendar month\'s revenue separately from lifetime revenue', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([
+        { id: 'tool-1', totalInvocations: 100, totalRevenueCents: 5000 },
+      ])
+      .mockResolvedValueOnce([]) // recent invocations
+      .mockResolvedValueOnce([{ revenueCents: 120 }]) // this month
+
+    const response = await getStats(makeRequest('/api/dashboard/developer/stats'))
+    const data = await response.json()
+
+    expect(data.totalRevenueCents).toBe(5000)
+    expect(data.monthRevenueCents).toBe(120)
+  })
+
   it('returns zero stats for developer with no tools', async () => {
     mockDb.limit.mockResolvedValueOnce([])
 
@@ -110,6 +125,7 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
     expect(data.totalRevenueCents).toBe(0)
     expect(data.toolCount).toBe(0)
     expect(data.recentInvocations).toEqual([])
+    expect(data.monthRevenueCents).toBe(0)
   })
 
   it('returns 401 when not authenticated', async () => {

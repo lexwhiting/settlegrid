@@ -55,6 +55,35 @@ export function calculateTakeCents(monthlyRevenueCents: number): number {
 }
 
 /**
+ * Calculate the platform take in cents for one payout, with the brackets
+ * applied to the developer's earnings for the calendar month rather than
+ * to this payout alone.
+ *
+ * The take is the increase in the month's total take caused by adding
+ * this payout: calculateTakeCents(mtd + gross) - calculateTakeCents(mtd).
+ * Summed over every payout in a month this telescopes to
+ * calculateTakeCents(month total), however the month is split.
+ *
+ * @param grossCents - Gross amount being paid out now, in cents
+ * @param monthToDateGrossCents - Gross already paid out earlier in the same
+ *   calendar month, in cents (non-finite or negative values count as 0)
+ * @returns Platform take for this payout in cents (never negative)
+ */
+export function calculateMonthlyMarginalTakeCents(
+  grossCents: number,
+  monthToDateGrossCents: number,
+): number {
+  if (!Number.isFinite(grossCents) || grossCents <= 0) return 0
+
+  const priorCents =
+    Number.isFinite(monthToDateGrossCents) && monthToDateGrossCents > 0
+      ? monthToDateGrossCents
+      : 0
+
+  return calculateTakeCents(priorCents + grossCents) - calculateTakeCents(priorCents)
+}
+
+/**
  * Calculate the effective (blended) take rate for a given monthly revenue.
  *
  * @param monthlyRevenueCents - Developer's total monthly tool revenue in cents
@@ -83,7 +112,7 @@ export function calculateDeveloperPayoutCents(monthlyRevenueCents: number): numb
  * Returns a human-readable description of the progressive take rate model.
  */
 export function getProgressiveTakeDescription(): string {
-  return 'Progressive: 0% on first $1K, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K'
+  return 'Progressive: 0% on first $1K, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K, per calendar month'
 }
 
 /**

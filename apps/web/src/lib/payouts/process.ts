@@ -36,17 +36,40 @@
  *   - Developer balance is credited GROSS at invocation time; the
  *     progressive platform take (lib/pricing.ts) is applied here at
  *     payout time, exactly once.
+ *   - The brackets apply to the developer's earnings per UTC calendar
+ *     month: each payout is charged the marginal take on top of the
+ *     gross already paid out earlier in the same month, so splitting a
+ *     month into daily payouts costs the same as one monthly payout.
  */
 
 import Stripe from 'stripe'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, payouts } from '@/lib/db/schema'
 import { getStripeSecretKey } from '@/lib/env'
 import { writeAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { payoutNotificationEmail, sendEmail } from '@/lib/email'
-import { calculateTakeCents } from '@/lib/pricing'
+import { calculateMonthlyMarginalTakeCents } from '@/lib/pricing'
+
+/**
+ * Payout statuses whose gross counts toward the developer's month-to-date
+ * earnings for the progressive take. Each of these rows has its gross
+ * debited from the balance (sent, in flight, or awaiting Stripe
+ * confirmation). 'failed' rows are excluded: their gross was restored to
+ * the balance and is charged when it is paid out again.
+ */
+export const MONTH_TO_DATE_PAYOUT_STATUSES = [
+  'processing',
+  'unknown',
+  'completed',
+  'reconciled',
+] as const
+
+/** Start of the UTC calendar month containing `at`. */
+export function startOfUtcMonth(at: Date): Date {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1))
+}
 
 export type ProcessPayoutErrorCode =
   | 'NOT_FOUND'
@@ -257,8 +280,6 @@ export async function processPayout(
       }
 
       const grossCents = developer.balanceCents
-      const platformFeeCents = calculateTakeCents(grossCents)
-      const payoutAmountCents = grossCents - platformFeeCents
 
       // Derive periodStart from the previous COMPLETED payout's periodEnd.
       // This eliminates overlap between consecutive payouts that the old
@@ -281,6 +302,42 @@ export async function processPayout(
       const now = new Date()
       const periodStart = previousPayout?.periodEnd ?? developer.createdAt
 
+      // Month-to-date gross already paid out this UTC calendar month.
+      // Read after the developer row lock above, so a concurrent payout
+      // for the same developer waits for this transaction to commit and
+      // then sees this payout in its own month-to-date total. The new
+      // row's createdAt is set from the same `now`, so the month a
+      // payout is charged in is the month it is recorded in.
+      const [monthToDate] = await tx
+        .select({
+          grossCents: sql<string>`COALESCE(SUM(${payouts.amountCents} + ${payouts.platformFeeCents}), 0)::bigint`,
+        })
+        .from(payouts)
+        .where(
+          and(
+            eq(payouts.developerId, developer.id),
+            inArray(payouts.status, [...MONTH_TO_DATE_PAYOUT_STATUSES]),
+            gte(payouts.createdAt, startOfUtcMonth(now)),
+          ),
+        )
+        .limit(1)
+
+      // An aggregate always returns one row; treat an absent row as no
+      // prior payouts. Anything other than a non-negative safe integer
+      // aborts the payout rather than guessing at the fee.
+      const monthToDateGrossCents = Number(monthToDate?.grossCents ?? 0)
+      if (!Number.isSafeInteger(monthToDateGrossCents) || monthToDateGrossCents < 0) {
+        throw new Error(
+          `invalid month-to-date payout total for developer ${developer.id}`,
+        )
+      }
+
+      const platformFeeCents = calculateMonthlyMarginalTakeCents(
+        grossCents,
+        monthToDateGrossCents,
+      )
+      const payoutAmountCents = grossCents - platformFeeCents
+
       const [payoutRecord] = await tx
         .insert(payouts)
         .values({
@@ -290,6 +347,7 @@ export async function processPayout(
           periodStart,
           periodEnd: now,
           status: 'processing',
+          createdAt: now,
         })
         .returning({
           id: payouts.id,

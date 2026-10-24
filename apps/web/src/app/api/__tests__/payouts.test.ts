@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const { mockDb, mockRequireDeveloper, mockStripeTransfers } = vi.hoisted(() => {
@@ -103,6 +103,8 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
+  gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
+  inArray: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ inArray: [a, b] })),
   sql: Object.assign(
     vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => ({
       sql: strings,
@@ -115,6 +117,8 @@ vi.mock('drizzle-orm', () => ({
 import { GET as listPayouts } from '@/app/api/payouts/route'
 import { POST as triggerPayout } from '@/app/api/payouts/trigger/route'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { gte, inArray } from 'drizzle-orm'
+import { calculateTakeCents } from '@/lib/pricing'
 
 function makeRequest(url: string, method: string = 'GET', body?: unknown): NextRequest {
   const init: { method: string; headers: Record<string, string>; body?: string } = {
@@ -579,5 +583,259 @@ describe('Trigger Payout (POST /api/payouts/trigger)', () => {
     expect(mockDb.set).toHaveBeenCalledWith(
       expect.objectContaining({ balanceCents: 0 })
     )
+  })
+})
+
+// The progressive take applies to each developer's earnings per UTC
+// calendar month. processPayout reads the month-to-date gross of the
+// developer's earlier payouts (third .limit() in the preflight, after
+// the developer row and the previous-payout lookup) and charges the
+// marginal take on top of it. These tests evaluate that query's filter
+// against fixture payout rows, so status and date filtering are
+// exercised rather than stubbed.
+describe('Trigger Payout — progressive take per calendar month', () => {
+  interface PayoutFixture {
+    developerId: string
+    status: string
+    amountCents: number
+    platformFeeCents: number
+    createdAt: Date
+  }
+
+  type Condition =
+    | { field: unknown; value: unknown }
+    | { inArray: [unknown, unknown[]] }
+    | { gte: [unknown, Date] }
+
+  /** Answer the month-to-date aggregate from fixture rows. */
+  function monthToDateFrom(rows: PayoutFixture[]) {
+    return async () => {
+      const where = mockDb.where.mock.calls.at(-1)?.[0] as { and: Condition[] }
+      let developerId: unknown
+      let statuses: unknown[] | undefined
+      let since: Date | undefined
+      for (const c of where.and) {
+        if ('field' in c && c.field === 'developer_id') developerId = c.value
+        if ('inArray' in c && c.inArray[0] === 'status') statuses = c.inArray[1]
+        if ('gte' in c && c.gte[0] === 'created_at') since = c.gte[1]
+      }
+      expect(developerId).toBeDefined()
+      expect(statuses).toBeDefined()
+      expect(since).toBeInstanceOf(Date)
+      const total = rows
+        .filter(
+          (r) =>
+            r.developerId === developerId &&
+            statuses!.includes(r.status) &&
+            r.createdAt.getTime() >= since!.getTime(),
+        )
+        .reduce((sum, r) => sum + r.amountCents + r.platformFeeCents, 0)
+      // postgres-js returns bigint aggregates as strings.
+      return [{ grossCents: String(total) }]
+    }
+  }
+
+  function devRow(balanceCents: number) {
+    return {
+      id: 'dev-123',
+      email: 'dev@example.com',
+      name: 'Test Dev',
+      balanceCents,
+      stripeConnectId: 'acct_test_month',
+      stripeConnectStatus: 'active',
+      payoutMinimumCents: 100,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    }
+  }
+
+  function paidRow(grossCents: number, feeCents: number, createdAt: string, status = 'completed'): PayoutFixture {
+    return {
+      developerId: 'dev-123',
+      status,
+      amountCents: grossCents - feeCents,
+      platformFeeCents: feeCents,
+      createdAt: new Date(createdAt),
+    }
+  }
+
+  /** Trigger one payout for `balanceCents` against the given prior rows. */
+  async function runPayout(balanceCents: number, rows: PayoutFixture[]) {
+    mockDb.limit
+      .mockResolvedValueOnce([devRow(balanceCents)])
+      .mockResolvedValueOnce([]) // previous completed payout (periodStart)
+      .mockImplementationOnce(monthToDateFrom(rows))
+    mockDb.returning.mockResolvedValueOnce([{
+      id: 'payout-month',
+      amountCents: 0,
+      platformFeeCents: 0,
+      createdAt: new Date(),
+    }])
+    const response = await triggerPayout(makeRequest('/api/payouts/trigger', 'POST'))
+    return { status: response.status, data: await response.json() }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDb.select.mockReturnThis()
+    mockDb.from.mockReturnThis()
+    mockDb.where.mockReturnThis()
+    mockDb.insert.mockReturnThis()
+    mockDb.values.mockReturnThis()
+    mockDb.update.mockReturnThis()
+    mockDb.set.mockReturnThis()
+    mockDb.for.mockReturnThis()
+    mockDb.transaction.mockImplementation(async (fn: (tx: typeof mockDb) => Promise<unknown>) =>
+      fn(mockDb),
+    )
+    mockStripeTransfers.create.mockResolvedValue({ id: 'tr_test_123' })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-24T12:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('first payout of the month starts at the 0% bracket', async () => {
+    const { status, data } = await runPayout(50_000, [])
+
+    expect(status).toBe(200)
+    expect(data.payout.platformFeeCents).toBe(0)
+    expect(data.payout.amountCents).toBe(50_000)
+    expect(mockStripeTransfers.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 50_000 }),
+      expect.anything(),
+    )
+  })
+
+  it('a later payout continues from month-to-date: $900 paid + $300 → $4 fee', async () => {
+    const rows = [paidRow(90_000, 0, '2026-10-05T12:00:00Z')]
+    const { status, data } = await runPayout(30_000, rows)
+
+    expect(status).toBe(200)
+    // First $100 of this payout fills the 0% bracket; $200 at 2% = $4.
+    expect(data.payout.platformFeeCents).toBe(400)
+    expect(data.payout.amountCents).toBe(29_600)
+    expect(mockStripeTransfers.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 29_600 }),
+      expect.objectContaining({ idempotencyKey: 'payout:payout-month' }),
+    )
+  })
+
+  it('a payout crossing two brackets is split across both rates', async () => {
+    // $900 paid; $10,000 payout = $100 at 0% + $9,000 at 2% + $900 at 2.5%.
+    const rows = [paidRow(90_000, 0, '2026-10-02T12:00:00Z')]
+    const { status, data } = await runPayout(1_000_000, rows)
+
+    expect(status).toBe(200)
+    expect(data.payout.platformFeeCents).toBe(18_000 + 2_250)
+    expect(data.payout.amountCents).toBe(1_000_000 - 20_250)
+  })
+
+  it('failed payouts do not count toward month-to-date', async () => {
+    // A failed payout's gross was restored to the balance; only the
+    // completed $500 counts, so $600 more stays within the first $1,000.
+    const rows = [
+      paidRow(50_000, 0, '2026-10-03T12:00:00Z', 'completed'),
+      paidRow(60_000, 0, '2026-10-10T12:00:00Z', 'failed'),
+    ]
+    const { status, data } = await runPayout(50_000, rows)
+
+    expect(status).toBe(200)
+    expect(data.payout.platformFeeCents).toBe(0)
+    expect(vi.mocked(inArray)).toHaveBeenCalledWith(
+      'status',
+      expect.not.arrayContaining(['failed']),
+    )
+  })
+
+  it('in-flight, unknown and reconciled payouts count toward month-to-date', async () => {
+    const rows = [
+      paidRow(30_000, 0, '2026-10-01T12:00:00Z', 'completed'),
+      paidRow(30_000, 0, '2026-10-02T12:00:00Z', 'unknown'),
+      paidRow(30_000, 0, '2026-10-03T12:00:00Z', 'reconciled'),
+      paidRow(10_000, 0, '2026-10-04T12:00:00Z', 'processing'),
+    ]
+    // $1,000 already paid → all of this $1,000 payout is at 2%.
+    const { status, data } = await runPayout(100_000, rows)
+
+    expect(status).toBe(200)
+    expect(data.payout.platformFeeCents).toBe(2_000)
+  })
+
+  it('a new UTC month resets month-to-date', async () => {
+    vi.setSystemTime(new Date('2026-11-01T00:05:00Z'))
+    const rows = [
+      paidRow(500_000, 8_000, '2026-10-15T12:00:00Z'),
+      paidRow(100_000, 2_000, '2026-10-31T23:59:59Z'),
+    ]
+    // $2,000 is the first payout of November: $1,000 at 0% + $1,000 at 2%.
+    const { status, data } = await runPayout(200_000, rows)
+
+    expect(status).toBe(200)
+    expect(data.payout.platformFeeCents).toBe(2_000)
+    expect(vi.mocked(gte)).toHaveBeenCalledWith('created_at', new Date('2026-11-01T00:00:00.000Z'))
+  })
+
+  it('stores the computed fee, net amount and payout date on the payout row', async () => {
+    const rows = [paidRow(90_000, 0, '2026-10-05T12:00:00Z')]
+    await runPayout(30_000, rows)
+
+    expect(mockDb.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        developerId: 'dev-123',
+        amountCents: 29_600,
+        platformFeeCents: 400,
+        status: 'processing',
+        createdAt: new Date('2026-10-24T12:00:00Z'),
+      }),
+    )
+  })
+
+  it('reads month-to-date after locking the developer row, inside the preflight transaction', async () => {
+    await runPayout(30_000, [])
+
+    const mtdWhereIndex = mockDb.where.mock.calls.findIndex((call) =>
+      (call[0] as { and?: Condition[] })?.and?.some((c) => 'inArray' in c),
+    )
+    expect(mtdWhereIndex).toBeGreaterThanOrEqual(0)
+    expect(mockDb.for).toHaveBeenCalledWith('update')
+    expect(mockDb.where.mock.invocationCallOrder[mtdWhereIndex]).toBeGreaterThan(
+      mockDb.for.mock.invocationCallOrder[0],
+    )
+    expect(mockDb.where.mock.invocationCallOrder[mtdWhereIndex]).toBeLessThan(
+      mockDb.insert.mock.invocationCallOrder[0],
+    )
+    expect(mockDb.transaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDb.for.mock.invocationCallOrder[0],
+    )
+  })
+
+  it('daily payouts across a month add up to the take on the month total', async () => {
+    const rows: PayoutFixture[] = []
+    const daily = [40_000, 40_000, 40_000, 400_000, 600_000, 4_000_000, 100_000]
+    let totalFee = 0
+    for (const [i, gross] of daily.entries()) {
+      vi.setSystemTime(new Date(Date.UTC(2026, 9, 1 + i, 12)))
+      const { status, data } = await runPayout(gross, rows)
+      expect(status).toBe(200)
+      totalFee += data.payout.platformFeeCents
+      rows.push(paidRow(gross, data.payout.platformFeeCents, new Date(Date.UTC(2026, 9, 1 + i, 12)).toISOString()))
+    }
+    const monthTotal = daily.reduce((a, b) => a + b, 0)
+    expect(totalFee).toBe(calculateTakeCents(monthTotal))
+  })
+
+  it('aborts without a transfer when the month-to-date total is not a valid amount', async () => {
+    mockDb.limit
+      .mockResolvedValueOnce([devRow(30_000)])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ grossCents: 'not-a-number' }])
+
+    const response = await triggerPayout(makeRequest('/api/payouts/trigger', 'POST'))
+
+    expect(response.status).toBe(500)
+    expect(mockDb.insert).not.toHaveBeenCalled()
+    expect(mockStripeTransfers.create).not.toHaveBeenCalled()
   })
 })

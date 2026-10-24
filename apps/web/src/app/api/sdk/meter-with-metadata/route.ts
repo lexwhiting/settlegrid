@@ -147,7 +147,8 @@ export const POST = withCors(async function POST(request: NextRequest) {
     }
 
     // Progressive take rate — developer receives full costCents at invocation time.
-    // Platform take is calculated at payout time via calculateTakeCents(). See lib/pricing.ts
+    // Platform take is calculated on calendar-month earnings and deducted at payout
+    // time (lib/payouts/process.ts). See lib/pricing.ts
     const developerShareCents = body.costCents
 
     // 1. Deduct from consumer balance (atomic)

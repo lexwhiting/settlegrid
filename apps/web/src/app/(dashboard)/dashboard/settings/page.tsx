@@ -1323,7 +1323,7 @@ export default function SettingsPage() {
                     <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">
                       Progressive
                       <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-                        ({getProgressiveTakeDescription().replace(/^Progressive:\s*/, '')}, applied at payout)
+                        ({getProgressiveTakeDescription().replace(/^Progressive:\s*/, '')}, deducted at payout)
                       </span>
                     </dd>
                   </div>

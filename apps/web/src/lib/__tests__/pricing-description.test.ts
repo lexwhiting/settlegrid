@@ -17,4 +17,8 @@ describe('getProgressiveTakeDescription', () => {
     expect(getProgressiveTakeDescription()).toContain('2.5% on $10K-$50K')
     expect(getProgressiveTakeDescription()).not.toMatch(/\b3% on/)
   })
+
+  it('states that the brackets apply per calendar month', () => {
+    expect(getProgressiveTakeDescription()).toMatch(/per calendar month$/)
+  })
 })
