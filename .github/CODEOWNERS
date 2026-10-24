@@ -1,0 +1,203 @@
+# CODEOWNERS for lexwhiting/settlegrid
+# Install at: .github/CODEOWNERS
+#
+# Rules of this file
+# - The LAST matching pattern wins. Broad patterns come first, specific ones after.
+# - Every pattern is anchored at the repo root with a leading "/".
+# - Bracketed path segments such as [slug] are never written here, because CODEOWNERS
+#   bracket handling is not reliable. Use the parent directory instead.
+# - No "!" negation. CODEOWNERS does not support it.
+# - A code-owner review is required on main by the ruleset (require_code_owner_review).
+#   A review from a bot or GitHub App never satisfies it.
+# - fleet-guard (.github/workflows/fleet-guard.yml) reads THIS file from the PR's base
+#   commit. Every pattern below except the "*" default line is a FROZEN path: a PR that
+#   touches one is labelled `high-stakes` and must follow the HIGH-STAKES cadence in AGENTS.md.
+#
+# Owner on every line: @lexwhiting (the founder).
+
+# ---------------------------------------------------------------------------
+# 0. Default owner (Phase 1). Every change needs the founder's review.
+#    Remove this one line only when the founder graduates C0/C1 auto-merge.
+#    fleet-guard ignores this line when it computes frozen paths.
+# ---------------------------------------------------------------------------
+*                                                         @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 1. Money: metering, proxy billing, settlement, payouts, billing, pricing
+# ---------------------------------------------------------------------------
+/apps/web/src/app/api/proxy/                              @lexwhiting
+/apps/web/src/app/api/sdk/                                @lexwhiting
+/apps/web/src/app/api/billing/                            @lexwhiting
+/apps/web/src/app/api/payouts/                            @lexwhiting
+/apps/web/src/app/api/stripe/                             @lexwhiting
+/apps/web/src/app/api/settlement/                         @lexwhiting
+/apps/web/src/app/api/settlements/                        @lexwhiting
+/apps/web/src/app/api/x402/                               @lexwhiting
+/apps/web/src/app/api/circle-nano/                        @lexwhiting
+/apps/web/src/app/api/ap2/                                @lexwhiting
+/apps/web/src/app/api/sessions/                           @lexwhiting
+/apps/web/src/app/api/outcomes/                           @lexwhiting
+/apps/web/src/app/api/agents/                             @lexwhiting
+/apps/web/src/app/api/rails/                              @lexwhiting
+/apps/web/src/app/api/consumer/academic/                  @lexwhiting
+/apps/web/src/app/api/consumer/credit-packs/              @lexwhiting
+/apps/web/src/app/api/consumer/purchases/                 @lexwhiting
+/apps/web/src/app/api/consumer/budget/                    @lexwhiting
+/apps/web/src/app/api/consumer/referral/                  @lexwhiting
+/apps/web/src/app/api/developer/referrals/                @lexwhiting
+/apps/web/src/app/api/dashboard/developer/payout-settings/    @lexwhiting
+/apps/web/src/app/api/cron/process-payouts/               @lexwhiting
+/apps/web/src/app/api/cron/settlement-reconcile/          @lexwhiting
+/apps/web/src/app/api/cron/gas-balance-check/             @lexwhiting
+/apps/web/src/lib/settlement/                             @lexwhiting
+/apps/web/src/lib/payouts/                                @lexwhiting
+/apps/web/src/lib/metering.ts                             @lexwhiting
+/apps/web/src/lib/pricing.ts                              @lexwhiting
+/apps/web/src/lib/tier-config.ts                          @lexwhiting
+/apps/web/src/lib/proxy-idempotency.ts                    @lexwhiting
+/apps/web/src/lib/failover.ts                             @lexwhiting
+/apps/web/src/lib/auto-refill.ts                          @lexwhiting
+/apps/web/src/lib/stripe-tax.ts                           @lexwhiting
+/apps/web/src/lib/rails.ts                                @lexwhiting
+/apps/web/src/lib/mpp.ts                                  @lexwhiting
+/apps/web/src/lib/*-proxy.ts                              @lexwhiting
+/apps/web/src/lib/seed-invocations.ts                     @lexwhiting
+/packages/mcp/src/adapters/                               @lexwhiting
+/packages/rails/src/                                      @lexwhiting
+/scripts/reconcile-stripe.ts                              @lexwhiting
+/scripts/chargeback-velocity.ts                           @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 2. Fraud, auth, crypto, security boundaries
+# ---------------------------------------------------------------------------
+/apps/web/src/lib/fraud.ts                                @lexwhiting
+/apps/web/src/lib/crypto.ts                               @lexwhiting
+/apps/web/src/middleware.ts                               @lexwhiting
+/apps/web/src/lib/middleware/                             @lexwhiting
+/apps/web/src/lib/auth/                                   @lexwhiting
+/apps/web/src/lib/supabase/admin.ts                       @lexwhiting
+/apps/web/src/app/api/auth/                               @lexwhiting
+/apps/web/src/app/api/consumer/keys/                      @lexwhiting
+/apps/web/src/app/api/gate/                               @lexwhiting
+/apps/web/src/lib/cron-auth.ts                            @lexwhiting
+/apps/web/src/lib/system-principal.ts                     @lexwhiting
+/apps/web/src/lib/rate-limit.ts                           @lexwhiting
+/apps/web/src/lib/safe-egress.ts                          @lexwhiting
+/apps/web/src/lib/safe-redirect.ts                        @lexwhiting
+/apps/web/src/lib/logger.ts                               @lexwhiting
+/apps/web/src/lib/env.ts                                  @lexwhiting
+/apps/web/src/env.ts                                      @lexwhiting
+/apps/web/src/instrumentation.ts                          @lexwhiting
+/apps/web/src/instrumentation-client.ts                   @lexwhiting
+/apps/web/src/lib/github.ts                               @lexwhiting
+/apps/web/src/app/admin/                                  @lexwhiting
+/apps/web/src/app/dashboard/admin/                        @lexwhiting
+/apps/web/src/app/api/admin/                              @lexwhiting
+/apps/web/src/app/api/webhooks/                           @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 3. Personal data, deletion, email suppression
+# ---------------------------------------------------------------------------
+/apps/web/src/lib/account-deletion.ts                     @lexwhiting
+/apps/web/src/app/api/consumer/account/                   @lexwhiting
+/apps/web/src/app/api/dashboard/developer/account/        @lexwhiting
+/apps/web/src/app/api/dashboard/developer/data-export/    @lexwhiting
+/apps/web/src/lib/email-suppression.ts                    @lexwhiting
+/apps/web/src/app/api/unsubscribe/                        @lexwhiting
+/apps/web/src/app/api/cron/data-retention/                @lexwhiting
+/apps/web/src/lib/internal-accounts.ts                    @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 4. Schema and migrations (hand-written SQL; applied by the founder only)
+#    /apps/web/scripts/ also holds seed scripts and the migration bootstrap SQL.
+# ---------------------------------------------------------------------------
+/apps/web/drizzle/                                        @lexwhiting
+/apps/web/drizzle.config.ts                               @lexwhiting
+/apps/web/src/lib/db/                                     @lexwhiting
+/apps/web/scripts/                                        @lexwhiting
+/scripts/migrations/                                      @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 5. Crons, deploy and build configuration
+# ---------------------------------------------------------------------------
+/apps/web/vercel.json                                     @lexwhiting
+/apps/web/next.config.ts                                  @lexwhiting
+/turbo.json                                               @lexwhiting
+/apps/web/src/app/api/cron/                               @lexwhiting
+/apps/web/src/lib/gridbot.ts                              @lexwhiting
+/scripts/gridbot/                                         @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 6. Public claims surfaces (honest-claims rules in AGENTS.md)
+# ---------------------------------------------------------------------------
+/README.md                                                @lexwhiting
+/apps/web/public/llms.txt                                 @lexwhiting
+/apps/web/public/llms-full.txt                            @lexwhiting
+/apps/web/public/.well-known/                             @lexwhiting
+/apps/web/src/app/api/a2a/                                @lexwhiting
+/apps/web/src/app/api/chat/                               @lexwhiting
+/apps/web/src/app/pricing/                                @lexwhiting
+/apps/web/src/components/marketing/                       @lexwhiting
+/apps/web/src/lib/json-ld.ts                              @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 7. Legal and policy text (founder + counsel)
+# ---------------------------------------------------------------------------
+/apps/web/src/app/terms/                                  @lexwhiting
+/apps/web/src/app/privacy/                                @lexwhiting
+/apps/web/src/app/review-policy/                          @lexwhiting
+/docs/legal/                                              @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 8. Package release surfaces (versions, ranges, manifests; publishing is founder-only)
+# ---------------------------------------------------------------------------
+/packages/*/package.json                                  @lexwhiting
+/packages/**/pyproject.toml                               @lexwhiting
+/packages/mcp/src/index.ts                                @lexwhiting
+/packages/settlegrid-cli/src/transforms/runner.ts         @lexwhiting
+/package.json                                             @lexwhiting
+/package-lock.json                                        @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 9. Protected tests (never weakened, skipped or deleted to make a change pass).
+#    Directory patterns cover the bracketed proxy test directory.
+# ---------------------------------------------------------------------------
+/apps/web/src/__tests__/honest-framing-regression.test.ts           @lexwhiting
+/apps/web/src/__tests__/json-ld-sink-guard.test.ts                  @lexwhiting
+/apps/web/src/__tests__/privacy-notice-regression.test.ts           @lexwhiting
+/apps/web/src/lib/settlement/__tests__/                             @lexwhiting
+/apps/web/src/lib/__tests__/content-claims.test.ts                  @lexwhiting
+/apps/web/src/lib/__tests__/compliance-honesty-regression.test.ts   @lexwhiting
+/apps/web/src/lib/__tests__/bootstrap-migration-hash.test.ts        @lexwhiting
+/apps/web/src/app/__tests__/compare-nevermined.test.ts              @lexwhiting
+/apps/web/src/app/api/__tests__/payouts.test.ts                     @lexwhiting
+/apps/web/vitest.config.ts                                          @lexwhiting
+
+# ---------------------------------------------------------------------------
+# 10. Repo control: agent instructions, CI, ownership. Kept LAST so nothing overrides it.
+#     /AGENTS.md and /.github/CODEOWNERS arrive with the install PR. /REVIEW.md, nested
+#     AGENTS.md files, AGENTS.override.md files, /.fleet/, /.codex/ and /.agents/ do not
+#     exist yet; they are owned before they are created. An AGENTS.override.md takes
+#     precedence over the AGENTS.md in its directory, so it is owned like AGENTS.md.
+#     CLAUDE.md, CLAUDE.local.md and /.claude/ (instructions, settings, hooks and commands
+#     that Claude Code loads from a checkout) are owned the same way, whether or not they exist.
+#     Every other pattern above was checked against the repo tree at 1f5a8c2 (2026-10-11).
+# ---------------------------------------------------------------------------
+/AGENTS.md                                                @lexwhiting
+/**/AGENTS.md                                             @lexwhiting
+/AGENTS.override.md                                       @lexwhiting
+/**/AGENTS.override.md                                    @lexwhiting
+/REVIEW.md                                                @lexwhiting
+/.fleet/                                                  @lexwhiting
+/.codex/                                                  @lexwhiting
+/.agents/                                                 @lexwhiting
+/CLAUDE.md                                                @lexwhiting
+/**/CLAUDE.md                                             @lexwhiting
+/CLAUDE.local.md                                          @lexwhiting
+/**/CLAUDE.local.md                                       @lexwhiting
+/.claude/                                                 @lexwhiting
+/.mcp.json                                                @lexwhiting
+/renovate.json                                            @lexwhiting
+/.gitignore                                               @lexwhiting
+/.github/                                                 @lexwhiting
+/.github/CODEOWNERS                                       @lexwhiting
