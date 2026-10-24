@@ -22,6 +22,8 @@ interface ApiKey {
 interface StatBarProps {
   balances: ToolBalance[]
   keys: ApiKey[]
+  /** Global (credit-pack) balance, usable with any tool. */
+  globalBalanceCents?: number
 }
 
 function formatCents(cents: number): string {
@@ -117,12 +119,31 @@ interface MonthlySpend {
   spendCents: number
 }
 
-export function ConsumerStatBar({ balances, keys }: StatBarProps) {
+/**
+ * Summary numbers for the stat bar. The total includes the global
+ * (credit-pack) balance alongside per-tool balances. A tool counts as active
+ * when it has a positive per-tool balance, or when it has an active key and
+ * the global balance is positive (the balances the proxy can charge).
+ */
+export function computeConsumerStats(
+  balances: ToolBalance[],
+  keys: ApiKey[],
+  globalBalanceCents = 0,
+): { totalBalanceCents: number; activeTools: number; activeKeys: number } {
+  const safeGlobal = Number.isFinite(globalBalanceCents) ? globalBalanceCents : 0
+  const totalBalanceCents = balances.reduce((sum, b) => sum + b.balanceCents, 0) + safeGlobal
+  const activeKeyList = keys.filter((k) => k.status === 'active')
+  const activeToolIds = new Set(balances.filter((b) => b.balanceCents > 0).map((b) => b.toolId))
+  if (safeGlobal > 0) {
+    for (const k of activeKeyList) activeToolIds.add(k.toolId)
+  }
+  return { totalBalanceCents, activeTools: activeToolIds.size, activeKeys: activeKeyList.length }
+}
+
+export function ConsumerStatBar({ balances, keys, globalBalanceCents = 0 }: StatBarProps) {
   const [monthlySpendCents, setMonthlySpendCents] = useState<number | null>(null)
 
-  const totalBalanceCents = balances.reduce((sum, b) => sum + b.balanceCents, 0)
-  const activeTools = balances.filter((b) => b.balanceCents > 0).length
-  const activeKeys = keys.filter((k) => k.status === 'active').length
+  const { totalBalanceCents, activeTools, activeKeys } = computeConsumerStats(balances, keys, globalBalanceCents)
 
   useEffect(() => {
     let cancelled = false

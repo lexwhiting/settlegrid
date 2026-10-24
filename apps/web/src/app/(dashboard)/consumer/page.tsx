@@ -624,7 +624,7 @@ export default function ConsumerDashboardPage() {
       )}
 
       {/* Stat Bar */}
-      <ConsumerStatBar balances={balances} keys={keys} />
+      <ConsumerStatBar balances={balances} keys={keys} globalBalanceCents={globalBalanceCents} />
 
       {/* Credit Balances */}
       <Card>
