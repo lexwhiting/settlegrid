@@ -79,9 +79,9 @@ export default function TermsPage() {
                   tools through the platform.
                 </li>
                 <li>
-                  SettleGrid retains a progressive platform fee based on your earnings each calendar
-                  month (UTC) and deducted when those earnings are paid out (0% on the first $1,000
-                  each month, 2% on $1,001-$10,000, 2.5% on $10,001-$50,000, 5% above $50,000).
+                  SettleGrid retains a progressive platform fee based on the earnings paid out to you
+                  in each calendar month (UTC), deducted from each payout (0% on the first $1,000 paid
+                  out each month, 2% on $1,001-$10,000, 2.5% on $10,001-$50,000, 5% above $50,000).
                   Payout schedules and minimums are detailed in your dashboard.
                 </li>
                 <li>
