@@ -572,7 +572,6 @@ describe('Page Files', () => {
     'app/layout.tsx',
     'app/not-found.tsx',
     'app/error.tsx',
-    'app/loading.tsx',
     'app/globals.css',
     'app/icon.svg',
     'app/robots.ts',
@@ -602,11 +601,9 @@ describe('Page Files', () => {
     // Tools
     'app/tools/page.tsx',
     'app/tools/error.tsx',
-    'app/tools/loading.tsx',
     'app/tools/layout.tsx',
     'app/tools/[slug]/page.tsx',
     'app/tools/[slug]/error.tsx',
-    'app/tools/[slug]/loading.tsx',
 
     // Auth
     'app/(auth)/layout.tsx',
