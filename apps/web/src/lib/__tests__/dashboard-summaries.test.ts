@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toConsumerInsights, toFraudSignals } from '../dashboard-summaries'
+import { toConsumerInsights, toFraudSignals, toolsWithoutBudgetRow } from '../dashboard-summaries'
 
 describe('toConsumerInsights', () => {
   it('counts the API lists and averages estimated LTV', () => {
@@ -46,5 +46,29 @@ describe('toFraudSignals', () => {
 
   it('returns zeros when the summary is missing', () => {
     expect(toFraudSignals({})).toEqual({ totalSignals: 0, activeSignals: 0, scannedToday: 0, flaggedThisWeek: 0 })
+  })
+})
+
+describe('toolsWithoutBudgetRow', () => {
+  const usage = (toolId: string, totalCostCents: number) => ({
+    toolId,
+    toolName: toolId,
+    toolSlug: toolId,
+    totalInvocations: 1,
+    totalCostCents,
+  })
+
+  it('returns used tools that have no per-tool balance row', () => {
+    expect(toolsWithoutBudgetRow([{ toolId: 't1' }], [usage('t1', 5), usage('t2', 1)]))
+      .toEqual([usage('t2', 1)])
+  })
+
+  it('returns every used tool when there are no balance rows', () => {
+    expect(toolsWithoutBudgetRow([], [usage('t1', 1), usage('t2', 9)]).map((t) => t.toolId))
+      .toEqual(['t2', 't1'])
+  })
+
+  it('returns nothing without usage', () => {
+    expect(toolsWithoutBudgetRow([{ toolId: 't1' }], [])).toEqual([])
   })
 })

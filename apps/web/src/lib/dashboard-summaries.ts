@@ -47,3 +47,27 @@ export function toFraudSignals(data: Record<string, unknown>): FraudSignalsData 
     flaggedThisWeek: num(summary.flaggedThisWeek),
   }
 }
+
+/** Per-tool usage from GET /api/consumer/usage (data.summary) */
+export interface ToolUsageSummary {
+  toolId: string
+  toolName: string
+  toolSlug: string
+  totalInvocations: number
+  totalCostCents: number
+}
+
+/**
+ * Tools the consumer used that have no per-tool balance row (GET
+ * /api/consumer/budget). Their calls were paid from global credit, so they
+ * have spend but no per-tool budget. Highest spend first.
+ */
+export function toolsWithoutBudgetRow(
+  budgets: Array<{ toolId: string }>,
+  summary: ToolUsageSummary[],
+): ToolUsageSummary[] {
+  const budgeted = new Set(budgets.map((b) => b.toolId))
+  return summary
+    .filter((s) => !budgeted.has(s.toolId))
+    .sort((a, b) => b.totalCostCents - a.totalCostCents)
+}
