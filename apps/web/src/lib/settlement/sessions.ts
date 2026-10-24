@@ -612,7 +612,8 @@ export async function finalizeSession(sessionId: string): Promise<FinalizeResult
 
     // Single take model: sessions credit the developer the FULL amount; the
     // progressive platform take is applied exactly ONCE, at payout time
-    // (calculateTakeCents, lib/pricing.ts), on the pooled balanceCents —
+    // (lib/payouts/process.ts, lib/pricing.ts), on the pooled balanceCents
+    // with brackets based on the developer's calendar-month earnings —
     // identical to the meter path. No flat fee is taken at settlement time.
     // (The legacy flat revenueSharePct session fee was removed in chunk (C);
     // taking here AND at payout double-took session revenue.)

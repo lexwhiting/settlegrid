@@ -347,6 +347,12 @@ export async function GET(request: NextRequest) {
     //
     // We compare net (not gross) because the platform fee never leaves
     // Stripe — only the developer payout amount is transferred out.
+    //
+    // processPayout charges the take on the developer's month-to-date
+    // earnings, which is never less than calculateTakeCents(balance)
+    // alone. Using the balance alone here therefore estimates each net
+    // transfer at or above what will actually be sent, so the check
+    // stays conservative without a per-developer month-to-date query.
     const totalEligibleCents = eligible.reduce((sum, d) => {
       const net = d.balanceCents - calculateTakeCents(d.balanceCents)
       return sum + net

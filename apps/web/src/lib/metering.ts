@@ -301,7 +301,8 @@ export function recordInvocationAsync(params: {
 }): void {
   const { toolId, consumerId, keyId, method, costCents, latencyMs, developerId, isTest, referralCode, isFlagged } = params
   // Progressive take rate: developer receives full costCents at invocation time.
-  // Platform take is calculated and deducted at payout time via calculateTakeCents().
+  // Platform take is calculated on the developer's calendar-month earnings and
+  // deducted at payout time (lib/payouts/process.ts, lib/pricing.ts).
   const developerShareCents = costCents
 
   const now = new Date()
