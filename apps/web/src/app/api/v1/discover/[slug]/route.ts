@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews, toolChangelogs } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -42,7 +43,7 @@ export async function GET(
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(and(eq(tools.slug, slug), eq(tools.status, 'active')))
+      .where(and(eq(tools.slug, slug), eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .limit(1)
 
     if (!tool) {

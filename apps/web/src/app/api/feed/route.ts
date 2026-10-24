@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, schema } from '@/lib/db'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 60
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     })
     .from(schema.tools)
     .leftJoin(schema.developers, eq(schema.tools.developerId, schema.developers.id))
-    .where(eq(schema.tools.status, 'active'))
+    .where(and(eq(schema.tools.status, 'active'), excludeInternalTestToolsSql()))
     .orderBy(desc(schema.tools.createdAt))
     .limit(50)
 

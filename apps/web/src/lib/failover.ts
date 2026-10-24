@@ -16,6 +16,7 @@ import { eq, and, ne, isNotNull, sql, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, consumers, consumerToolBalances } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ const FALLBACK_QUERY_LIMIT = 5
  * - Active status
  * - Has a proxy endpoint configured
  * - Not the original tool
+ * - Not owned by an internal test-only account
  * - Ordered by total invocations (prefer proven tools)
  *
  * Returns null if no suitable fallback exists.
@@ -77,7 +79,9 @@ export async function findFallbackTool(
           eq(tools.category, category),
           eq(tools.status, 'active'),
           isNotNull(tools.proxyEndpoint),
-          ne(tools.slug, originalSlug)
+          ne(tools.slug, originalSlug),
+          // Internal test fixtures are never a fallback for someone else's call
+          excludeInternalTestToolsSql()
         )
       )
       .orderBy(desc(tools.totalInvocations))

@@ -11,7 +11,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { isMppEnabled } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ export async function GET() {
     const [result] = await db
       .select({ count: sql<number>`count(*)` })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
     toolsCount = result?.count ?? 0
   } catch {
     // DB unavailable — return 0

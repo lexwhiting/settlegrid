@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, and, desc, sql, count, inArray } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { developers, tools, toolReviews, invocations } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -68,7 +69,7 @@ export async function GET(
         ), 0)`,
       })
       .from(tools)
-      .where(and(eq(tools.developerId, developerId), eq(tools.status, 'active')))
+      .where(and(eq(tools.developerId, developerId), eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.totalInvocations))
       .limit(20)
 

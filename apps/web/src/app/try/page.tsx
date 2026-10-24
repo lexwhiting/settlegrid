@@ -6,6 +6,7 @@ import { CATEGORIES, getCategoryBySlug } from '@/lib/categories'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { eq, sql, desc, and } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 
 /* -------------------------------------------------------------------------- */
 /*  Metadata                                                                   */
@@ -60,7 +61,7 @@ async function getCategoryCounts(): Promise<Map<string, number>> {
         count: sql<number>`count(*)::int`,
       })
       .from(tools)
-      .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`))
+      .where(and(eq(tools.status, 'active'), sql`${tools.category} IS NOT NULL`, excludeInternalTestToolsSql()))
       .groupBy(tools.category)
 
     return new Map(counts.map((c) => [c.category!, c.count]))
@@ -80,7 +81,7 @@ async function getFeaturedTools(): Promise<ToolPreview[]> {
         pricingConfig: tools.pricingConfig,
       })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.totalInvocations))
       .limit(9)
   } catch {
@@ -93,7 +94,7 @@ async function getTotalToolCount(): Promise<number> {
     const [row] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
     return row?.count ?? 0
   } catch {
     return 0

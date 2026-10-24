@@ -7,7 +7,8 @@ import { FRAMEWORKS, FRAMEWORK_SLUGS, getFrameworkBySlug } from '@/lib/framework
 import { getCategoryBySlug } from '@/lib/categories'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { getEffectiveCostCents } from '@/lib/pricing-utils'
 
 // ─── Static Generation ──────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ async function getActiveTools(): Promise<ToolCard[]> {
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.totalInvocations))
       .limit(200)
 

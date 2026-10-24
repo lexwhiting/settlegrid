@@ -37,6 +37,9 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...args: unknown[]) => ({ and: args })),
 }))
 vi.mock('@/lib/developer-health', () => ({ hasRecentHealthChecksSql: vi.fn(() => ({ exists: true })) }))
+vi.mock('@/lib/marketplace-visibility', () => ({
+  excludeInternalTestToolsSql: vi.fn(() => ({ excludeInternalTestTools: true })),
+}))
 vi.mock('next/navigation', () => ({ notFound: vi.fn(() => { throw new Error('NOT_FOUND') }) }))
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children?: unknown }) =>
@@ -71,6 +74,19 @@ beforeEach(() => {
   mockDb.select.mockReturnThis()
   mockDb.from.mockReturnThis()
   mockDb.where.mockReturnThis()
+})
+
+describe('/dev/[slug] tool list', () => {
+  it('leaves out tools owned by internal test accounts', async () => {
+    await render(true, 99)
+    expect(mockDb.where).toHaveBeenCalledWith({
+      and: [
+        { eq: ['developer_id', 'dev-1'] },
+        { eq: ['status', 'active'] },
+        { excludeInternalTestTools: true },
+      ],
+    })
+  })
 })
 
 describe('/dev/[slug] uptime stat', () => {

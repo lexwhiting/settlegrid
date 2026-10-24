@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, and, sql, inArray, type SQL } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest) {
     const results: BundleWithTools[] = []
 
     for (const bundle of bundlesToReturn) {
-      const conditions: SQL[] = [eq(tools.status, 'active')]
+      const conditions: SQL[] = [eq(tools.status, 'active'), excludeInternalTestToolsSql()]
 
       // Match by category affinities
       if (bundle.categoryAffinities.length > 0) {

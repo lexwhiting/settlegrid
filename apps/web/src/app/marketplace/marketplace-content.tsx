@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { tools } from '@/lib/db/schema'
-import { eq, and, desc, ilike, or, sql, type SQL, inArray } from 'drizzle-orm'
+import { eq, and, desc, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { marketplaceInclusionSql } from '@/lib/marketplace-visibility'
 import { type MarketplaceTool } from '@/components/marketplace/tool-card'
 import { MarketplaceClientShell } from './marketplace-client-shell'
 
@@ -26,6 +27,7 @@ interface MarketplaceContentProps {
  *   - 'draft' tools are in the marketplace only if listedInMarketplace=true
  *     (set true on claim transition; existing pre-migration drafts default
  *     to false via the 0001_listed_in_marketplace migration backfill)
+ *   - tools owned by an internal test account are never listed
  *
  * Encapsulated in one function so every marketplace query path uses the
  * same predicate — drift here would silently change visibility semantics.
@@ -36,10 +38,7 @@ interface MarketplaceContentProps {
  * one, change the other and update both the comment and the tests.
  */
 function marketplaceInclusionPredicate(): SQL {
-  return or(
-    inArray(tools.status, ['active', 'unclaimed']),
-    and(eq(tools.status, 'draft'), eq(tools.listedInMarketplace, true)),
-  )!
+  return marketplaceInclusionSql()
 }
 
 async function getEcosystemCounts(): Promise<Map<string, number>> {

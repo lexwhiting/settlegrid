@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq, and, desc, sql } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { db } from '@/lib/db'
 import { tools, developers, toolReviews, toolChangelogs, developerReputation } from '@/lib/db/schema'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -72,7 +73,7 @@ export async function GET(
     }
 
     // Fetch tool with developer join
-    const conditions = [eq(tools.slug, slug), eq(tools.status, 'active')]
+    const conditions = [eq(tools.slug, slug), eq(tools.status, 'active'), excludeInternalTestToolsSql()]
 
     // If not "latest", filter by specific version
     if (version !== 'latest') {

@@ -55,5 +55,30 @@ export function isInternalEmail(email: string | null | undefined): boolean {
   const at = e.lastIndexOf('@')
   if (at === -1) return false
   const domain = e.slice(at + 1)
+  // Gmail '+' aliases of a listed internal address (e.g. smoke-test accounts)
+  // deliver to the same inbox, so they are internal too.
+  if (domain === 'gmail.com') {
+    const plus = e.indexOf('+')
+    if (plus > 0 && plus < at && INTERNAL_EMAIL_SET.has(`${e.slice(0, plus)}@${domain}`)) return true
+  }
   return (INTERNAL_EMAIL_DOMAINS as readonly string[]).includes(domain)
+}
+
+/**
+ * Developer slugs of internal operations accounts whose tools are test
+ * fixtures (for example, the payout end-to-end check). These tools work
+ * normally when called (proxy, SDK validate/meter, keys, balances) but are
+ * not listed on any public listing or discovery surface. The exclusion is
+ * applied by `excludeInternalTestToolsSql()` in lib/marketplace-visibility.ts.
+ *
+ * Matched by slug, not by email domain: the seed account and the system
+ * principal that owns the crawled catalog are internal for metrics but
+ * their tools are public and must stay listed.
+ */
+export const INTERNAL_TEST_DEVELOPER_SLUGS = ['settlegrid-support'] as const
+
+/** True if `slug` is an internal test-only developer account. */
+export function isInternalTestDeveloperSlug(slug: string | null | undefined): boolean {
+  if (!slug) return false
+  return (INTERNAL_TEST_DEVELOPER_SLUGS as readonly string[]).includes(slug)
 }

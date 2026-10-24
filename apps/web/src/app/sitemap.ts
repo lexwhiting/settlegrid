@@ -8,7 +8,8 @@ import { INTEGRATION_SLUGS } from '@/lib/integration-guides'
 import { FRAMEWORK_SLUGS } from '@/lib/frameworks'
 import { db } from '@/lib/db'
 import { tools, mcpShadowIndex } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { logger } from '@/lib/logger'
 
 const BASE_URL = 'https://settlegrid.ai'
@@ -25,7 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const activeTools = await db
       .select({ slug: tools.slug, updatedAt: tools.updatedAt })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .limit(50000)
 
     toolEntries = activeTools.map((tool) => ({

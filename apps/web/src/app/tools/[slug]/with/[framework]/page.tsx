@@ -7,6 +7,7 @@ import { CopyableCodeBlock } from '@/components/ui/copyable-code-block'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
+import { excludeInternalTestToolsSql } from '@/lib/marketplace-visibility'
 import { getCategoryBySlug } from '@/lib/categories'
 import { FRAMEWORKS, getFrameworkBySlug, generateCodeExample } from '@/lib/frameworks'
 import { getEffectiveCostCents } from '@/lib/pricing-utils'
@@ -19,7 +20,7 @@ export async function generateStaticParams() {
     const topTools = await db
       .select({ slug: tools.slug })
       .from(tools)
-      .where(eq(tools.status, 'active'))
+      .where(and(eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.totalInvocations))
       .limit(100)
 
@@ -68,7 +69,7 @@ async function getToolBySlug(slug: string): Promise<ToolRow | null> {
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
-      .where(and(eq(tools.slug, slug), eq(tools.status, 'active')))
+      .where(and(eq(tools.slug, slug), eq(tools.status, 'active'), excludeInternalTestToolsSql()))
       .limit(1)
 
     return rows[0] ?? null
@@ -82,7 +83,7 @@ async function getRelatedTools(category: string, excludeSlug: string) {
     return await db
       .select({ name: tools.name, slug: tools.slug })
       .from(tools)
-      .where(and(eq(tools.status, 'active'), eq(tools.category, category)))
+      .where(and(eq(tools.status, 'active'), eq(tools.category, category), excludeInternalTestToolsSql()))
       .orderBy(desc(tools.totalInvocations))
       .limit(6)
       .then((rows) => rows.filter((r) => r.slug !== excludeSlug).slice(0, 5))
