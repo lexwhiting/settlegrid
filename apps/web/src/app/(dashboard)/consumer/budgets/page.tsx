@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { cn } from '@/lib/utils'
+import { toolsWithoutBudgetRow } from '@/lib/dashboard-summaries'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -319,7 +320,8 @@ export default function ConsumerBudgetsPage() {
 
   const totalSpentCents = budgets.reduce((sum, b) => sum + b.currentPeriodSpendCents, 0)
   const totalLimitCents = budgets.reduce((sum, b) => sum + (b.spendingLimitCents ?? 0), 0)
-  const budgetsWithLimits = budgets.filter((b) => b.spendingLimitCents !== null && b.spendingLimitCents > 0)
+  // Tools used without a per-tool balance row were paid from global credit
+  const globalCreditTools = toolsWithoutBudgetRow(budgets, usageSummary)
   const overallPct = totalLimitCents > 0 ? (totalSpentCents / totalLimitCents) * 100 : 0
   const clampedOverallPct = Number.isFinite(overallPct) ? Math.min(overallPct, 100) : 0
 
@@ -499,10 +501,10 @@ export default function ConsumerBudgetsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {budgetsWithLimits.length === 0 && usageSummary.length === 0 ? (
+          {budgets.length === 0 && globalCreditTools.length === 0 ? (
             <EmptyState
-              title="No tool usage yet"
-              description="Start using tools from the marketplace to see spending data here."
+              title="No per-tool spending yet"
+              description="Spending appears here once you call a tool. Budget limits and alerts apply to tools you hold a per-tool credit balance for."
               actionLabel="Browse Tools"
               actionHref="/consumer"
             />
@@ -618,8 +620,37 @@ export default function ConsumerBudgetsPage() {
                       </tr>
                     )
                   })}
+                  {globalCreditTools.map((tool) => (
+                    <tr key={tool.toolId} className="border-b border-gray-100 dark:border-[#252836] last:border-0">
+                      <td className="py-3 px-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 dark:text-gray-100">{tool.toolName}</span>
+                          <span className="text-xs text-gray-400 font-mono">{tool.toolSlug}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-right font-medium text-gray-900 dark:text-gray-100 tabular-nums">
+                        {formatCents(tool.totalCostCents)}
+                      </td>
+                      <td className="py-3 px-2 text-right text-gray-400">--</td>
+                      <td className="py-3 px-2 text-right text-gray-400">--</td>
+                      <td className="py-3 px-2 text-center text-gray-700 dark:text-gray-300 tabular-nums">
+                        {tool.totalInvocations}
+                      </td>
+                      <td className="py-3 px-2 text-center text-gray-400">--</td>
+                      <td className="py-3 px-2 text-right text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        Global credit
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
+              {globalCreditTools.length > 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                  Tools marked &ldquo;Global credit&rdquo; were paid from your global credit balance. Their spend
+                  covers the last {USAGE_DAYS} days. Budget limits and alerts apply to per-tool credit balances,
+                  so these tools have none.
+                </p>
+              )}
             </div>
           )}
         </CardContent>

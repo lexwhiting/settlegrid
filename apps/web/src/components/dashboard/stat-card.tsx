@@ -20,13 +20,23 @@ export function StatCard({ title, value, subtitle, trend, variant, animate = fal
   // Extract numeric value for animation
   const numericMatch = value.match(/[\d,.]+/)
   const numericValue = numericMatch ? parseFloat(numericMatch[0].replace(/,/g, '')) : 0
-  const animatedNum = useCountUp(numericValue, 800, animate)
+  // useCountUp counts in whole steps, so count in units of the value's last
+  // decimal place (e.g. cents for "$0.01") to keep its fractional digits.
+  const decimals = numericMatch?.[0].split('.')[1]?.length ?? 0
+  const scale = 10 ** decimals
+  const animatedUnits = useCountUp(Math.round((Number.isFinite(numericValue) ? numericValue : 0) * scale), 800, animate)
 
   const showTrend = trend !== undefined && trend !== 0
 
   // Reconstruct the displayed value with animated number
   const displayValue = animate && numericMatch
-    ? value.replace(numericMatch[0], animatedNum.toLocaleString())
+    ? value.replace(
+        numericMatch[0],
+        (animatedUnits / scale).toLocaleString(undefined, {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals,
+        }),
+      )
     : value
 
   return (

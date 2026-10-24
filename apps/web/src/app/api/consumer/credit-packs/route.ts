@@ -53,6 +53,12 @@ const CREDIT_PACKS: CreditPack[] = [
   },
 ]
 
+/** Stripe line item description; the discount is named only when there is one. */
+function packDescription(pack: CreditPack): string {
+  const credits = `$${(pack.creditAmountCents / 100).toFixed(2)} in SettleGrid credits`
+  return pack.discountPct > 0 ? `${credits} (${pack.discountPct}% discount)` : credits
+}
+
 function getStripe(): Stripe {
   return new Stripe(getStripeSecretKey())
 }
@@ -171,7 +177,7 @@ export async function POST(request: NextRequest) {
             unit_amount: pack.priceCents,
             product_data: {
               name: pack.label,
-              description: `$${(pack.creditAmountCents / 100).toFixed(2)} in SettleGrid credits (${pack.discountPct}% discount)`,
+              description: packDescription(pack),
             },
           },
           quantity: 1,

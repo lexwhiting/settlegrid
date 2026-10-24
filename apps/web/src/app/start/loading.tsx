@@ -1,3 +1,4 @@
+// Suspense fallback for this client page, which reads useSearchParams().
 export default function Loading() {
   return (
     <div className="min-h-screen flex items-center justify-center">

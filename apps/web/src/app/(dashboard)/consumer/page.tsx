@@ -13,6 +13,7 @@ import { ConsumerStatBar } from '@/components/consumer/stat-bar'
 import { UsageAnalytics } from '@/components/consumer/usage-analytics'
 import { AlertsManager } from '@/components/consumer/alerts-manager'
 import { PurchaseHistory } from '@/components/consumer/purchase-history'
+import { RevokeKeyButton } from '@/components/consumer/revoke-key-button'
 import { POSTHOG_EVENTS } from '@/lib/experiments'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -206,7 +207,9 @@ export default function ConsumerDashboardPage() {
     try {
       const res = await fetch(`/api/consumer/keys/${keyId}`, { method: 'DELETE' })
       if (res.ok) {
-        setKeys(keys.filter((k) => k.id !== keyId))
+        setKeys((prev) => prev.filter((k) => k.id !== keyId))
+      } else {
+        setError('Failed to revoke key')
       }
     } catch {
       setError('Failed to revoke key')
@@ -624,7 +627,7 @@ export default function ConsumerDashboardPage() {
       )}
 
       {/* Stat Bar */}
-      <ConsumerStatBar balances={balances} keys={keys} />
+      <ConsumerStatBar balances={balances} keys={keys} globalBalanceCents={globalBalanceCents} />
 
       {/* Credit Balances */}
       <Card>
@@ -880,9 +883,7 @@ export default function ConsumerDashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {key.status === 'active' && (
-                          <Button variant="destructive" size="sm" onClick={() => revokeKey(key.id)} aria-label={`Revoke API key ${key.keyPrefix}`}>
-                            Revoke
-                          </Button>
+                          <RevokeKeyButton keyPrefix={key.keyPrefix} onConfirm={() => revokeKey(key.id)} />
                         )}
                       </div>
                     </div>
