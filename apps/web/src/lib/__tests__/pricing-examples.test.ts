@@ -65,10 +65,12 @@ describe('pricing page examples match lib/pricing.ts', () => {
 })
 
 describe('Terms of Service platform fee', () => {
-  it('states the 2.5% bracket and that the fee applies at payout', () => {
+  it('states the 2.5% bracket and that the fee is monthly, deducted at payout', () => {
     expect(TERMS_PAGE).toContain('2.5% on $10,001-$50,000')
     expect(TERMS_PAGE).not.toContain('3% on $10,001-$50,000')
-    expect(TERMS_PAGE).toMatch(/applied to your earnings when they are\s+paid out/)
+    expect(TERMS_PAGE).toMatch(/based on your earnings each calendar\s+month/)
+    expect(TERMS_PAGE).toMatch(/deducted when those earnings are paid out/)
+    expect(TERMS_PAGE).toMatch(/0% on the first \$1,000\s+each month/)
     expect(TERMS_PAGE).not.toContain('platform fee on each transaction')
   })
 })
