@@ -6,7 +6,7 @@
 #                    'False', 'true' or anything else counts as frozen (workflow-mechanics-12/13).
 #                    Founder PRs are not agent PRs and are unaffected.
 #   2. Hold labels   needs-migration-applied / audit-canary / do-not-merge fail the check.
-#   3. Frozen paths  any path matching .github/CODEOWNERS (read from the BASE commit; every
+#   3. Frozen paths  any path matching .github/CODEOWNERS (read from the target BASE commit, not the merge base; every
 #                    pattern except "*") labels the PR `high-stakes`. An agent PR that declares
 #                    Eng-Tier INCREMENTAL but touches a frozen path fails (uncertain => HIGH-STAKES).
 #   4. Scope         agent PRs must carry a "Declared scope:" list of globs in the PR body; every
@@ -37,6 +37,7 @@
 #                    checks pass, the PR gets `class:C0` (independent-audit may then skip). Otherwise
 #                    the label is removed. If independent-audit skipped this commit as C0 and the PR is
 #                    no longer C0, fleet-guard fails (AUDIT_STALE) until the audit is re-run.
+#                    A failed write of the high-stakes or class:C0 label fails the check (LABEL_WRITE).
 #  14. CODEOWNERS    GitHub skips an invalid CODEOWNERS line silently, so a typo can drop the
 #      errors        maintainer's ownership of a frozen path. Fails (CODEOWNERS_ERRORS) when
 #                    GET /repos/{repo}/codeowners/errors lists any error for the CODEOWNERS that
@@ -217,15 +218,16 @@ jobs:
 
           let labels = new Set((pr.labels || []).map((l) => l.name));
           let canWriteLabels = !isFork;
+          // Both return false when the write failed.
           async function addLabel(name) {
-            if (labels.has(name)) return;
-            try { await gh('POST', `/repos/${repo}/issues/${pr.number}/labels`, { labels: [name] }); labels.add(name); }
-            catch (e) { canWriteLabels = false; warn(`could not add label ${name}: ${e.message}`); }
+            if (labels.has(name)) return true;
+            try { await gh('POST', `/repos/${repo}/issues/${pr.number}/labels`, { labels: [name] }); labels.add(name); return true; }
+            catch (e) { canWriteLabels = false; warn(`could not add label ${name}: ${e.message}`); return false; }
           }
           async function removeLabel(name) {
-            if (!labels.has(name)) return;
-            try { await gh('DELETE', `/repos/${repo}/issues/${pr.number}/labels/${encodeURIComponent(name)}`); labels.delete(name); }
-            catch (e) { warn(`could not remove label ${name}: ${e.message}`); }
+            if (!labels.has(name)) return true;
+            try { await gh('DELETE', `/repos/${repo}/issues/${pr.number}/labels/${encodeURIComponent(name)}`); labels.delete(name); return true; }
+            catch (e) { warn(`could not remove label ${name}: ${e.message}`); return false; }
           }
 
           // Override labels never survive a new push. Removing them on synchronize is for clarity
@@ -356,8 +358,10 @@ jobs:
           }
 
           // ---------- 3. Frozen paths (from base CODEOWNERS) ----------
+          // Policy is read at the target base (pr.base.sha), so a branch cut before a policy change
+          // still gets the current policy. The merge base is used only to compute the diff.
           let owners = null; let ownersFrom = 'base';
-          try { owners = git('show', `${mergeBase}:.github/CODEOWNERS`); }
+          try { owners = git('show', `${baseSha}:.github/CODEOWNERS`); }
           catch { try { owners = git('show', `${headSha}:.github/CODEOWNERS`); ownersFrom = 'head (base has none: install PR)'; } catch { owners = null; } }
           let frozenRes = [];
           if (owners === null) {
@@ -370,7 +374,7 @@ jobs:
           const frozenHits = files.filter((f) => matchAny(frozenRes, f.path)).map((f) => f.path);
           const highStakes = frozenHits.length > 0 || labels.has('high-stakes');
           if (frozenHits.length > 0) {
-            await addLabel('high-stakes');
+            if (!(await addLabel('high-stakes'))) fail('LABEL_WRITE', 'could not add the `high-stakes` label; the audit tier depends on it. Re-run fleet-guard.');
             fact('frozen paths touched', frozenHits.slice(0, 30).map((p) => `\`${p}\``).join('<br>') + (frozenHits.length > 30 ? `<br>(+${frozenHits.length - 30} more)` : ''));
           } else {
             fact('frozen paths touched', 'none');
@@ -378,7 +382,7 @@ jobs:
           // ---------- 14. CODEOWNERS errors (invalid lines are skipped silently) ----------
           {
             const ownersChanged = files.some((f) => f.path === '.github/CODEOWNERS');
-            const ref = ownersChanged ? headSha : (ownersFrom === 'base' ? mergeBase : null);
+            const ref = ownersChanged ? headSha : (ownersFrom === 'base' ? baseSha : null);
             if (owners !== null && ref) {
               const r = await fetch(`${apiBase}/repos/${repo}/codeowners/errors?ref=${ref}`, {
                 headers: { authorization: `Bearer ${env.GH_TOKEN}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' },
@@ -529,14 +533,16 @@ jobs:
           for (const [p, lines] of added) {
             for (const a of lines) {
               for (const [id, re] of SECRET) {
-                const m = re.exec(a.t);
-                if (!m) continue;
-                if (id === 'database-url-with-password') {
-                  if (LOCAL_HOST.test(m[2]) || PLACEHOLDER.test(m[1]) || /^\$\{?|^<|^%|password|secret/i.test(m[1])) continue;
-                } else if (id !== 'pem-armour' && PLACEHOLDER_BODY.test(m[0].replace(KEY_PREFIX, ''))) {
-                  continue;
+                // Every match on the line: a placeholder must not shadow a real key after it.
+                for (const m of a.t.matchAll(new RegExp(re.source, re.flags + 'g'))) {
+                  if (id === 'database-url-with-password') {
+                    if (LOCAL_HOST.test(m[2]) || PLACEHOLDER.test(m[1]) || /^\$\{?|^<|^%|password|secret/i.test(m[1])) continue;
+                  } else if (id !== 'pem-armour' && PLACEHOLDER_BODY.test(m[0].replace(KEY_PREFIX, ''))) {
+                    continue;
+                  }
+                  secretHits.push(`\`${p}:${a.n}\` (${id})`);
+                  break;
                 }
-                secretHits.push(`\`${p}:${a.n}\` (${id})`);
               }
             }
           }
@@ -647,7 +653,7 @@ jobs:
           // ---------- 12. Workflow and action changes ----------
           // Checks on such a PR run from the PR's own workflow definitions, so they prove nothing.
           let guardInBase = true;
-          try { git('cat-file', '-e', `${mergeBase}:.github/workflows/fleet-guard.yml`); } catch { guardInBase = false; }
+          try { git('cat-file', '-e', `${baseSha}:.github/workflows/fleet-guard.yml`); } catch { guardInBase = false; }   // target base, not merge base
           const wfChanged = files.filter((f) => /^\.github\/(workflows|actions)\//.test(f.path)).map((f) => f.path);
           if (wfChanged.length) {
             const list = wfChanged.slice(0, 20).map((p) => '`' + p + '`').join(', ');
@@ -663,14 +669,15 @@ jobs:
           const declaredHigh = !!declaredTier && declaredTier.toUpperCase() === 'HIGH-STAKES';
           const c0 = !highStakes && !declaredHigh && files.length > 0 && failures.length === 0
             && files.every((f) => f.status !== 'D' && /\.mdx?$/i.test(f.path) && !f.path.startsWith('apps/web/') && !matchAny(COPY, f.path) && !matchAny(frozenRes, f.path));
-          if (c0) await addLabel('class:C0'); else await removeLabel('class:C0');
+          if (c0) await addLabel('class:C0');   // a failed add only loses the skip
+          else if (!(await removeLabel('class:C0'))) fail('LABEL_WRITE', 'could not remove the stale `class:C0` label, which would let the audit skip this PR. Re-run fleet-guard.');
           fact('class', c0 ? 'C0 (docs-only)' : 'not C0');
           // independent-audit runs only on pushes. If it skipped this commit as C0 and the PR has
           // since stopped being C0 (label, Eng-Tier or body edit), that skip no longer counts.
           if (!c0 && lastJudgment && lastJudgment.state === 'success' && /^C0 skip/.test(lastJudgment.description || '')) {
             fail('AUDIT_STALE', 'independent-audit skipped this commit as docs-only, but the PR is no longer C0. Re-run independent-audit (it now makes a model call), then re-run fleet-guard.');
           } else if (!c0 && !historyComplete) {
-            warn('commit statuses could not be read completely, so a stale C0 audit skip cannot be ruled out.');
+            fail('AUDIT_STALE', 'commit statuses could not be read completely, so a stale C0 audit skip cannot be ruled out. Re-run fleet-guard.');
           }
           fact('labels now', [...labels].sort().map((l) => '`' + l + '`').join(' ') || 'none');
           if (!canWriteLabels) warn('labels could not be written (fork PR or token scope): high-stakes/C0 labels may be missing.');
