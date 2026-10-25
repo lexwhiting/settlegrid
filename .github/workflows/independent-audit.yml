@@ -11,9 +11,13 @@
 #     'true', anything else = frozen)                      -> fail, no model call.
 #   - Draft PR                                              -> fail, re-runs on ready_for_review.
 #   - Docs-only PR that fleet-guard labelled `class:C0`     -> success with no model call ("skipped").
-#     All of these must hold: every changed file is .md/.mdx, nothing deleted, the latest
-#     fleet-guard check on this head SHA concluded success, and the label `class:C0` was last
-#     applied by github-actions[bot] (that is, by fleet-guard, not by a person or an App).
+#     All of these must hold: every changed file is .md/.mdx outside apps/web/, nothing deleted,
+#     the PR is not HIGH-STAKES (no `high-stakes` label, no Eng-Tier: HIGH-STAKES, fleet-guard
+#     completed), the latest fleet-guard check on this head SHA concluded success, and the label
+#     `class:C0` was last applied by github-actions[bot] (that is, by fleet-guard, not by a person or an App).
+#   - A change git reports as binary that is not an image or font asset -> fail, no model call
+#     (its content could not be shown to the auditor). The diff is generated with --text, so a
+#     .gitattributes entry cannot drop a text file's lines from the request.
 #   - Fork PR (no secrets available)                       -> fail; the founder reviews by hand.
 #   - HIGH-STAKES agent PR without a `fleet-fail-pre-fix` block in the body -> fail.
 #   - Otherwise one model call with a JSON-schema verdict. The check passes only if:
@@ -28,7 +32,13 @@
 #     review, tier mismatch, refusal, wrong model) writes the commit status
 #     `independent-audit/block` on the head SHA. Every later run on that SHA fails at once, so
 #     re-running cannot re-roll a BLOCK into a PASS. A new commit gets a fresh audit.
-#     Infrastructure failures (network, HTTP error, timeout, incomplete output, unparseable) are not sticky.
+#     Before the model call the job writes `independent-audit/judgment` = pending (or makes no
+#     call if that write fails), and replaces it with success (PASS), failure (judgment failed)
+#     or error (no verdict received). A later run on the SHA is refused while the newest marker
+#     is pending or failure, so a lost block write, a cancelled run or a crash mid-call still needs
+#     a new commit. The full status history is read (paginated). Writes are retried; a failed
+#     block write fails the job.
+#     Infrastructure failures (network, HTTP error, incomplete output, unparseable) are not sticky.
 #
 # Disclosure: this repo is public and so are its Actions logs. The job prints only the verdict,
 # severity counts and token usage. Finding text is never printed. If vars.AUDIT_FINDINGS_PUBKEY
@@ -127,12 +137,23 @@ jobs:
             echo "::error::Draft PR: the audit runs when the PR is marked ready for review."; exit 1
           fi
 
-          # Sticky verdict: a failed model judgment on this exact commit is final.
-          sticky=$(gh api "repos/$REPO/commits/$HEAD_SHA/statuses?per_page=100" \
-                   --jq '[.[] | select(.context == "independent-audit/block" and .state == "failure" and .creator.login == "github-actions[bot]")] | length')
-          if [ "${sticky:-0}" != "0" ]; then
+          # Sticky verdict: a failed model judgment on this exact commit is final, and so is a model
+          # call whose verdict was never recorded. Reads the full status history (newest first);
+          # a failed read fails the job (set -e).
+          hist=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/statuses?per_page=100" \
+                 --jq '.[] | select(.creator.login == "github-actions[bot]")
+                       | select(.context == "independent-audit/block" or .context == "independent-audit/judgment")
+                       | "\(.context) \(.state)"')
+          sticky=$(printf '%s\n' "$hist" | grep -cxF 'independent-audit/block failure' || true)
+          last_judgment=$(printf '%s\n' "$hist" | awk '$1 == "independent-audit/judgment" { print $2; exit }')
+          if [ "${sticky:-0}" != "0" ] || [ "$last_judgment" = "failure" ]; then
             echo "::error::An earlier audit of $HEAD_SHA failed on a model judgment. Re-runs on the same commit cannot pass; push a new commit."
             { echo "## independent-audit: FAIL (sticky)"; echo; echo "An earlier run on \`$HEAD_SHA\` recorded a failing verdict. Push a new commit for a fresh audit."; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ "$last_judgment" = "pending" ]; then
+            echo "::error::An earlier model call on $HEAD_SHA has no recorded verdict (cancelled, crashed or the write failed). Push a new commit."
+            { echo "## independent-audit: FAIL (sticky)"; echo; echo "An earlier model call on \`$HEAD_SHA\` never recorded its verdict. Push a new commit for a fresh audit."; } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
@@ -142,7 +163,7 @@ jobs:
           docs_only=true
           [ "${#changed[@]}" -gt 0 ] || docs_only=false
           for p in "${changed[@]}"; do
-            case "$p" in *.md|*.mdx|*.MD|*.MDX) ;; *) docs_only=false ;; esac
+            case "$p" in apps/web/*) docs_only=false ;; *.md|*.mdx|*.MD|*.MDX) ;; *) docs_only=false ;; esac
           done
           [ "$deleted" -eq 0 ] || docs_only=false
 
@@ -160,7 +181,13 @@ jobs:
           c0_last=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/events?per_page=100" \
                     --jq '.[] | select(.label.name? == "class:C0") | "\(.event) \(.actor.login)"' | tail -1)
 
-          if [ "$docs_only" = true ] && [ "$fg" = "completed:success" ] && has_label "class:C0" \
+          hs=false
+          if has_label high-stakes; then hs=true; fi
+          if printf '%s' "$body" | grep -Eqi 'Eng-Tier:[[:space:]]*HIGH-STAKES'; then hs=true; fi
+          case "$fg" in completed:success|completed:failure) ;; *) hs=true ;; esac   # labels unreliable => assume HIGH-STAKES
+
+          # The tier is resolved first: a HIGH-STAKES PR is never skipped, whatever its labels.
+          if [ "$docs_only" = true ] && [ "$hs" = false ] && [ "$fg" = "completed:success" ] && has_label "class:C0" \
              && [ "$c0_last" = "labeled github-actions[bot]" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             {
@@ -175,11 +202,6 @@ jobs:
           if [ "$head_repo" != "$REPO" ]; then
             echo "::error::Fork PR: repository secrets are not available, so the audit cannot run. The founder reviews this PR by hand."; exit 1
           fi
-
-          hs=false
-          if has_label high-stakes; then hs=true; fi
-          if printf '%s' "$body" | grep -Eqi 'Eng-Tier:[[:space:]]*HIGH-STAKES'; then hs=true; fi
-          case "$fg" in completed:success|completed:failure) ;; *) hs=true ;; esac   # labels unreliable => assume HIGH-STAKES
 
           if [ "$hs" = true ] && [ "$agent" = true ]; then
             if ! printf '%s\n' "$body" | awk '/^```fleet-fail-pre-fix/{f=1;next} /^```/{if(f){exit}} f && NF{n++} END{exit !(n>0)}'; then
@@ -206,8 +228,20 @@ jobs:
           set -euo pipefail
           W="$RUNNER_TEMP/audit"; mkdir -p "$W/out"
 
-          git -c core.quotepath=off diff --no-color --no-ext-diff --no-textconv --no-renames -U8 \
-            "$MB" "$HEAD_SHA" -- . ':(exclude)package-lock.json' > "$W/pr.diff"
+          # Binary changes: image and font assets are listed by name only; anything else fails,
+          # because its content cannot be shown to the auditor.
+          git -c core.quotepath=off diff --numstat --no-renames -z "$MB" "$HEAD_SHA" \
+            | tr '\0' '\n' | awk -F'\t' '$1 == "-" && $2 == "-" { print $3 }' > "$W/binaries.txt"
+          grep -Eiv '\.(png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf)$' "$W/binaries.txt" > "$W/opaque.txt" || true
+          if [ -s "$W/opaque.txt" ]; then
+            echo "::error::$(wc -l < "$W/opaque.txt") changed file(s) are binary but not image/font assets, so the auditor cannot review them. Commit them as text (check .gitattributes) or remove them."
+            exit 1
+          fi
+          assets=(':(exclude)package-lock.json')
+          while IFS= read -r a; do [ -n "$a" ] && assets+=(":(exclude,literal)$a"); done < "$W/binaries.txt"
+          # --text: a PR-controlled .gitattributes (-diff, binary) cannot drop a file's lines from the request.
+          git -c core.quotepath=off diff --text --no-color --no-ext-diff --no-textconv --no-renames -U8 \
+            "$MB" "$HEAD_SHA" -- . "${assets[@]}" > "$W/pr.diff"
           lock=$(git diff --numstat --no-renames "$MB" "$HEAD_SHA" -- package-lock.json | awk '{a+=$1; d+=$2} END {print a+0 " added / " d+0 " deleted"}')
           bytes=$(wc -c < "$W/pr.diff")
           echo "diff_bytes=$bytes" >> "$GITHUB_OUTPUT"
@@ -255,6 +289,7 @@ jobs:
             echo "high_stakes: $HS   (from fleet-guard label high-stakes or Eng-Tier in the body)"
             echo "fleet-guard on this head: $FG"
             echo "package-lock.json lines (not shown): $lock"
+            echo "binary image/font assets (content not shown): $(wc -l < "$W/binaries.txt")"
             echo
             echo "changed files (status, path):"
             git -c core.quotepath=off diff --name-status --no-renames "$MB" "$HEAD_SHA"
@@ -333,6 +368,18 @@ jobs:
           if [ -z "${OPENAI_API_KEY:-}" ]; then
             echo "::error::Secret OPENAI_API_KEY_AUDIT is not set; the audit cannot run."; exit 1
           fi
+          post_status() {   # context state description; three tries
+            for _ in 1 2 3; do
+              gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" -f state="$2" -f context="$1" -f description="$3" > /dev/null && return 0
+              sleep 5
+            done
+            return 1
+          }
+          # No model call unless its start is durably recorded (see "Sticky per commit" above).
+          if ! post_status independent-audit/judgment pending "model call started on this commit"; then
+            echo "::error::Could not record the judgment marker; no model call was made."; exit 1
+          fi
+          no_verdict() { post_status independent-audit/judgment error "no verdict: $1" || echo "::warning::could not clear the judgment marker; this commit needs a new push"; }
           # The key is passed to curl through a header file, never on the command line.
           umask 077; printf 'Authorization: Bearer %s\n' "$OPENAI_API_KEY" > "$W/auth.hdr"
           http=$(curl -sS --max-time 1500 --retry 3 --retry-delay 30 \
@@ -340,9 +387,10 @@ jobs:
                    https://api.openai.com/v1/responses \
                    -H "Content-Type: application/json" \
                    -H @"$W/auth.hdr" \
-                   --data-binary @"$W/request.json") || { rm -f "$W/auth.hdr"; echo "::error::Auditor API call failed (network or timeout)."; exit 1; }
+                   --data-binary @"$W/request.json") || { rm -f "$W/auth.hdr"; no_verdict "network or timeout"; echo "::error::Auditor API call failed (network or timeout)."; exit 1; }
           rm -f "$W/auth.hdr"
           if [ "$http" != "200" ]; then
+            no_verdict "HTTP $http"
             echo "::error::Auditor API returned HTTP $http ($(jq -r '.error.type // "unknown"' "$W/response.json" 2>/dev/null || echo unreadable))."; exit 1
           fi
 
@@ -369,12 +417,22 @@ jobs:
             printf '%s %s\n' "$PR_NUMBER" "$HEAD_SHA" > "$W/out/subject.txt"
           fi
 
-          # Record a failing model judgment on this commit so no re-run can pass it (sticky).
-          mark_block() {
-            gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" -f state=failure -f context=independent-audit/block \
-              -f description="$1" > /dev/null \
-              || echo "::warning::could not record the sticky block status"
+          post_status() {   # context state description; three tries
+            for _ in 1 2 3; do
+              gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" -f state="$2" -f context="$1" -f description="$3" > /dev/null && return 0
+              sleep 5
+            done
+            return 1
           }
+          # Record a failing model judgment on this commit so no re-run can pass it (sticky). If the
+          # write fails, the pending judgment marker from the call step still refuses re-runs.
+          mark_block() {
+            post_status independent-audit/judgment failure "$1" || true
+            if ! post_status independent-audit/block failure "$1"; then
+              echo "::error::Could not record the sticky block status; the pending judgment marker still refuses re-runs on this commit."
+            fi
+          }
+          no_verdict() { post_status independent-audit/judgment error "no verdict: $1" || echo "::warning::could not clear the judgment marker; this commit needs a new push"; }
 
           status=$(jq -r '.status // "none"' "$R")
           why=$(jq -r '.incomplete_details.reason // ""' "$R")
@@ -398,6 +456,7 @@ jobs:
           if [ "$status" != "completed" ]; then
             echo "::error::No usable verdict: status=$status ${why:+(reason $why)}; max_output_tokens = split the PR."
             { echo "## independent-audit: FAIL"; echo; echo "No usable verdict (status \`$status\` \`$why\`). Model: \`$served_by\`."; } >> "$GITHUB_STEP_SUMMARY"
+            no_verdict "status $status"
             exit 1
           fi
 
@@ -412,6 +471,7 @@ jobs:
                "$W/verdict.json" > /dev/null 2>&1; then
             echo "::error::Verdict missing or unparseable. Failing closed."
             { echo "## independent-audit: FAIL"; echo; echo "Verdict missing or unparseable. Model: \`$served_by\`."; } >> "$GITHUB_STEP_SUMMARY"
+            no_verdict "unparseable output"
             exit 1
           fi
 
@@ -454,6 +514,9 @@ jobs:
           if [ "$result" != "PASS" ]; then
             mark_block "verdict FAIL on this commit"
             echo "::error::independent-audit FAIL: ${reasons[*]}"; exit 1
+          fi
+          if ! post_status independent-audit/judgment success "verdict PASS on this commit"; then
+            echo "::error::Could not record the PASS; this commit needs a new push for a fresh audit."; exit 1
           fi
           echo "independent-audit PASS ($n_med medium, $n_low low)."
 

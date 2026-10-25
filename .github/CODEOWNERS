@@ -181,6 +181,7 @@
 #     precedence over the AGENTS.md in its directory, so it is owned like AGENTS.md.
 #     CLAUDE.md, CLAUDE.local.md and /.claude/ (instructions, settings, hooks and commands
 #     that Claude Code loads from a checkout) are owned the same way, whether or not they exist.
+#     .gitattributes can change how git diffs a file, so it is owned too, before it exists.
 #     Every other pattern above was checked against the repo tree at 1f5a8c2 (2026-10-11).
 # ---------------------------------------------------------------------------
 /AGENTS.md                                                @lexwhiting
@@ -199,5 +200,7 @@
 /.mcp.json                                                @lexwhiting
 /renovate.json                                            @lexwhiting
 /.gitignore                                               @lexwhiting
+/.gitattributes                                           @lexwhiting
+/**/.gitattributes                                        @lexwhiting
 /.github/                                                 @lexwhiting
 /.github/CODEOWNERS                                       @lexwhiting

@@ -136,7 +136,7 @@ Line budget: <N>
 
 - **Declared scope** is a list of repo-relative globs (`**` crosses directories, `*` does not, `[` and `]` are literal). Every changed path, including deleted files, must match one. `**` alone is rejected.
 - **Line budget** is added plus deleted lines. Defaults: 400 INCREMENTAL, 800 HIGH-STAKES. Over budget means split the PR.
-- **Class:** C0 = docs/content only (`.md`/`.mdx`, nothing frozen). C1 = non-money app code. C2 = any frozen path or any HIGH-STAKES change.
+- **Class:** C0 = docs only (`.md`/`.mdx` outside `apps/web/`, nothing frozen, INCREMENTAL). C1 = non-money app code. C2 = any frozen path or any HIGH-STAKES change.
 - A HIGH-STAKES PR must include a non-empty `fleet-fail-pre-fix` block.
 - **Builder-Family** is the vendor of the model that wrote the change, in lower case (the fleet builder writes `anthropic`). `independent-audit` reviews with a model from a different vendor and fails if the two match. Never omit or change it.
 

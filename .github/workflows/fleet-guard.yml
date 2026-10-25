@@ -13,6 +13,8 @@
 #                    changed path (added, modified or deleted) must match one of them.
 #   5. Line budget   agent PRs: added+deleted lines <= "Line budget: N" (default 400, or 800 for
 #                    high-stakes; never above vars.FLEET_LINE_BUDGET_MAX, default 800).
+#                    Binary changes other than image/font assets fail agent PRs (UNREVIEWABLE_BINARY;
+#                    a warning on other PRs). The scans read a --text diff, so .gitattributes cannot hide lines.
 #   6. Test tamper   deleted test files, added .only (never allowed), added skip/todo/skipIf/xit,
 #                    fewer assertions in a modified test file, edits to protected tests or test
 #                    config. All but .only can be cleared by label `founder-approved-test-change`
@@ -27,9 +29,10 @@
 #  12. Workflows     any change under .github/workflows/ or .github/actions/ fails (WORKFLOW_CHANGED),
 #                    except on the install PR (base has no fleet-guard.yml). No override label: the
 #                    maintainer reviews such a diff line by line and merges with the ruleset bypass.
-#  13. C0 label      if every changed file is .md/.mdx, nothing is frozen or deleted and all checks
-#                    pass, the PR gets `class:C0` (independent-audit may then skip). Otherwise the
-#                    label is removed.
+#  13. C0 label      if every changed file is .md/.mdx outside apps/web/, nothing is frozen or deleted,
+#                    the PR is not high-stakes (no frozen path, label or Eng-Tier: HIGH-STAKES) and all
+#                    checks pass, the PR gets `class:C0` (independent-audit may then skip). Otherwise
+#                    the label is removed.
 #  14. CODEOWNERS    GitHub skips an invalid CODEOWNERS line silently, so a typo can drop the
 #      errors        maintainer's ownership of a frozen path. Fails (CODEOWNERS_ERRORS) when
 #                    GET /repos/{repo}/codeowners/errors lists any error for the CODEOWNERS that
@@ -306,7 +309,8 @@ jobs:
           const added = new Map();
           const removed = new Map();
           {
-            const patch = git('diff', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', '-U0', mergeBase, headSha);
+            // --text: a PR-controlled .gitattributes (-diff, binary) cannot hide a file's lines from the scans.
+            const patch = git('diff', '--text', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', '-U0', mergeBase, headSha);
             let cur = null; let inHunk = false; let newLine = 0;
             for (const line of patch.split('\n')) {
               if (line.startsWith('diff --git ')) { cur = null; inHunk = false; continue; }
@@ -419,7 +423,15 @@ jobs:
           if (isAgent && linesChanged > budget && !founderApproved('founder-approved-size')) {
             fail('OVER_BUDGET', `${linesChanged} lines added+deleted exceeds the budget of ${budget}. Split the PR.`);
           }
-          if (isAgent && binaries.length) warn(`binary files changed: ${binaries.join(', ')}`);
+          // Only image and font assets may change as binary. Anything else git reports as binary
+          // (by content or by .gitattributes) cannot be checked line by line here or by the audit.
+          const ASSET_RE = /\.(png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf)$/i;
+          const opaque = binaries.filter((p) => !ASSET_RE.test(p));
+          if (binaries.length) fact('binary files', binaries.slice(0, 30).map((p) => `\`${p}\``).join('<br>') + (binaries.length > 30 ? `<br>(+${binaries.length - 30} more)` : ''));
+          if (opaque.length) {
+            const msg = `git reports ${opaque.length} non-asset file(s) as binary, so their content cannot be reviewed: ${opaque.slice(0, 10).join(', ')}. Commit them as text (check .gitattributes) or remove them.`;
+            if (isAgent) fail('UNREVIEWABLE_BINARY', msg); else warn(msg);
+          }
 
           // ---------- 6. Test tamper ----------
           const isTest = (p) => /(^|\/)(__tests__|tests?)\//.test(p) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(p) || /(^|\/)test_[^/]*\.py$/.test(p) || /_test\.py$/.test(p);
@@ -619,7 +631,11 @@ jobs:
           fact('workflow files changed', wfChanged.length ? String(wfChanged.length) : 'none');
 
           // ---------- 13. C0 classification ----------
-          const c0 = files.length > 0 && failures.length === 0 && files.every((f) => f.status !== 'D' && /\.mdx?$/i.test(f.path) && !matchAny(frozenRes, f.path));
+          // C0 needs the resolved tier to be INCREMENTAL: no frozen path, no high-stakes label and
+          // no Eng-Tier: HIGH-STAKES declaration. Markdown under apps/web/ is site content, never C0.
+          const declaredHigh = !!declaredTier && declaredTier.toUpperCase() === 'HIGH-STAKES';
+          const c0 = !highStakes && !declaredHigh && files.length > 0 && failures.length === 0
+            && files.every((f) => f.status !== 'D' && /\.mdx?$/i.test(f.path) && !f.path.startsWith('apps/web/') && !matchAny(frozenRes, f.path));
           if (c0) await addLabel('class:C0'); else await removeLabel('class:C0');
           fact('class', c0 ? 'C0 (docs-only)' : 'not C0');
           fact('labels now', [...labels].sort().map((l) => '`' + l + '`').join(' ') || 'none');
