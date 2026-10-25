@@ -1,0 +1,689 @@
+# fleet-guard: deterministic PR guard for lexwhiting/settlegrid (required status check).
+# Install at: .github/workflows/fleet-guard.yml
+#
+# What it checks (no LLM, no network except the GitHub API for this PR):
+#   1. Freeze        vars.FLEET_FREEZE not exactly 'false' fails every agent PR. Unset, empty,
+#                    'False', 'true' or anything else counts as frozen (workflow-mechanics-12/13).
+#                    Founder PRs are not agent PRs and are unaffected.
+#   2. Hold labels   needs-migration-applied / audit-canary / do-not-merge fail the check.
+#   3. Frozen paths  any path matching .github/CODEOWNERS (read from the BASE commit; every
+#                    pattern except "*") labels the PR `high-stakes`. An agent PR that declares
+#                    Eng-Tier INCREMENTAL but touches a frozen path fails (uncertain => HIGH-STAKES).
+#   4. Scope         agent PRs must carry a "Declared scope:" list of globs in the PR body; every
+#                    changed path (added, modified or deleted) must match one of them.
+#   5. Line budget   agent PRs: added+deleted lines <= "Line budget: N" (default 400, or 800 for
+#                    high-stakes; never above vars.FLEET_LINE_BUDGET_MAX, default 800).
+#                    Binary changes other than image/font assets fail agent PRs (UNREVIEWABLE_BINARY;
+#                    a warning on other PRs). The scans read a --text diff, so .gitattributes cannot hide lines.
+#                    A path with a quote, backslash or control character fails (UNSAFE_PATH).
+#   6. Test tamper   deleted test files, added .only (never allowed), added skip/todo/skipIf/xit,
+#                    fewer assertions in a modified test file, edits to protected tests or test
+#                    config. All but .only can be cleared by label `founder-approved-test-change`
+#                    applied by a login in vars.FOUNDER_LOGINS. Override labels count only if the label
+#                    event and commit status histories were read completely.
+#   7. Secret scan   common key prefixes and PEM armour on added lines. No override.
+#   8. PII scan      email addresses on added lines of data files (csv/tsv/json/jsonl/ndjson/sql/yaml).
+#                    Override: `founder-approved-pii-exception` (founder-applied).
+#   9. Env flags     forbidden env var names set in env-like files, or assigned / defaulted on in code.
+#  10. Claims lint   public honest-claims rules on added lines of public copy (AGENTS.md "Honest claims").
+#                    Override: `founder-approved-claims` (founder-applied).
+#  11. Hygiene       unpinned `uses:` in workflows -> warning only.
+#  12. Workflows     any change under .github/workflows/ or .github/actions/ fails (WORKFLOW_CHANGED),
+#                    except on the install PR (base has no fleet-guard.yml). No override label: the
+#                    maintainer reviews such a diff line by line and merges with the ruleset bypass.
+#  13. C0 label      if every changed file is .md/.mdx outside apps/web/ and not a public-copy README
+#                    (root, packages/*, open-source-servers/*), nothing is frozen or deleted,
+#                    the PR is not high-stakes (no frozen path, label or Eng-Tier: HIGH-STAKES) and all
+#                    checks pass, the PR gets `class:C0` (independent-audit may then skip). Otherwise
+#                    the label is removed. If independent-audit skipped this commit as C0 and the PR is
+#                    no longer C0, fleet-guard fails (AUDIT_STALE) until the audit is re-run.
+#  14. CODEOWNERS    GitHub skips an invalid CODEOWNERS line silently, so a typo can drop the
+#      errors        maintainer's ownership of a frozen path. Fails (CODEOWNERS_ERRORS) when
+#                    GET /repos/{repo}/codeowners/errors lists any error for the CODEOWNERS that
+#                    will be in force: the PR head's if this PR changes .github/CODEOWNERS, else
+#                    the base's. A base with no CODEOWNERS (install PR) is not checked at base.
+#                    An unreadable result fails closed. No override.
+#                    Repo control: AGENTS.override.md is frozen like AGENTS.md through the
+#                    CODEOWNERS lines (check 3 derives frozen paths from base CODEOWNERS).
+#
+# Founder overrides are bound to a commit. When a login in vars.FOUNDER_LOGINS applies a
+# founder-approved-* label, the run for that `labeled` event writes a commit status
+# `fleet-override/<label>` on the head SHA the event carries. An override counts only if the
+# label is present, was last applied by a founder, AND that status (created by
+# github-actions[bot]) exists on the CURRENT head SHA. A new push therefore never inherits an
+# override, whichever event's run survives `cancel-in-progress`. Labels without a binding on the
+# current head are removed (re-apply after reading the new commit). Labels are also removed on
+# every synchronize, for clarity.
+#
+# Security notes:
+#   - Trigger is pull_request (never pull_request_target). The guard script is written from THIS
+#     workflow file into $RUNNER_TEMP; no code from the PR is executed.
+#   - A pull_request run uses the workflow files from the PR's own merge ref. A PR that changes
+#     workflow files can therefore replace this guard and post its own passing checks (any
+#     workflow with checks: write posts as GitHub Actions). Check 12 fails such PRs when the
+#     guard is unchanged; when the guard itself is changed, its result carries no weight.
+#     The fleet GitHub App has no Workflows permission; every other automated identity must be
+#     shown to lack it before the audit environment's required reviewer is removed.
+#   - Never skip this job with a job-level `if:`: a skipped job satisfies a required check.
+#
+# Repo variables read (names only): FLEET_FREEZE, FOUNDER_LOGINS, FLEET_AGENT_LOGINS,
+#   FLEET_LINE_BUDGET_MAX, PII_EMAIL_ALLOW_DOMAINS. No secrets.
+
+name: fleet-guard
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write   # add/remove labels on this PR
+  issues: read           # read label events (who applied an override label)
+  statuses: write        # bind a founder override to the commit it was applied on (fleet-override/<label>)
+
+concurrency:
+  group: fleet-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fleet-guard:
+    name: fleet-guard   # check-run name required by the ruleset; keep identical to the job id
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # First step, before anything slow: if this run was triggered by a founder applying an
+      # override label, bind the override to the head SHA carried in the event payload. If this
+      # run is cancelled before the binding is written, the override is simply not honoured.
+      - name: Bind a founder override label to its commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FOUNDER_LOGINS: ${{ vars.FOUNDER_LOGINS }}
+        run: |
+          set -euo pipefail
+          ev="$GITHUB_EVENT_PATH"
+          [ "$(jq -r '.action // ""' "$ev")" = "labeled" ] || exit 0
+          label=$(jq -r '.label.name // ""' "$ev")
+          case "$label" in
+            founder-approved-test-change|founder-approved-claims|founder-approved-pii-exception|founder-approved-size) ;;
+            *) exit 0 ;;
+          esac
+          sender=$(jq -r '.sender.login // ""' "$ev" | tr '[:upper:]' '[:lower:]')
+          founders=",$(printf '%s' "${FOUNDER_LOGINS:-}" | tr '[:upper:]' '[:lower:]' | tr -s ' ,' ',,'),"
+          case "$founders" in
+            *",$sender,"*) ;;
+            *) echo "Label $label applied by a non-founder login: not bound."; exit 0 ;;
+          esac
+          sha=$(jq -r '.pull_request.head.sha' "$ev")
+          if gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+               -f state=success -f context="fleet-override/$label" \
+               -f description="Founder override bound to this commit" > /dev/null; then
+            echo "Bound $label to $sha."
+          else
+            echo "::warning::Could not bind $label to $sha (fork PR or token scope); the override will not be honoured."
+          fi
+
+      - name: Check out PR head (full history, no credentials kept)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run fleet-guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FLEET_FREEZE: ${{ vars.FLEET_FREEZE }}
+          FOUNDER_LOGINS: ${{ vars.FOUNDER_LOGINS }}
+          FLEET_AGENT_LOGINS: ${{ vars.FLEET_AGENT_LOGINS }}
+          FLEET_LINE_BUDGET_MAX: ${{ vars.FLEET_LINE_BUDGET_MAX }}
+          PII_EMAIL_ALLOW_DOMAINS: ${{ vars.PII_EMAIL_ALLOW_DOMAINS }}
+        run: |
+          cat > "$RUNNER_TEMP/fleet-guard.mjs" <<'FLEET_GUARD_EOF'
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync, appendFileSync } from 'node:fs';
+
+          const env = process.env;
+          const ev = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
+          const pr = ev.pull_request;
+          const action = ev.action;
+          const repo = env.GITHUB_REPOSITORY;
+          const apiBase = env.GITHUB_API_URL || 'https://api.github.com';
+
+          const failures = [];
+          const warnings = [];
+          const facts = [];
+          const fail = (code, msg) => failures.push(`**${code}**: ${msg}`);
+          const warn = (msg) => warnings.push(msg);
+          const fact = (k, v) => facts.push(`| ${k} | ${v} |`);
+          const csv = (s) => (s || '').split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+
+          function git(...args) {
+            return execFileSync('git', ['-c', 'core.quotepath=off', ...args], { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+          }
+
+          async function gh(method, path, body) {
+            const headers = {
+              authorization: `Bearer ${env.GH_TOKEN}`,
+              accept: 'application/vnd.github+json',
+              'x-github-api-version': '2022-11-28',
+            };
+            if (body) headers['content-type'] = 'application/json';
+            const r = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+            if (!r.ok) throw new Error(`${method} ${path} -> HTTP ${r.status}`);
+            return r.status === 204 ? null : r.json();
+          }
+
+          // Glob -> RegExp. "**" crosses "/", "*" and "?" do not. "[" and "]" are LITERAL
+          // (paths such as api/proxy/[slug]/ contain them). A pattern with a leading or inner "/"
+          // is anchored at the repo root; one without "/" matches a basename anywhere.
+          // A trailing "/" means "everything under this directory".
+          function globToRe(glob) {
+            let g = glob.trim();
+            const anchored = g.startsWith('/') || g.replace(/\/+$/, '').includes('/');
+            g = g.replace(/^\.\//, '').replace(/^\/+/, '');
+            if (g.endsWith('/')) g += '**';
+            let re = '';
+            for (let i = 0; i < g.length; i++) {
+              const c = g[i];
+              if (c === '*') {
+                if (g[i + 1] === '*') {
+                  i++;
+                  if (g[i + 1] === '/') { i++; re += '(?:.*/)?'; } else { re += '.*'; }
+                } else {
+                  re += '[^/]*';
+                }
+              } else if (c === '?') {
+                re += '[^/]';
+              } else {
+                re += c.replace(/[.+^$|(){}[\]\\]/g, '\\$&');
+              }
+            }
+            return new RegExp('^' + (anchored ? '' : '(?:.*/)?') + re + '$');
+          }
+          const matchAny = (res, p) => res.some((re) => re.test(p));
+
+          // ---------- PR facts ----------
+          const author = (pr.user && pr.user.login ? pr.user.login : '').toLowerCase();
+          const title = pr.title || '';
+          const body = (pr.body || '').replace(/\r/g, '');
+          const headRef = pr.head.ref || '';
+          const isFork = pr.head.repo == null || pr.head.repo.full_name !== pr.base.repo.full_name;
+          const agentLogins = csv(env.FLEET_AGENT_LOGINS);
+          const founders = csv(env.FOUNDER_LOGINS);
+          const isAgent = agentLogins.includes(author) || /^(fleet|codex)\//.test(headRef) || /\[fleet:\d+:[^\]]+\]/.test(title);
+          fact('author', `${author}${isAgent ? ' (agent PR)' : ''}${isFork ? ' (fork)' : ''}`);
+          if (founders.length === 0) warn('vars.FOUNDER_LOGINS is empty: no override label can be honoured.');
+
+          let labels = new Set((pr.labels || []).map((l) => l.name));
+          let canWriteLabels = !isFork;
+          async function addLabel(name) {
+            if (labels.has(name)) return;
+            try { await gh('POST', `/repos/${repo}/issues/${pr.number}/labels`, { labels: [name] }); labels.add(name); }
+            catch (e) { canWriteLabels = false; warn(`could not add label ${name}: ${e.message}`); }
+          }
+          async function removeLabel(name) {
+            if (!labels.has(name)) return;
+            try { await gh('DELETE', `/repos/${repo}/issues/${pr.number}/labels/${encodeURIComponent(name)}`); labels.delete(name); }
+            catch (e) { warn(`could not remove label ${name}: ${e.message}`); }
+          }
+
+          // Override labels never survive a new push. Removing them on synchronize is for clarity
+          // only; the binding check below is what enforces it (a synchronize run can be cancelled).
+          const OVERRIDES = ['founder-approved-test-change', 'founder-approved-claims', 'founder-approved-pii-exception', 'founder-approved-size'];
+          if (action === 'synchronize') {
+            for (const name of OVERRIDES) await removeLabel(name);
+          }
+
+          // Who applied each label (last "labeled" event wins; "unlabeled" clears it).
+          // Overrides count only when both histories below were read completely.
+          let historyComplete = true;
+          let events = [];
+          try {
+            let done = false;
+            for (let page = 1; page <= 50; page++) {
+              const batch = await gh('GET', `/repos/${repo}/issues/${pr.number}/events?per_page=100&page=${page}`);
+              events = events.concat(batch);
+              if (batch.length < 100) { done = true; break; }
+            }
+            if (!done) { historyComplete = false; warn('label event history exceeds 5000 events; override labels are ignored.'); }
+          } catch (e) { historyComplete = false; warn(`could not read label events (${e.message}); override labels are ignored.`); }
+          function labeler(name) {
+            let who = null;
+            for (const e of events) {
+              if (!e.label || e.label.name !== name) continue;
+              if (e.event === 'labeled') who = e.actor && e.actor.login ? e.actor.login.toLowerCase() : null;
+              if (e.event === 'unlabeled') who = null;
+            }
+            return who;
+          }
+
+          // Overrides bound to the CURRENT head SHA (written by the first step of the run for the
+          // founder's `labeled` event). Only statuses created by github-actions[bot] count.
+          const boundOnHead = new Set();
+          let lastJudgment = null;   // newest independent-audit/judgment status on this head (statuses come newest first)
+          try {
+            let done = false;
+            for (let page = 1; page <= 50; page++) {
+              const batch = await gh('GET', `/repos/${repo}/commits/${pr.head.sha}/statuses?per_page=100&page=${page}`);
+              for (const st of batch) {
+                const m = /^fleet-override\/(.+)$/.exec(st.context || '');
+                if (m && st.state === 'success' && st.creator && st.creator.login === 'github-actions[bot]') boundOnHead.add(m[1]);
+                if (!lastJudgment && st.context === 'independent-audit/judgment' && st.creator && st.creator.login === 'github-actions[bot]') lastJudgment = st;
+              }
+              if (batch.length < 100) { done = true; break; }
+            }
+            if (!done) { historyComplete = false; warn('commit status history exceeds 5000 entries; override labels are ignored.'); }
+          } catch (e) { historyComplete = false; warn(`could not read commit statuses (${e.message}); override labels are ignored.`); }
+          if (!historyComplete) boundOnHead.clear();
+          for (const name of OVERRIDES) {
+            if (!labels.has(name)) continue;
+            const by = labeler(name);
+            if (!founders.includes(by || '') || !boundOnHead.has(name)) {
+              warn(`\`${name}\` is not a founder approval of head ${pr.head.sha.slice(0, 12)} (applied by ${by || 'unknown'}${boundOnHead.has(name) ? '' : ', no binding on this commit'}); removed. Re-apply after reading this commit.`);
+              await removeLabel(name);
+            }
+          }
+          const founderApproved = (name) => historyComplete && labels.has(name) && founders.includes(labeler(name) || '') && boundOnHead.has(name);
+          const boundList = OVERRIDES.filter((n) => founderApproved(n));
+          fact('founder overrides on this commit', boundList.length ? boundList.map((n) => '`' + n + '`').join(' ') : 'none');
+
+          // ---------- 1. Freeze ----------
+          // Case-sensitive and fail closed: only the exact string 'false' unfreezes.
+          const rawFreeze = env.FLEET_FREEZE === undefined ? '' : String(env.FLEET_FREEZE);
+          const frozenFleet = rawFreeze !== 'false';
+          fact('FLEET_FREEZE', frozenFleet ? `frozen (value '${rawFreeze.slice(0, 20) || 'unset'}')` : 'false');
+          if (frozenFleet && isAgent) fail('FROZEN', `FLEET_FREEZE is '${rawFreeze.slice(0, 20) || 'unset'}', not exactly 'false'. Agent PRs fail until the founder unfreezes.`);
+
+          // ---------- 2. Hold labels ----------
+          for (const hold of ['needs-migration-applied', 'audit-canary', 'do-not-merge']) {
+            if (labels.has(hold)) fail('HOLD_LABEL', `label \`${hold}\` is present.`);
+          }
+
+          // ---------- Diff ----------
+          const baseSha = pr.base.sha;
+          const headSha = pr.head.sha;
+          const mergeBase = git('merge-base', baseSha, headSha).trim();
+          // NUL-delimited (-z), so paths arrive raw. Git C-quotes a path containing '"', '\\' or a
+          // control character even with core.quotepath=off; such a path would not match the
+          // anchored frozen/workflow patterns, so it fails closed below.
+          const files = [];
+          {
+            const parts = git('diff', '--name-status', '--no-renames', '-z', mergeBase, headSha).split('\0');
+            for (let i = 0; i + 1 < parts.length; i += 2) if (parts[i]) files.push({ status: parts[i][0], path: parts[i + 1] });
+          }
+          const oddPaths = files.filter((f) => /["\\\x00-\x1f\x7f]/.test(f.path));
+          if (oddPaths.length) fail('UNSAFE_PATH', `${oddPaths.length} changed path(s) contain a quote, backslash or control character, which the path checks cannot match reliably. Rename them.`);
+          fact('base / head', `${mergeBase.slice(0, 12)} / ${headSha.slice(0, 12)}`);
+          fact('files changed', String(files.length));
+
+          let linesChanged = 0;
+          const binaries = [];
+          for (const l of git('diff', '--numstat', '--no-renames', '-z', mergeBase, headSha).split('\0').filter(Boolean)) {
+            const [a, d, ...p] = l.split('\t');
+            if (a === '-' || d === '-') { binaries.push(p.join('\t')); continue; }
+            linesChanged += Number(a) + Number(d);
+          }
+
+          // Added/removed lines per file, parsed with hunk state (a removed line starting with
+          // "--" is not mistaken for a header).
+          const added = new Map();
+          const removed = new Map();
+          {
+            // --text: a PR-controlled .gitattributes (-diff, binary) cannot hide a file's lines from the scans.
+            const patch = git('diff', '--text', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', '-U0', mergeBase, headSha);
+            let cur = null; let inHunk = false; let newLine = 0;
+            for (const line of patch.split('\n')) {
+              if (line.startsWith('diff --git ')) { cur = null; inHunk = false; continue; }
+              // Git ends a header whose path contains a space with a tab; it is not part of the path.
+              if (!inHunk && line.startsWith('--- ')) { if (line !== '--- /dev/null') cur = line.slice(6).replace(/\t$/, ''); continue; }
+              if (!inHunk && line.startsWith('+++ ')) { if (line !== '+++ /dev/null') cur = line.slice(6).replace(/\t$/, ''); continue; }
+              const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+              if (m) { inHunk = true; newLine = Number(m[1]); continue; }
+              if (!inHunk || cur === null) continue;
+              if (line.startsWith('+')) {
+                if (!added.has(cur)) added.set(cur, []);
+                added.get(cur).push({ n: newLine, t: line.slice(1) }); newLine++;
+              } else if (line.startsWith('-')) {
+                if (!removed.has(cur)) removed.set(cur, []);
+                removed.get(cur).push(line.slice(1));
+              }
+            }
+          }
+          // For deleted files the "+++" side is /dev/null; record their removed lines too.
+          for (const f of files.filter((x) => x.status === 'D')) {
+            if (!removed.has(f.path)) removed.set(f.path, []);
+          }
+
+          // ---------- 3. Frozen paths (from base CODEOWNERS) ----------
+          let owners = null; let ownersFrom = 'base';
+          try { owners = git('show', `${mergeBase}:.github/CODEOWNERS`); }
+          catch { try { owners = git('show', `${headSha}:.github/CODEOWNERS`); ownersFrom = 'head (base has none: install PR)'; } catch { owners = null; } }
+          let frozenRes = [];
+          if (owners === null) {
+            fail('NO_CODEOWNERS', '.github/CODEOWNERS is missing in base and head; frozen paths cannot be computed.');
+          } else {
+            frozenRes = owners.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
+              .map((l) => l.split(/\s+/)[0]).filter((p) => p !== '*').map(globToRe);
+            fact('CODEOWNERS read from', ownersFrom);
+          }
+          const frozenHits = files.filter((f) => matchAny(frozenRes, f.path)).map((f) => f.path);
+          const highStakes = frozenHits.length > 0 || labels.has('high-stakes');
+          if (frozenHits.length > 0) {
+            await addLabel('high-stakes');
+            fact('frozen paths touched', frozenHits.slice(0, 30).map((p) => `\`${p}\``).join('<br>') + (frozenHits.length > 30 ? `<br>(+${frozenHits.length - 30} more)` : ''));
+          } else {
+            fact('frozen paths touched', 'none');
+          }
+          // ---------- 14. CODEOWNERS errors (invalid lines are skipped silently) ----------
+          {
+            const ownersChanged = files.some((f) => f.path === '.github/CODEOWNERS');
+            const ref = ownersChanged ? headSha : (ownersFrom === 'base' ? mergeBase : null);
+            if (owners !== null && ref) {
+              const r = await fetch(`${apiBase}/repos/${repo}/codeowners/errors?ref=${ref}`, {
+                headers: { authorization: `Bearer ${env.GH_TOKEN}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' },
+              });
+              if (!r.ok) {
+                fail('CODEOWNERS_ERRORS', `cannot read CODEOWNERS errors at ${ref.slice(0, 12)} (HTTP ${r.status}); failing closed.`);
+              } else {
+                const errs = ((await r.json()) || {}).errors || [];
+                fact('CODEOWNERS errors', `${errs.length} at ${ownersChanged ? 'head' : 'base'} ${ref.slice(0, 12)}`);
+                if (errs.length) {
+                  fail('CODEOWNERS_ERRORS', `.github/CODEOWNERS has ${errs.length} invalid line(s), which GitHub ignores: `
+                    + errs.slice(0, 10).map((e) => `line ${e.line} (${e.kind})`).join(', ')
+                    + (ownersChanged ? '. Fix them in this PR.' : '. The maintainer fixes the base CODEOWNERS first.'));
+                }
+              }
+            }
+          }
+
+          const declaredTier = (/Eng-Tier:\s*(HIGH-STAKES|INCREMENTAL)/i.exec(body) || [])[1];
+          if (isAgent && frozenHits.length > 0 && declaredTier && declaredTier.toUpperCase() === 'INCREMENTAL') {
+            fail('TIER_MISMATCH', 'PR declares Eng-Tier INCREMENTAL but touches frozen paths. Re-tier as HIGH-STAKES.');
+          }
+
+          // ---------- 4. Declared scope ----------
+          function declaredScope(text) {
+            const lines = text.split('\n');
+            const start = lines.findIndex((l) => /^\s*(?:#{1,6}\s*)?(?:\*\*)?declared scope(?:\*\*)?\s*:?\s*(?:\*\*)?\s*$/i.test(l));
+            if (start < 0) return null;
+            const globs = []; let started = false;
+            for (let i = start + 1; i < lines.length; i++) {
+              const l = lines[i];
+              const m = /^\s*[-*]\s+(.+)$/.exec(l);
+              if (m) {
+                started = true;
+                const tick = /`([^`]+)`/.exec(m[1]);
+                const g = (tick ? tick[1] : m[1].split(/\s+/)[0]).trim();
+                if (g) globs.push(g);
+                continue;
+              }
+              if (l.trim() === '') { if (started) break; continue; }
+              break;
+            }
+            return globs;
+          }
+          const scope = declaredScope(body);
+          if (scope === null) {
+            if (isAgent) fail('NO_SCOPE', 'agent PR body has no "Declared scope:" list.');
+            fact('declared scope', 'absent');
+          } else {
+            const broad = scope.filter((g) => /^\/?(\*\*?(\/\*+)?|\.)?\/?$/.test(g));
+            if (broad.length) fail('SCOPE_TOO_BROAD', `declared scope contains ${broad.map((g) => '`' + g + '`').join(', ')}.`);
+            const scopeRes = scope.map(globToRe);
+            const outside = files.filter((f) => !matchAny(scopeRes, f.path)).map((f) => f.path);
+            fact('declared scope', scope.map((g) => '`' + g + '`').join(' '));
+            if (outside.length) fail('OUT_OF_SCOPE', `changed paths outside the declared scope: ${outside.slice(0, 20).map((p) => '`' + p + '`').join(', ')}${outside.length > 20 ? ' ...' : ''}`);
+            if (scope.length === 0 && isAgent) fail('NO_SCOPE', '"Declared scope:" has no globs.');
+          }
+
+          // ---------- 5. Line budget ----------
+          const hardMax = Number(env.FLEET_LINE_BUDGET_MAX) > 0 ? Number(env.FLEET_LINE_BUDGET_MAX) : 800;
+          const declaredBudget = Number((/^\s*(?:[-*]\s*)?(?:\*\*)?line budget(?:\*\*)?\s*:?\s*(\d+)/im.exec(body) || [])[1] || 0);
+          const budget = Math.min(declaredBudget > 0 ? declaredBudget : (highStakes ? 800 : 400), hardMax);
+          fact('lines changed / budget', `${linesChanged} / ${budget}${isAgent ? '' : ' (not enforced: non-agent PR)'}`);
+          if (isAgent && linesChanged > budget && !founderApproved('founder-approved-size')) {
+            fail('OVER_BUDGET', `${linesChanged} lines added+deleted exceeds the budget of ${budget}. Split the PR.`);
+          }
+          // Only image and font assets may change as binary. Anything else git reports as binary
+          // (by content or by .gitattributes) cannot be checked line by line here or by the audit.
+          const ASSET_RE = /\.(png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf)$/i;
+          const opaque = binaries.filter((p) => !ASSET_RE.test(p));
+          if (binaries.length) fact('binary files', binaries.slice(0, 30).map((p) => `\`${p}\``).join('<br>') + (binaries.length > 30 ? `<br>(+${binaries.length - 30} more)` : ''));
+          if (opaque.length) {
+            const msg = `git reports ${opaque.length} non-asset file(s) as binary, so their content cannot be reviewed: ${opaque.slice(0, 10).join(', ')}. Commit them as text (check .gitattributes) or remove them.`;
+            if (isAgent) fail('UNREVIEWABLE_BINARY', msg); else warn(msg);
+          }
+
+          // ---------- 6. Test tamper ----------
+          const isTest = (p) => /(^|\/)(__tests__|tests?)\//.test(p) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(p) || /(^|\/)test_[^/]*\.py$/.test(p) || /_test\.py$/.test(p);
+          const isTestConfig = (p) => /(^|\/)(vitest|jest|playwright)\.(config|workspace|setup)\.[cm]?[jt]s$/.test(p) || /(^|\/)(conftest\.py|pytest\.ini|tox\.ini)$/.test(p);
+          const PROTECTED_TESTS = [
+            'apps/web/src/__tests__/honest-framing-regression.test.ts',
+            'apps/web/src/__tests__/json-ld-sink-guard.test.ts',
+            'apps/web/src/__tests__/privacy-notice-regression.test.ts',
+            'apps/web/src/lib/settlement/__tests__/**',
+            'apps/web/src/app/api/proxy/[slug]/__tests__/**',
+            'apps/web/src/lib/__tests__/content-claims.test.ts',
+            'apps/web/src/lib/__tests__/compliance-honesty-regression.test.ts',
+            'apps/web/src/lib/__tests__/bootstrap-migration-hash.test.ts',
+            'apps/web/src/app/__tests__/compare-nevermined.test.ts',
+            'apps/web/src/app/api/__tests__/payouts.test.ts',
+            'apps/web/src/app/api/consumer/academic/__tests__/**',
+          ].map((g) => globToRe('/' + g));
+          const ONLY = /\b(?:describe|it|test|suite|bench)\.only\b|\bf(?:it|describe)\s*\(/;
+          const SKIP = /\b(?:describe|it|test|suite|bench)\.(?:skip|todo|skipIf|runIf|fails)\b|\bx(?:it|describe|test)\s*\(|@pytest\.mark\.(?:skip|skipif|xfail)\b|\bpytest\.(?:skip|xfail)\s*\(|\b(?:ctx|context|this)\.skip\s*\(/;
+          const ASSERT = /\bexpect(?:TypeOf)?\s*\(|\bassert\b|\bassert[A-Z]\w*\s*\(/g;
+          const countAsserts = (lines) => lines.reduce((n, t) => n + ((typeof t === 'string' ? t : t.t).match(ASSERT) || []).length, 0);
+          const tamper = [];
+          for (const f of files) {
+            const p = f.path;
+            const addLines = added.get(p) || [];
+            if (isTest(p) || isTestConfig(p)) {
+              for (const a of addLines) {
+                if (ONLY.test(a.t)) fail('TEST_ONLY', `\`${p}:${a.n}\` adds a focused test (.only). Never allowed.`);
+              }
+            }
+            if (isTest(p) && f.status === 'D') tamper.push(`\`${p}\` deleted`);
+            if (isTest(p)) {
+              for (const a of addLines) if (SKIP.test(a.t)) tamper.push(`\`${p}:${a.n}\` adds a skip/todo/conditional test`);
+              if (f.status === 'M') {
+                const lost = countAsserts(removed.get(p) || []) - countAsserts(addLines);
+                if (lost > 0) tamper.push(`\`${p}\` has ${lost} fewer assertion(s) than before`);
+              }
+            }
+            if (isTestConfig(p)) tamper.push(`\`${p}\` (test configuration) changed`);
+            if (matchAny(PROTECTED_TESTS, p)) tamper.push(`\`${p}\` is a protected test`);
+          }
+          if (tamper.length) {
+            if (founderApproved('founder-approved-test-change')) {
+              warn(`test changes accepted by founder label: ${tamper.join('; ')}`);
+            } else {
+              fail('TEST_TAMPER', `${tamper.join('; ')}. Needs label \`founder-approved-test-change\` applied by the founder.`);
+            }
+          }
+          fact('test findings', tamper.length ? String(tamper.length) : 'none');
+
+          // ---------- 7. Secret scan (patterns assembled from parts so this file never matches itself) ----------
+          const SECRET = [
+            ['stripe-live-secret-key', new RegExp('\\b' + 'sk' + '_live_' + '[0-9A-Za-z]{8,}')],
+            ['stripe-live-restricted-key', new RegExp('\\b' + 'rk' + '_live_' + '[0-9A-Za-z]{8,}')],
+            ['stripe-test-secret-key', new RegExp('\\b' + '[sr]k' + '_test_' + '[0-9A-Za-z]{16,}')],
+            ['webhook-signing-secret', new RegExp('\\b' + 'whsec' + '_' + '[0-9A-Za-z+/=]{16,}')],
+            ['pem-armour', new RegExp('-----' + 'BEGIN [A-Z0-9 ]+' + '-----')],
+            ['settlegrid-live-key', new RegExp('\\b' + 'sg' + '_live_' + '[0-9A-Za-z]{16,}')],
+            ['github-token', new RegExp('\\b(?:' + 'gh' + '[pousr]_[0-9A-Za-z]{30,}|' + 'github' + '_pat_[0-9A-Za-z_]{40,})')],
+            ['anthropic-key', new RegExp('\\b' + 'sk-' + 'ant-' + '[0-9A-Za-z_-]{20,}')],
+            ['openai-key', new RegExp('\\b' + 'sk-' + '(?:proj-|svcacct-|admin-)?' + '[0-9A-Za-z_-]{32,}')],
+            ['aws-access-key', new RegExp('\\b' + 'AK' + 'IA' + '[0-9A-Z]{16}\\b')],
+            ['slack-token', new RegExp('\\b' + 'xox' + '[abprs]-[0-9A-Za-z-]{10,}')],
+            ['database-url-with-password', new RegExp('\\b' + '(?:postgres(?:ql)?|rediss?|mysql)' + '://[^\\s:/@]*:([^\\s@]{6,})@([^\\s/:]+)')],
+          ];
+          const PLACEHOLDER = /(test|fake|dummy|example|placeholder|xxxx|0000|1234|abcd|redacted|changeme)/i;   // database passwords only
+          // A key is a placeholder only if the part after its fixed prefix (sk_test_, ghp_, ...) is
+          // one repeated character or names itself a placeholder. The prefix is never judged.
+          const KEY_PREFIX = /^(?:[sr]k_(?:live|test)_|whsec_|sg_live_|gh[pousr]_|github_pat_|sk-ant-|sk-(?:proj-|svcacct-|admin-)?|AKIA|xox[abprs]-)/;
+          const PLACEHOLDER_BODY = /^(.)\1+$|example|placeholder|dummy|redacted|changeme|your_?key|x{6,}|\*{4,}/i;
+          const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|postgres|redis|db|host)$/i;
+          const secretHits = [];
+          for (const [p, lines] of added) {
+            for (const a of lines) {
+              for (const [id, re] of SECRET) {
+                const m = re.exec(a.t);
+                if (!m) continue;
+                if (id === 'database-url-with-password') {
+                  if (LOCAL_HOST.test(m[2]) || PLACEHOLDER.test(m[1]) || /^\$\{?|^<|^%|password|secret/i.test(m[1])) continue;
+                } else if (id !== 'pem-armour' && PLACEHOLDER_BODY.test(m[0].replace(KEY_PREFIX, ''))) {
+                  continue;
+                }
+                secretHits.push(`\`${p}:${a.n}\` (${id})`);
+              }
+            }
+          }
+          if (secretHits.length) fail('SECRET', `possible credential on added lines (values not shown): ${secretHits.slice(0, 20).join(', ')}. Remove it, and treat any real value as leaked: tell the founder.`);
+          fact('secret scan', secretHits.length ? `${secretHits.length} hit(s)` : 'clean');
+
+          // ---------- 8. PII scan (emails in data files) ----------
+          const allow = csv(env.PII_EMAIL_ALLOW_DOMAINS || 'settlegrid.ai,example.com,example.org,example.net,users.noreply.github.com');
+          const DATA_FILE = /\.(csv|tsv|json|jsonl|ndjson|sql|ya?ml)$/i;
+          const EMAIL = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+          const piiHits = [];
+          for (const [p, lines] of added) {
+            if (!DATA_FILE.test(p)) continue;
+            let n = 0;
+            for (const a of lines) {
+              for (const m of a.t.matchAll(EMAIL)) {
+                const dom = m[1].toLowerCase();
+                if (!allow.some((d) => dom === d || dom.endsWith('.' + d))) n++;
+              }
+            }
+            if (n) piiHits.push(`\`${p}\` (${n} address(es))`);
+          }
+          if (piiHits.length) {
+            if (founderApproved('founder-approved-pii-exception')) warn(`email addresses accepted by founder label: ${piiHits.join(', ')}`);
+            else fail('PII', `email addresses added to data files: ${piiHits.join(', ')}. Personal data never goes in this public repo.`);
+          }
+          fact('PII scan', piiHits.length ? `${piiHits.length} file(s)` : 'clean');
+
+          // ---------- 9. Forbidden env flags ----------
+          const FORBIDDEN_NAMES = [
+            '[A-Z0-9_]+_SETTLEMENT_ENABLED', '[A-Z0-9_]+_PARKED',
+            'SETTLEGRID_GAS_WALLET_KEY', 'SETTLEGRID_FACILITATOR_GAS_WALLET_KEY', 'SETTLEGRID_PAYMENT_ADDRESS',
+            'SETTLEGRID_USDC_RECIPIENT', 'ACP_STRIPE_KEY', 'STRIPE_MPP_SECRET', 'AP2_SIGNING_SECRET',
+            'X402_FACILITATOR_URL', 'USE_UNIFIED_ADAPTERS', 'SETTLEGRID_X402_ALLOW_TESTNET',
+            'CLAIM_EMAILS_ENABLED', 'GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'GITHUB_WEBHOOK_SECRET',
+            'GRIDBOT_BUDGET_CENTS', 'GRIDBOT_BUDGET', 'SETTLEGRID_SYSTEM_API_KEY',
+            'LEDGER_PAYER_ANONYMIZE_ENABLED', 'LEDGER_PAYER_ANONYMIZE_AFTER_DAYS', 'INVOCATIONS_PAYER_MINIMIZE_ENABLED',
+            // Rail routing, rail credentials and rail pricing inputs (apps/web/src/lib/env.ts names the
+            // routing vars; setting one turns a dark rail on). Prefix families, so new names are covered.
+            'AP2_[A-Z0-9_]+', 'UCP_[A-Z0-9_]+', 'DRAIN_[A-Z0-9_]+', 'VISA_[A-Z0-9_]+', 'MASTERCARD_[A-Z0-9_]+',
+            'ALIPAY_[A-Z0-9_]+', 'KYAPAY_[A-Z0-9_]+', 'EMVCO_[A-Z0-9_]+', 'L402_[A-Z0-9_]+', 'LND_[A-Z0-9_]+',
+            'VOLTAGE_[A-Z0-9_]+', 'OPEN_EXCHANGE_RATES_API_KEY', 'SETTLEGRID_KERNEL_TELEMETRY_TOKEN', 'SETTLEGRID_BASE_RPC_URL',
+          ];
+          const NAME = `(?:${FORBIDDEN_NAMES.join('|')})`;
+          const ENV_LIKE = /(^|\/)\.env[^/]*$|(^|\/)vercel\.json$|^\.github\/workflows\/|\.(sh|bash)$|(^|\/)(Dockerfile[^/]*|docker-compose[^/]*\.ya?ml|fly\.toml)$/;
+          const CODE = /\.[cm]?[jt]sx?$/;
+          // In env-like files only an assignment counts (NAME=..., NAME: ..., "NAME": ...), so this
+          // workflow's own list of names above never trips the check.
+          const IN_ENV_FILE = new RegExp(`\\b${NAME}\\b['"]?\\s*[:=]`);
+          const ASSIGN = new RegExp(`process\\.env(?:\\.${NAME}\\b|\\[\\s*['"\`]${NAME}['"\`]\\s*\\])\\s*=(?!=)`);
+          const DEFAULT_ON = new RegExp(`\\b${NAME}\\b[^\\n]{0,80}(?:\\?\\?|\\|\\|)\\s*['"\`](?:true|1|on|yes)['"\`]`, 'i');
+          const envHits = [];
+          for (const [p, lines] of added) {
+            const envLike = ENV_LIKE.test(p);
+            const code = CODE.test(p) && !isTest(p);
+            if (!envLike && !code) continue;
+            for (const a of lines) {
+              if ((envLike && IN_ENV_FILE.test(a.t)) || (code && (ASSIGN.test(a.t) || DEFAULT_ON.test(a.t)))) envHits.push(`\`${p}:${a.n}\``);
+            }
+          }
+          if (envHits.length) fail('ENV_FLAG', `a protected env var is set, renamed, assigned or defaulted on: ${envHits.slice(0, 20).join(', ')}. Agents never change these; env changes are founder-only.`);
+          fact('env flag scan', envHits.length ? `${envHits.length} hit(s)` : 'clean');
+
+          // ---------- 10. Claims lint (public copy, added lines only) ----------
+          const COPY = [
+            '/README.md', '/packages/*/README.md', '/open-source-servers/*/README.md',
+            '/apps/web/public/**/*.txt', '/apps/web/public/.well-known/**',
+            '/apps/web/src/app/**/*.tsx', '/apps/web/src/components/**/*.tsx',
+            '/apps/web/src/lib/blog-bodies/**', '/apps/web/src/lib/academy-bodies/**',
+            '/apps/web/src/lib/blog-posts.ts', '/apps/web/src/lib/academy-lessons.ts',
+            '/apps/web/src/lib/*-guides.ts', '/apps/web/src/lib/solutions.ts', '/apps/web/src/app/api/chat/**',
+          ].map(globToRe);
+          const A2A = ['/apps/web/public/.well-known/**', '/apps/web/src/app/api/a2a/**'].map(globToRe);
+          const CLAIMS = [
+            ['protocol-count', /\b1[05][- ](?:agent[- ])?(?:payment[- ])?protocols?\b/i],
+            ['latency-number', /\b\d+(?:\.\d+)?\s?(?:ms|milliseconds)\b|sub-?millisecond/i],
+            ['atomic-multi-hop', /\batomic(?:ally)?\b|all-or-nothing/i],
+            ['coming-soon', /\bcoming soon\b/i],
+            ['usdt', /\bUSDT\b/],
+            ['superlative-first-only', /\b(?:world'?s first|industry[- ]leading|the (?:first|only) (?:platform|company|service|solution|settlement layer|marketplace))\b/i],
+          ];
+          const claimHits = [];
+          for (const [p, lines] of added) {
+            if (isTest(p)) continue;
+            const isCopy = matchAny(COPY, p);
+            const isA2a = matchAny(A2A, p);
+            if (!isCopy && !isA2a) continue;
+            for (const a of lines) {
+              if (isCopy) for (const [id, re] of CLAIMS) if (re.test(a.t)) claimHits.push(`\`${p}:${a.n}\` (${id})`);
+              if (isA2a && /process_payment/.test(a.t)) claimHits.push(`\`${p}:${a.n}\` (a2a-process-payment)`);
+            }
+          }
+          if (claimHits.length) {
+            if (founderApproved('founder-approved-claims')) warn(`claims accepted by founder label: ${claimHits.join(', ')}`);
+            else fail('CLAIMS', `${claimHits.slice(0, 20).join(', ')}. See AGENTS.md "Honest claims". Fix the wording; never change runtime to make a claim true.`);
+          }
+          fact('claims lint', claimHits.length ? `${claimHits.length} hit(s)` : 'clean');
+
+          // ---------- 11. Workflow hygiene (warning only) ----------
+          for (const [p, lines] of added) {
+            if (!/^\.github\/workflows\//.test(p)) continue;
+            for (const a of lines) {
+              const m = /uses:\s*([^\s#'"]+)@([^\s#'"]+)/.exec(a.t);
+              if (m && !m[1].startsWith('./') && !/^[0-9a-f]{40}$/.test(m[2])) warn(`\`${p}:${a.n}\` action \`${m[1]}@${m[2]}\` is not pinned to a commit SHA.`);
+            }
+          }
+
+          // ---------- 12. Workflow and action changes ----------
+          // Checks on such a PR run from the PR's own workflow definitions, so they prove nothing.
+          let guardInBase = true;
+          try { git('cat-file', '-e', `${mergeBase}:.github/workflows/fleet-guard.yml`); } catch { guardInBase = false; }
+          const wfChanged = files.filter((f) => /^\.github\/(workflows|actions)\//.test(f.path)).map((f) => f.path);
+          if (wfChanged.length) {
+            const list = wfChanged.slice(0, 20).map((p) => '`' + p + '`').join(', ');
+            if (guardInBase) fail('WORKFLOW_CHANGED', `this PR changes workflow or action files (${list}). Every check on it runs from the PR's own definitions and carries no weight. Only the maintainer changes these files: review the diff line by line and merge with the ruleset bypass.`);
+            else warn(`install PR (base has no fleet-guard.yml): workflow files added: ${list}.`);
+          }
+          fact('workflow files changed', wfChanged.length ? String(wfChanged.length) : 'none');
+
+          // ---------- 13. C0 classification ----------
+          // C0 needs the resolved tier to be INCREMENTAL: no frozen path, no high-stakes label and
+          // no Eng-Tier: HIGH-STAKES declaration. Markdown under apps/web/ and the public-copy READMEs
+          // (COPY, step 10) are public claims, never C0.
+          const declaredHigh = !!declaredTier && declaredTier.toUpperCase() === 'HIGH-STAKES';
+          const c0 = !highStakes && !declaredHigh && files.length > 0 && failures.length === 0
+            && files.every((f) => f.status !== 'D' && /\.mdx?$/i.test(f.path) && !f.path.startsWith('apps/web/') && !matchAny(COPY, f.path) && !matchAny(frozenRes, f.path));
+          if (c0) await addLabel('class:C0'); else await removeLabel('class:C0');
+          fact('class', c0 ? 'C0 (docs-only)' : 'not C0');
+          // independent-audit runs only on pushes. If it skipped this commit as C0 and the PR has
+          // since stopped being C0 (label, Eng-Tier or body edit), that skip no longer counts.
+          if (!c0 && lastJudgment && lastJudgment.state === 'success' && /^C0 skip/.test(lastJudgment.description || '')) {
+            fail('AUDIT_STALE', 'independent-audit skipped this commit as docs-only, but the PR is no longer C0. Re-run independent-audit (it now makes a model call), then re-run fleet-guard.');
+          } else if (!c0 && !historyComplete) {
+            warn('commit statuses could not be read completely, so a stale C0 audit skip cannot be ruled out.');
+          }
+          fact('labels now', [...labels].sort().map((l) => '`' + l + '`').join(' ') || 'none');
+          if (!canWriteLabels) warn('labels could not be written (fork PR or token scope): high-stakes/C0 labels may be missing.');
+
+          // ---------- Report ----------
+          const out = [];
+          out.push(`## fleet-guard: ${failures.length ? 'FAIL' : 'PASS'}`);
+          out.push('', '| check | result |', '|---|---|', ...facts);
+          if (failures.length) out.push('', '### Failures', ...failures.map((f) => `- ${f}`));
+          if (warnings.length) out.push('', '### Warnings', ...warnings.map((w) => `- ${w}`));
+          appendFileSync(env.GITHUB_STEP_SUMMARY, out.join('\n') + '\n');
+          for (const f of failures) console.log(`::error::${f.replace(/\*\*/g, '').replace(/`/g, '')}`);
+          for (const w of warnings) console.log(`::warning::${w.replace(/`/g, '')}`);
+          process.exit(failures.length ? 1 : 0);
+          FLEET_GUARD_EOF
+          node "$RUNNER_TEMP/fleet-guard.mjs"
