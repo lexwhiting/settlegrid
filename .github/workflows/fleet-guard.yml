@@ -35,7 +35,8 @@
 #                    (root, packages/*, open-source-servers/*), nothing is frozen or deleted,
 #                    the PR is not high-stakes (no frozen path, label or Eng-Tier: HIGH-STAKES) and all
 #                    checks pass, the PR gets `class:C0` (independent-audit may then skip). Otherwise
-#                    the label is removed.
+#                    the label is removed. If independent-audit skipped this commit as C0 and the PR is
+#                    no longer C0, fleet-guard fails (AUDIT_STALE) until the audit is re-run.
 #  14. CODEOWNERS    GitHub skips an invalid CODEOWNERS line silently, so a typo can drop the
 #      errors        maintainer's ownership of a frozen path. Fails (CODEOWNERS_ERRORS) when
 #                    GET /repos/{repo}/codeowners/errors lists any error for the CODEOWNERS that
@@ -260,6 +261,7 @@ jobs:
           // Overrides bound to the CURRENT head SHA (written by the first step of the run for the
           // founder's `labeled` event). Only statuses created by github-actions[bot] count.
           const boundOnHead = new Set();
+          let lastJudgment = null;   // newest independent-audit/judgment status on this head (statuses come newest first)
           try {
             let done = false;
             for (let page = 1; page <= 50; page++) {
@@ -267,6 +269,7 @@ jobs:
               for (const st of batch) {
                 const m = /^fleet-override\/(.+)$/.exec(st.context || '');
                 if (m && st.state === 'success' && st.creator && st.creator.login === 'github-actions[bot]') boundOnHead.add(m[1]);
+                if (!lastJudgment && st.context === 'independent-audit/judgment' && st.creator && st.creator.login === 'github-actions[bot]') lastJudgment = st;
               }
               if (batch.length < 100) { done = true; break; }
             }
@@ -332,8 +335,9 @@ jobs:
             let cur = null; let inHunk = false; let newLine = 0;
             for (const line of patch.split('\n')) {
               if (line.startsWith('diff --git ')) { cur = null; inHunk = false; continue; }
-              if (!inHunk && line.startsWith('--- ')) { if (line !== '--- /dev/null') cur = line.slice(6); continue; }
-              if (!inHunk && line.startsWith('+++ ')) { if (line !== '+++ /dev/null') cur = line.slice(6); continue; }
+              // Git ends a header whose path contains a space with a tab; it is not part of the path.
+              if (!inHunk && line.startsWith('--- ')) { if (line !== '--- /dev/null') cur = line.slice(6).replace(/\t$/, ''); continue; }
+              if (!inHunk && line.startsWith('+++ ')) { if (line !== '+++ /dev/null') cur = line.slice(6).replace(/\t$/, ''); continue; }
               const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
               if (m) { inHunk = true; newLine = Number(m[1]); continue; }
               if (!inHunk || cur === null) continue;
@@ -661,6 +665,13 @@ jobs:
             && files.every((f) => f.status !== 'D' && /\.mdx?$/i.test(f.path) && !f.path.startsWith('apps/web/') && !matchAny(COPY, f.path) && !matchAny(frozenRes, f.path));
           if (c0) await addLabel('class:C0'); else await removeLabel('class:C0');
           fact('class', c0 ? 'C0 (docs-only)' : 'not C0');
+          // independent-audit runs only on pushes. If it skipped this commit as C0 and the PR has
+          // since stopped being C0 (label, Eng-Tier or body edit), that skip no longer counts.
+          if (!c0 && lastJudgment && lastJudgment.state === 'success' && /^C0 skip/.test(lastJudgment.description || '')) {
+            fail('AUDIT_STALE', 'independent-audit skipped this commit as docs-only, but the PR is no longer C0. Re-run independent-audit (it now makes a model call), then re-run fleet-guard.');
+          } else if (!c0 && !historyComplete) {
+            warn('commit statuses could not be read completely, so a stale C0 audit skip cannot be ruled out.');
+          }
           fact('labels now', [...labels].sort().map((l) => '`' + l + '`').join(' ') || 'none');
           if (!canWriteLabels) warn('labels could not be written (fork PR or token scope): high-stakes/C0 labels may be missing.');
 

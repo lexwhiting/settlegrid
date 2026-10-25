@@ -38,7 +38,11 @@
 #     or error (no verdict received). A later run on the SHA is refused while the newest marker
 #     is pending or failure, so a lost block write, a cancelled run or a crash mid-call still needs
 #     a new commit. The full status history is read (paginated). Writes are retried; a failed
-#     block write fails the job.
+#     block write fails the job. Runs are serialized per commit (concurrency group = head SHA,
+#     never cancelled mid-run), and a PASS is re-checked against the block status before it counts.
+#     A C0 skip records `independent-audit/judgment` = success "C0 skip"; fleet-guard fails
+#     (AUDIT_STALE) if the PR stops being C0 later, since label and body edits do not re-run this job.
+#   - Builder-Family is read from the full PR body (the model sees a truncated copy).
 #     Infrastructure failures (network, HTTP error, incomplete output, unparseable) are not sticky.
 #
 # Disclosure: this repo is public and so are its Actions logs. The job prints only the verdict,
@@ -79,9 +83,11 @@ permissions:
   checks: read     # wait for the fleet-guard check on the head SHA
   statuses: write  # sticky verdict: independent-audit/block on the head SHA
 
+# One run per commit at a time, across PRs (the sticky verdict is per commit). A running model
+# call is never cancelled: that would leave the judgment marker pending.
 concurrency:
-  group: independent-audit-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: independent-audit-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
 
 jobs:
   independent-audit:
@@ -194,6 +200,11 @@ jobs:
           # The tier is resolved first: a HIGH-STAKES PR is never skipped, whatever its labels.
           if [ "$docs_only" = true ] && [ "$hs" = false ] && [ "$fg" = "completed:success" ] && has_label "class:C0" \
              && [ "$c0_last" = "labeled github-actions[bot]" ]; then
+            # fleet-guard fails (AUDIT_STALE) if the PR stops being C0 after this skip.
+            if ! gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" -f state=success -f context=independent-audit/judgment \
+                 -f description="C0 skip: docs-only, no model call" > /dev/null; then
+              echo "::error::Could not record the C0 skip marker; failing closed."; exit 1
+            fi
             echo "skip=true" >> "$GITHUB_OUTPUT"
             {
               echo "## independent-audit: SKIPPED (C0 docs-only)"
@@ -339,7 +350,7 @@ jobs:
           SCHEMA_EOF
 
           # Never a same-family audit: the builder trailer is in the PR body.
-          if grep -Eiq 'Builder-Family:[[:space:]]*openai' "$W/body.txt"; then
+          if jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" | grep -Eiq 'Builder-Family:[[:space:]]*openai'; then   # full body, not the truncated copy
             echo "::error::This PR was built by an OpenAI model; this auditor is OpenAI. A different-family audit is required."
             exit 1
           fi
@@ -517,6 +528,11 @@ jobs:
           if [ "$result" != "PASS" ]; then
             mark_block "verdict FAIL on this commit"
             echo "::error::independent-audit FAIL: ${reasons[*]}"; exit 1
+          fi
+          blocked=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/statuses?per_page=100" \
+                    --jq '.[] | select(.creator.login == "github-actions[bot]" and .context == "independent-audit/block" and .state == "failure") | .id' | wc -l)
+          if [ "$blocked" != "0" ]; then
+            echo "::error::Another run recorded a block on $HEAD_SHA; this PASS does not count."; exit 1
           fi
           if ! post_status independent-audit/judgment success "verdict PASS on this commit"; then
             echo "::error::Could not record the PASS; this commit needs a new push for a fresh audit."; exit 1
