@@ -15,10 +15,12 @@
 #                    high-stakes; never above vars.FLEET_LINE_BUDGET_MAX, default 800).
 #                    Binary changes other than image/font assets fail agent PRs (UNREVIEWABLE_BINARY;
 #                    a warning on other PRs). The scans read a --text diff, so .gitattributes cannot hide lines.
+#                    A path with a quote, backslash or control character fails (UNSAFE_PATH).
 #   6. Test tamper   deleted test files, added .only (never allowed), added skip/todo/skipIf/xit,
 #                    fewer assertions in a modified test file, edits to protected tests or test
 #                    config. All but .only can be cleared by label `founder-approved-test-change`
-#                    applied by a login in vars.FOUNDER_LOGINS.
+#                    applied by a login in vars.FOUNDER_LOGINS. Override labels count only if the label
+#                    event and commit status histories were read completely.
 #   7. Secret scan   common key prefixes and PEM armour on added lines. No override.
 #   8. PII scan      email addresses on added lines of data files (csv/tsv/json/jsonl/ndjson/sql/yaml).
 #                    Override: `founder-approved-pii-exception` (founder-applied).
@@ -29,7 +31,8 @@
 #  12. Workflows     any change under .github/workflows/ or .github/actions/ fails (WORKFLOW_CHANGED),
 #                    except on the install PR (base has no fleet-guard.yml). No override label: the
 #                    maintainer reviews such a diff line by line and merges with the ruleset bypass.
-#  13. C0 label      if every changed file is .md/.mdx outside apps/web/, nothing is frozen or deleted,
+#  13. C0 label      if every changed file is .md/.mdx outside apps/web/ and not a public-copy README
+#                    (root, packages/*, open-source-servers/*), nothing is frozen or deleted,
 #                    the PR is not high-stakes (no frozen path, label or Eng-Tier: HIGH-STAKES) and all
 #                    checks pass, the PR gets `class:C0` (independent-audit may then skip). Otherwise
 #                    the label is removed.
@@ -232,14 +235,18 @@ jobs:
           }
 
           // Who applied each label (last "labeled" event wins; "unlabeled" clears it).
+          // Overrides count only when both histories below were read completely.
+          let historyComplete = true;
           let events = [];
           try {
-            for (let page = 1; page <= 10; page++) {
+            let done = false;
+            for (let page = 1; page <= 50; page++) {
               const batch = await gh('GET', `/repos/${repo}/issues/${pr.number}/events?per_page=100&page=${page}`);
               events = events.concat(batch);
-              if (batch.length < 100) break;
+              if (batch.length < 100) { done = true; break; }
             }
-          } catch (e) { warn(`could not read label events (${e.message}); override labels are ignored.`); }
+            if (!done) { historyComplete = false; warn('label event history exceeds 5000 events; override labels are ignored.'); }
+          } catch (e) { historyComplete = false; warn(`could not read label events (${e.message}); override labels are ignored.`); }
           function labeler(name) {
             let who = null;
             for (const e of events) {
@@ -254,15 +261,18 @@ jobs:
           // founder's `labeled` event). Only statuses created by github-actions[bot] count.
           const boundOnHead = new Set();
           try {
-            for (let page = 1; page <= 5; page++) {
+            let done = false;
+            for (let page = 1; page <= 50; page++) {
               const batch = await gh('GET', `/repos/${repo}/commits/${pr.head.sha}/statuses?per_page=100&page=${page}`);
               for (const st of batch) {
                 const m = /^fleet-override\/(.+)$/.exec(st.context || '');
                 if (m && st.state === 'success' && st.creator && st.creator.login === 'github-actions[bot]') boundOnHead.add(m[1]);
               }
-              if (batch.length < 100) break;
+              if (batch.length < 100) { done = true; break; }
             }
-          } catch (e) { warn(`could not read commit statuses (${e.message}); override labels are ignored.`); }
+            if (!done) { historyComplete = false; warn('commit status history exceeds 5000 entries; override labels are ignored.'); }
+          } catch (e) { historyComplete = false; warn(`could not read commit statuses (${e.message}); override labels are ignored.`); }
+          if (!historyComplete) boundOnHead.clear();
           for (const name of OVERRIDES) {
             if (!labels.has(name)) continue;
             const by = labeler(name);
@@ -271,7 +281,7 @@ jobs:
               await removeLabel(name);
             }
           }
-          const founderApproved = (name) => labels.has(name) && founders.includes(labeler(name) || '') && boundOnHead.has(name);
+          const founderApproved = (name) => historyComplete && labels.has(name) && founders.includes(labeler(name) || '') && boundOnHead.has(name);
           const boundList = OVERRIDES.filter((n) => founderApproved(n));
           fact('founder overrides on this commit', boundList.length ? boundList.map((n) => '`' + n + '`').join(' ') : 'none');
 
@@ -291,14 +301,22 @@ jobs:
           const baseSha = pr.base.sha;
           const headSha = pr.head.sha;
           const mergeBase = git('merge-base', baseSha, headSha).trim();
-          const files = git('diff', '--name-status', '--no-renames', mergeBase, headSha)
-            .split('\n').filter(Boolean).map((l) => { const [status, ...rest] = l.split('\t'); return { status: status[0], path: rest.join('\t') }; });
+          // NUL-delimited (-z), so paths arrive raw. Git C-quotes a path containing '"', '\\' or a
+          // control character even with core.quotepath=off; such a path would not match the
+          // anchored frozen/workflow patterns, so it fails closed below.
+          const files = [];
+          {
+            const parts = git('diff', '--name-status', '--no-renames', '-z', mergeBase, headSha).split('\0');
+            for (let i = 0; i + 1 < parts.length; i += 2) if (parts[i]) files.push({ status: parts[i][0], path: parts[i + 1] });
+          }
+          const oddPaths = files.filter((f) => /["\\\x00-\x1f\x7f]/.test(f.path));
+          if (oddPaths.length) fail('UNSAFE_PATH', `${oddPaths.length} changed path(s) contain a quote, backslash or control character, which the path checks cannot match reliably. Rename them.`);
           fact('base / head', `${mergeBase.slice(0, 12)} / ${headSha.slice(0, 12)}`);
           fact('files changed', String(files.length));
 
           let linesChanged = 0;
           const binaries = [];
-          for (const l of git('diff', '--numstat', '--no-renames', mergeBase, headSha).split('\n').filter(Boolean)) {
+          for (const l of git('diff', '--numstat', '--no-renames', '-z', mergeBase, headSha).split('\0').filter(Boolean)) {
             const [a, d, ...p] = l.split('\t');
             if (a === '-' || d === '-') { binaries.push(p.join('\t')); continue; }
             linesChanged += Number(a) + Number(d);
@@ -497,7 +515,11 @@ jobs:
             ['slack-token', new RegExp('\\b' + 'xox' + '[abprs]-[0-9A-Za-z-]{10,}')],
             ['database-url-with-password', new RegExp('\\b' + '(?:postgres(?:ql)?|rediss?|mysql)' + '://[^\\s:/@]*:([^\\s@]{6,})@([^\\s/:]+)')],
           ];
-          const PLACEHOLDER = /(test|fake|dummy|example|placeholder|xxxx|0000|1234|abcd|redacted|changeme)/i;
+          const PLACEHOLDER = /(test|fake|dummy|example|placeholder|xxxx|0000|1234|abcd|redacted|changeme)/i;   // database passwords only
+          // A key is a placeholder only if the part after its fixed prefix (sk_test_, ghp_, ...) is
+          // one repeated character or names itself a placeholder. The prefix is never judged.
+          const KEY_PREFIX = /^(?:[sr]k_(?:live|test)_|whsec_|sg_live_|gh[pousr]_|github_pat_|sk-ant-|sk-(?:proj-|svcacct-|admin-)?|AKIA|xox[abprs]-)/;
+          const PLACEHOLDER_BODY = /^(.)\1+$|example|placeholder|dummy|redacted|changeme|your_?key|x{6,}|\*{4,}/i;
           const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|postgres|redis|db|host)$/i;
           const secretHits = [];
           for (const [p, lines] of added) {
@@ -507,7 +529,7 @@ jobs:
                 if (!m) continue;
                 if (id === 'database-url-with-password') {
                   if (LOCAL_HOST.test(m[2]) || PLACEHOLDER.test(m[1]) || /^\$\{?|^<|^%|password|secret/i.test(m[1])) continue;
-                } else if (id !== 'pem-armour' && PLACEHOLDER.test(m[0])) {
+                } else if (id !== 'pem-armour' && PLACEHOLDER_BODY.test(m[0].replace(KEY_PREFIX, ''))) {
                   continue;
                 }
                 secretHits.push(`\`${p}:${a.n}\` (${id})`);
@@ -632,10 +654,11 @@ jobs:
 
           // ---------- 13. C0 classification ----------
           // C0 needs the resolved tier to be INCREMENTAL: no frozen path, no high-stakes label and
-          // no Eng-Tier: HIGH-STAKES declaration. Markdown under apps/web/ is site content, never C0.
+          // no Eng-Tier: HIGH-STAKES declaration. Markdown under apps/web/ and the public-copy READMEs
+          // (COPY, step 10) are public claims, never C0.
           const declaredHigh = !!declaredTier && declaredTier.toUpperCase() === 'HIGH-STAKES';
           const c0 = !highStakes && !declaredHigh && files.length > 0 && failures.length === 0
-            && files.every((f) => f.status !== 'D' && /\.mdx?$/i.test(f.path) && !f.path.startsWith('apps/web/') && !matchAny(frozenRes, f.path));
+            && files.every((f) => f.status !== 'D' && /\.mdx?$/i.test(f.path) && !f.path.startsWith('apps/web/') && !matchAny(COPY, f.path) && !matchAny(frozenRes, f.path));
           if (c0) await addLabel('class:C0'); else await removeLabel('class:C0');
           fact('class', c0 ? 'C0 (docs-only)' : 'not C0');
           fact('labels now', [...labels].sort().map((l) => '`' + l + '`').join(' ') || 'none');

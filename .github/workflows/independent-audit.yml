@@ -11,7 +11,8 @@
 #     'true', anything else = frozen)                      -> fail, no model call.
 #   - Draft PR                                              -> fail, re-runs on ready_for_review.
 #   - Docs-only PR that fleet-guard labelled `class:C0`     -> success with no model call ("skipped").
-#     All of these must hold: every changed file is .md/.mdx outside apps/web/, nothing deleted,
+#     All of these must hold: every changed file is .md/.mdx outside apps/web/ and not a
+#     public-copy README (root, packages/*, open-source-servers/*), nothing deleted,
 #     the PR is not HIGH-STAKES (no `high-stakes` label, no Eng-Tier: HIGH-STAKES, fleet-guard
 #     completed), the latest fleet-guard check on this head SHA concluded success, and the label
 #     `class:C0` was last applied by github-actions[bot] (that is, by fleet-guard, not by a person or an App).
@@ -163,7 +164,11 @@ jobs:
           docs_only=true
           [ "${#changed[@]}" -gt 0 ] || docs_only=false
           for p in "${changed[@]}"; do
-            case "$p" in apps/web/*) docs_only=false ;; *.md|*.mdx|*.MD|*.MDX) ;; *) docs_only=false ;; esac
+            case "$p" in
+              apps/web/*|README.md|packages/*/README.md|open-source-servers/*/README.md) docs_only=false ;;   # public copy
+              *.md|*.mdx|*.MD|*.MDX) ;;
+              *) docs_only=false ;;
+            esac
           done
           [ "$deleted" -eq 0 ] || docs_only=false
 
@@ -237,12 +242,11 @@ jobs:
             echo "::error::$(wc -l < "$W/opaque.txt") changed file(s) are binary but not image/font assets, so the auditor cannot review them. Commit them as text (check .gitattributes) or remove them."
             exit 1
           fi
-          assets=(':(exclude)package-lock.json')
+          assets=()
           while IFS= read -r a; do [ -n "$a" ] && assets+=(":(exclude,literal)$a"); done < "$W/binaries.txt"
           # --text: a PR-controlled .gitattributes (-diff, binary) cannot drop a file's lines from the request.
           git -c core.quotepath=off diff --text --no-color --no-ext-diff --no-textconv --no-renames -U8 \
             "$MB" "$HEAD_SHA" -- . "${assets[@]}" > "$W/pr.diff"
-          lock=$(git diff --numstat --no-renames "$MB" "$HEAD_SHA" -- package-lock.json | awk '{a+=$1; d+=$2} END {print a+0 " added / " d+0 " deleted"}')
           bytes=$(wc -c < "$W/pr.diff")
           echo "diff_bytes=$bytes" >> "$GITHUB_OUTPUT"
           if [ "$bytes" -gt "$AUDIT_MAX_DIFF_BYTES" ]; then
@@ -288,7 +292,6 @@ jobs:
             echo "agent_pr: $AGENT"
             echo "high_stakes: $HS   (from fleet-guard label high-stakes or Eng-Tier in the body)"
             echo "fleet-guard on this head: $FG"
-            echo "package-lock.json lines (not shown): $lock"
             echo "binary image/font assets (content not shown): $(wc -l < "$W/binaries.txt")"
             echo
             echo "changed files (status, path):"
