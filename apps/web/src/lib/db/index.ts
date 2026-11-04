@@ -14,8 +14,11 @@ function getDb() {
     // the transaction pooler (no named prepared statements across transactions).
     // Transactions use their own `tx` handle, never the global `db`, so a single
     // connection cannot deadlock a request against itself.
+    // `next build` renders many pages at once in one process; there, queries queued
+    // behind a single connection hit the 60 s page timeout, so the build keeps 3.
+    const isBuild = process.env.NEXT_PHASE === 'phase-production-build'
     const client = postgres(connectionString, {
-      max: 1,
+      max: isBuild ? 3 : 1,
       ssl: { rejectUnauthorized: false },
       prepare: false,
       idle_timeout: 10,
