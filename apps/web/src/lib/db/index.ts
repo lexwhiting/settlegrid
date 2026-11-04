@@ -8,8 +8,14 @@ let _db: ReturnType<typeof drizzle<typeof schema>> | null = null
 function getDb() {
   if (!_db) {
     const connectionString = getDatabaseUrl()
+    // One connection per serverless instance: Production connects through Supabase's
+    // transaction pooler (port 6543), which multiplexes many short-lived clients, so a
+    // per-instance pool only adds pooler client slots. prepare: false is required by
+    // the transaction pooler (no named prepared statements across transactions).
+    // Transactions use their own `tx` handle, never the global `db`, so a single
+    // connection cannot deadlock a request against itself.
     const client = postgres(connectionString, {
-      max: 3,
+      max: 1,
       ssl: { rejectUnauthorized: false },
       prepare: false,
       idle_timeout: 10,

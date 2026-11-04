@@ -25,6 +25,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { createRequire } from 'node:module'
+import { randomBytes } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import { and, eq } from 'drizzle-orm'
@@ -84,7 +85,9 @@ import { POST as resendPOST } from '@/app/api/webhooks/resend/route'
 let pg: PGlite
 let db: ReturnType<typeof drizzle>
 
-const WEBHOOK_SECRET = 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw'
+// Generated per run: a Svix-format secret ("whsec_" + base64 key) that exists only in this
+// process. The route verifies with the same value via RESEND_WEBHOOK_SECRET.
+const WEBHOOK_SECRET = 'whsec_' + randomBytes(24).toString('base64')
 
 beforeAll(async () => {
   pg = new PGlite()
