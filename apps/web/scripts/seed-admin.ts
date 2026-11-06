@@ -9,10 +9,12 @@
  */
 
 import { db } from "../src/lib/db";
+import { assertSeedTarget } from "../src/lib/db/seed-guard";
 import { developers } from "../src/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 async function main() {
+  assertSeedTarget("seed-admin", process.env.DATABASE_URL);
   const email = "lexwhiting@gmail.com";
   const supabaseUserId = process.env.SUPABASE_USER_ID;
 

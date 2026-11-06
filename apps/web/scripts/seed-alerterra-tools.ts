@@ -13,6 +13,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import postgres from "postgres";
+import { assertSeedTarget, SEED_POOL_MAX } from "../src/lib/db/seed-guard";
 
 // ── Load .env.local manually (no dotenv dependency) ─────────────────────────
 const envPath = path.resolve(__dirname, "../.env.local");
@@ -42,9 +43,10 @@ if (!DATABASE_URL) {
   console.error("Error: DATABASE_URL not found in environment or .env.local");
   process.exit(1);
 }
+assertSeedTarget("seed-alerterra-tools", DATABASE_URL);
 
 const sql = postgres(DATABASE_URL, {
-  max: 3,
+  max: SEED_POOL_MAX,
   ssl: { rejectUnauthorized: false },
   prepare: false,
   idle_timeout: 10,
