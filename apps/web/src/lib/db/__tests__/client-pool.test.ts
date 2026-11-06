@@ -5,7 +5,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // runtime, no named prepared statements, and idle connections released quickly.
 const postgresMock = vi.hoisted(() => vi.fn(() => ({ end: vi.fn() })))
 vi.mock('postgres', () => ({ default: postgresMock }))
-vi.mock('drizzle-orm/postgres-js', () => ({ drizzle: vi.fn(() => ({ select: vi.fn() })) }))
+vi.mock('drizzle-orm/postgres-js', () => ({
+  drizzle: vi.fn(() => ({ select: vi.fn(() => 'row'), transaction: async (cb: (tx: object) => unknown) => cb({}) })),
+}))
 vi.mock('../../env', () => ({ getDatabaseUrl: () => 'postgres://user:pw@db.example.com:6543/postgres' }))
 
 type Opts = Record<string, unknown>
@@ -41,6 +43,14 @@ describe('shared db client (transaction pooler)', () => {
     expect(opts.prepare).toBe(false)
     expect(opts.idle_timeout).toBeGreaterThan(0)
     expect(opts.idle_timeout as number).toBeLessThanOrEqual(10)
+  })
+
+  it('the shared db refuses to be used inside its own transaction (one-connection guard)', async () => {
+    const { db } = await import('../index')
+    const { GlobalDbInTransactionError } = await import('../tx-guard')
+    expect(db.select()).toBe('row')
+    await expect(db.transaction(async () => db.select())).rejects.toBeInstanceOf(GlobalDbInTransactionError)
+    await expect(db.transaction(async () => 'ok')).resolves.toBe('ok')
   })
 
   it('keeps 3 connections only while next build renders pages', async () => {
