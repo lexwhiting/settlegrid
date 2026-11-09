@@ -71,3 +71,13 @@ export function toolsWithoutBudgetRow(
     .filter((s) => !budgeted.has(s.toolId))
     .sort((a, b) => b.totalCostCents - a.totalCostCents)
 }
+
+/**
+ * Format an error rate the dashboard APIs return as a PERCENTAGE (0–100, e.g. 50 for
+ * one failed call in two). Never multiply by 100 again before calling this.
+ */
+export function formatErrorRatePct(pct: unknown): string {
+  const n = Number(pct)
+  if (!Number.isFinite(n) || n <= 0) return '0.00%'
+  return `${Math.min(n, 100).toFixed(2)}%`
+}

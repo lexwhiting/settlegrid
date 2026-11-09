@@ -46,6 +46,9 @@ function formatNumber(n: number): string {
   return n.toString()
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/
+
 async function getProfile(id: string): Promise<ProfileData | null> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3005'
@@ -92,6 +95,10 @@ export default async function DeveloperProfilePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  // Old links used /developers/<slug>; the canonical profile is /dev/<slug>.
+  if (!UUID_RE.test(id) && SLUG_RE.test(id)) {
+    permanentRedirect(`/dev/${encodeURIComponent(id)}`)
+  }
   const profile = await getProfile(id)
 
   if (profile?.slug) {

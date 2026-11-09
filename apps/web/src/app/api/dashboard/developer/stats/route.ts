@@ -30,54 +30,79 @@ export async function GET(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    // Get tool-level aggregates
+    // All of the developer's tools, deleted ones included: earnings below cover every tool.
     const developerTools = await db
       .select({
         id: tools.id,
-        totalInvocations: tools.totalInvocations,
+        status: tools.status,
         totalRevenueCents: tools.totalRevenueCents,
       })
       .from(tools)
       .where(eq(tools.developerId, auth.id))
       .limit(500)
 
-    const toolCount = developerTools.length
-    const totalInvocations = developerTools.reduce((sum, t) => sum + t.totalInvocations, 0)
+    // Activity metrics cover tools that aren't deleted (lib/dashboard-scope.ts).
+    const visibleTools = developerTools.filter((t) => t.status !== 'deleted')
+    const toolCount = developerTools.filter((t) => t.status === 'active').length
+    const toolsCreated = developerTools.length
     const totalRevenueCents = developerTools.reduce((sum, t) => sum + t.totalRevenueCents, 0)
 
     // Get invocations from the last 24 hours, grouped by hour
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
     const toolIds = developerTools.map((t) => t.id)
+    const visibleToolIds = visibleTools.map((t) => t.id)
 
     let recentInvocations: Array<{ hour: string; count: number; revenueCents: number }> = []
+    let totalInvocations = 0
+    let hasInvocations = false
     // Revenue this UTC calendar month (the basis of the progressive take)
     let monthRevenueCents = 0
 
     if (toolIds.length > 0) {
-      // Get recent invocations for all developer's tools
-      const recentRows = await db
-        .select({
-          hour: sql<string>`date_trunc('hour', ${invocations.createdAt})::text`,
-          count: sql<number>`count(*)::int`,
-          revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
-        })
-        .from(invocations)
-        .where(
-          and(
-            gte(invocations.createdAt, sql`${twentyFourHoursAgo.toISOString()}::timestamptz`),
-            inArray(invocations.toolId, toolIds)
-          )
-        )
-        .groupBy(sql`date_trunc('hour', ${invocations.createdAt})`)
-        .orderBy(sql`date_trunc('hour', ${invocations.createdAt})`)
-        .limit(24)
+      // Recorded calls, every status, on tools that aren't deleted (matches Analytics).
+      if (visibleToolIds.length > 0) {
+        const [totals] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(invocations)
+          .where(inArray(invocations.toolId, visibleToolIds))
+          .limit(1)
+        totalInvocations = Number(totals?.count ?? 0)
 
-      recentInvocations = recentRows.map((row) => ({
-        hour: row.hour,
-        count: row.count,
-        revenueCents: row.revenueCents,
-      }))
+        const recentRows = await db
+          .select({
+            hour: sql<string>`date_trunc('hour', ${invocations.createdAt})::text`,
+            count: sql<number>`count(*)::int`,
+            revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
+          })
+          .from(invocations)
+          .where(
+            and(
+              gte(invocations.createdAt, sql`${twentyFourHoursAgo.toISOString()}::timestamptz`),
+              inArray(invocations.toolId, visibleToolIds)
+            )
+          )
+          .groupBy(sql`date_trunc('hour', ${invocations.createdAt})`)
+          .orderBy(sql`date_trunc('hour', ${invocations.createdAt})`)
+          .limit(24)
+
+        recentInvocations = recentRows.map((row) => ({
+          hour: row.hour,
+          count: row.count,
+          revenueCents: row.revenueCents,
+        }))
+      }
+
+      // Getting Started: has the developer ever made a call, on any tool?
+      hasInvocations =
+        totalInvocations > 0 ||
+        (
+          await db
+            .select({ id: invocations.id })
+            .from(invocations)
+            .where(inArray(invocations.toolId, toolIds))
+            .limit(1)
+        ).length > 0
 
       const now = new Date()
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
@@ -98,7 +123,9 @@ export async function GET(request: NextRequest) {
       totalRevenueCents,
       monthRevenueCents,
       totalInvocations,
+      hasInvocations,
       toolCount,
+      toolsCreated,
       recentInvocations,
     })
   } catch (error) {

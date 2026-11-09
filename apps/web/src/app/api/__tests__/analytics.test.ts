@@ -62,6 +62,7 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
+  ne: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ ne: [a, b] })),
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
   inArray: vi.fn().mockImplementation((col: unknown, vals: unknown[]) => ({ inArray: [col, vals] })),

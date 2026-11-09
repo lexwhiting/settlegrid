@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, inArray } from 'drizzle-orm'
+import { sql, gte, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
+import { dashboardToolsWhere } from '@/lib/dashboard-scope'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     const developerTools = await db
       .select({ id: tools.id })
       .from(tools)
-      .where(eq(tools.developerId, auth.id))
+      .where(dashboardToolsWhere(auth.id))
       .limit(500)
 
     const toolIds = developerTools.map((t) => t.id)

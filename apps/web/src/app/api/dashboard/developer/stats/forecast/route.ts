@@ -3,6 +3,7 @@ import { eq, sql, gte, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
+import { dashboardToolsWhere } from '@/lib/dashboard-scope'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
@@ -20,6 +21,8 @@ interface ForecastResult {
   trend: Trend
   dailyDataPoints: number
   confidence: 'low' | 'medium' | 'high'
+  /** Fewer than MIN_DATA_POINTS_MEDIUM days with revenue: no projection or trend is shown. */
+  insufficientData?: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -115,7 +118,7 @@ export async function GET(request: NextRequest) {
     const developerTools = await db
       .select({ id: tools.id })
       .from(tools)
-      .where(eq(tools.developerId, auth.id))
+      .where(dashboardToolsWhere(auth.id))
       .limit(500)
 
     const toolIds = developerTools.map((t) => t.id)
@@ -166,6 +169,17 @@ export async function GET(request: NextRequest) {
       .reduce((sum, d) => sum + d.revenueCents, 0)
 
     // ── Linear regression on daily revenue ──────────────────────────────
+    // A projection or trend from a handful of days is noise (one day of revenue read as
+    // "-100% declining"), so below the medium-confidence threshold report only the facts.
+    if (dailyRevenue.length < MIN_DATA_POINTS_MEDIUM) {
+      return successResponse({
+        ...emptyForecast,
+        currentMonthRevenueCents,
+        dailyDataPoints: dailyRevenue.length,
+        insufficientData: true,
+      })
+    }
+
     const regressionData = dailyRevenue.map((d, idx) => ({
       x: idx,
       y: d.revenueCents,
