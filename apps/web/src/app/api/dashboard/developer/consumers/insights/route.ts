@@ -3,7 +3,7 @@ import { eq, sql, gte, and, inArray, lt } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, tools, invocations, consumers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
-import { dashboardToolsWhere } from '@/lib/dashboard-scope'
+import { dashboardToolsWhere, invocationsInDashboardScope } from '@/lib/dashboard-scope'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
@@ -99,15 +99,16 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Get developer's tools ──────────────────────────────────────────
+    // Whether any tool is in scope; the queries below use the uncapped scope subquery.
     const developerTools = await db
       .select({ id: tools.id })
       .from(tools)
       .where(dashboardToolsWhere(auth.id))
-      .limit(500)
+      .limit(1)
 
-    const toolIds = developerTools.map((t) => t.id)
+    const toolScope = invocationsInDashboardScope(auth.id)
 
-    if (toolIds.length === 0) {
+    if (developerTools.length === 0) {
       return successResponse({
         topConsumers: [],
         churningConsumers: [],
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        toolScope,
         eq(invocations.isTest, false),
       ))
       .groupBy(invocations.consumerId)
@@ -177,7 +178,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        toolScope,
         eq(invocations.isTest, false),
         gte(invocations.createdAt, sql`${churnActiveStart.toISOString()}::timestamptz`),
         lt(invocations.createdAt, sql`${churnInactiveStart.toISOString()}::timestamptz`),
@@ -192,7 +193,7 @@ export async function GET(request: NextRequest) {
           .select({ consumerId: sql<string>`distinct ${invocations.consumerId}` })
           .from(invocations)
           .where(and(
-            inArray(invocations.toolId, toolIds),
+            toolScope,
             eq(invocations.isTest, false),
             gte(invocations.createdAt, sql`${churnInactiveStart.toISOString()}::timestamptz`),
             inArray(invocations.consumerId, churningRaw.map((r) => r.consumerId)),
@@ -239,7 +240,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        toolScope,
         eq(invocations.isTest, false),
         gte(invocations.createdAt, sql`${currentWeekStart.toISOString()}::timestamptz`),
       ))
@@ -253,7 +254,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        toolScope,
         eq(invocations.isTest, false),
         gte(invocations.createdAt, sql`${previousWeekStart.toISOString()}::timestamptz`),
         lt(invocations.createdAt, sql`${currentWeekStart.toISOString()}::timestamptz`),
@@ -312,7 +313,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        toolScope,
         eq(invocations.isTest, false),
       ))
       .groupBy(invocations.consumerId)
@@ -350,7 +351,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        toolScope,
         eq(invocations.isTest, false),
       ))
       .groupBy(invocations.consumerId)

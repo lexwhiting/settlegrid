@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
-import { sql, gte, and, inArray } from 'drizzle-orm'
+import { sql, gte, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
-import { dashboardToolsWhere } from '@/lib/dashboard-scope'
+import { dashboardToolsWhere, invocationsInDashboardScope } from '@/lib/dashboard-scope'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -26,13 +26,14 @@ export async function GET(request: NextRequest) {
     if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
     // Get developer's tool IDs
+    // Whether any tool is in scope; the queries below use the uncapped scope subquery.
     const developerTools = await db
       .select({ id: tools.id })
       .from(tools)
       .where(dashboardToolsWhere(auth.id))
-      .limit(500)
+      .limit(1)
 
-    const toolIds = developerTools.map((t) => t.id)
+    const toolScope = invocationsInDashboardScope(auth.id)
 
     // Empty defaults
     const emptyResult = {
@@ -44,11 +45,11 @@ export async function GET(request: NextRequest) {
       revenueTrend: [],
     }
 
-    if (toolIds.length === 0) {
+    if (developerTools.length === 0) {
       return successResponse(emptyResult)
     }
 
-    const toolFilter = inArray(invocations.toolId, toolIds)
+    const toolFilter = toolScope
 
     // ── Method Breakdown ────────────────────────────────────────────────────────
     const methodBreakdown = await db

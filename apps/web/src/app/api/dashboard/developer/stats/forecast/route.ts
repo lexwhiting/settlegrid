@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, inArray } from 'drizzle-orm'
+import { eq, sql, gte, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
-import { dashboardToolsWhere } from '@/lib/dashboard-scope'
+import { dashboardToolsWhere, invocationsInDashboardScope } from '@/lib/dashboard-scope'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
@@ -115,13 +115,14 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Get developer's tools ───────────────────────────────────────────
+    // Whether any tool is in scope; the queries below use the uncapped scope subquery.
     const developerTools = await db
       .select({ id: tools.id })
       .from(tools)
       .where(dashboardToolsWhere(auth.id))
-      .limit(500)
+      .limit(1)
 
-    const toolIds = developerTools.map((t) => t.id)
+    const toolScope = invocationsInDashboardScope(auth.id)
 
     // Empty defaults
     const emptyForecast: ForecastResult = {
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
       confidence: 'low',
     }
 
-    if (toolIds.length === 0) {
+    if (developerTools.length === 0) {
       return successResponse(emptyForecast)
     }
 
@@ -148,7 +149,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        toolScope,
         gte(invocations.createdAt, sql`${lookbackStart.toISOString()}::timestamptz`),
       ))
       .groupBy(sql`${invocations.createdAt}::date`)

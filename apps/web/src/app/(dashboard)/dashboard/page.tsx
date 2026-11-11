@@ -1421,7 +1421,7 @@ export default function DeveloperDashboardPage() {
           <CardTitle className="text-lg">Invocations (Last 24 Hours)</CardTitle>
         </CardHeader>
         <CardContent>
-          {stats?.recentInvocations && stats.recentInvocations.length > 0 ? (
+          {stats?.recentInvocations?.some((point) => point.count > 0) ? (
             <BarChart
               data={stats.recentInvocations.map((point, i) => ({
                 hour: point.hour || String(i),

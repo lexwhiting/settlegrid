@@ -66,17 +66,19 @@ export async function GET(request: NextRequest) {
         .limit(1)
       totalInvocations = Number(totals?.count ?? 0)
 
+      // Last 24h by hour, over every tool the developer owns: the call count leaves
+      // deleted tools out (activity), revenue keeps them (earnings, the "Revenue (24h)" card).
       const recentRows = await db
         .select({
           hour: sql<string>`date_trunc('hour', ${invocations.createdAt})::text`,
-          count: sql<number>`count(*)::int`,
+          count: sql<number>`(count(*) filter (where ${tools.status} <> 'deleted'))::int`,
           revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
         })
         .from(invocations)
         .innerJoin(tools, eq(invocations.toolId, tools.id))
         .where(
           and(
-            dashboardToolsWhere(auth.id),
+            eq(tools.developerId, auth.id),
             gte(invocations.createdAt, sql`${twentyFourHoursAgo.toISOString()}::timestamptz`)
           )
         )
