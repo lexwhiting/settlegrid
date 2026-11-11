@@ -10,6 +10,7 @@ import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { useToast } from '@/components/ui/toast'
 import { MCP_CATEGORIES, SERVICE_CATEGORIES, getCategoryBySlug } from '@/lib/categories'
+import { UPSTREAM_URL_MESSAGE, upstreamUrlValidityMessage } from '@/lib/upstream-url-message'
 
 type PricingModelType = 'per-invocation' | 'per-token' | 'per-byte' | 'per-second' | 'tiered' | 'outcome'
 
@@ -529,7 +530,8 @@ export default function ToolsPage() {
               </div>
               <div>
                 <label htmlFor="tool-proxy-endpoint" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Upstream URL (optional)</label>
-                <input id="tool-proxy-endpoint" type="url" pattern="https://.*" placeholder="https://api.example.com/v1/tool" value={form.proxyEndpoint} onChange={(e) => setForm({ ...form, proxyEndpoint: e.target.value })}
+                <input id="tool-proxy-endpoint" type="url" pattern="https://.*" title={UPSTREAM_URL_MESSAGE} placeholder="https://api.example.com/v1/tool" value={form.proxyEndpoint} onChange={(e) => { e.currentTarget.setCustomValidity(''); setForm({ ...form, proxyEndpoint: e.target.value }) }}
+                  onInvalid={(e) => e.currentTarget.setCustomValidity(upstreamUrlValidityMessage(e.currentTarget.validity))}
                   className="flex h-10 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-2 text-sm focus:ring-2 focus:ring-brand" />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your tool&apos;s public HTTPS endpoint. Calls to the SettleGrid proxy (/api/proxy/your-slug) are metered and forwarded here. Leave empty if you meter with the SDK instead.</p>
               </div>
@@ -892,14 +894,17 @@ function ToolCard({
             >
               {changelogToolId === tool.id ? 'Cancel' : 'Add Changelog'}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onToggleStatus(tool.id, tool.status)}
-              aria-label={tool.status === 'active' ? `Deactivate ${tool.name}` : `Activate ${tool.name}`}
-            >
-              {tool.status === 'active' ? 'Deactivate' : 'Activate'}
-            </Button>
+            {/* A deleted tool can't be reactivated (the API returns TOOL_DELETED), so no toggle. */}
+            {tool.status !== 'deleted' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onToggleStatus(tool.id, tool.status)}
+                aria-label={tool.status === 'active' ? `Deactivate ${tool.name}` : `Activate ${tool.name}`}
+              >
+                {tool.status === 'active' ? 'Deactivate' : 'Activate'}
+              </Button>
+            )}
             {/* P2.INTL2: marketplace-visibility toggle. Only shown for draft
                 tools — for unclaimed/active the inclusion is unconditional and
                 a toggle would mislead. */}
@@ -969,9 +974,14 @@ function ToolCard({
                   id={`edit-endpoint-${tool.id}`}
                   type="url"
                   pattern="https://.*"
+                  title={UPSTREAM_URL_MESSAGE}
                   placeholder="https://api.example.com/v1/tool"
                   value={editEndpoint}
-                  onChange={(e) => setEditEndpoint(e.target.value)}
+                  onChange={(e) => {
+                    e.currentTarget.setCustomValidity('')
+                    setEditEndpoint(e.target.value)
+                  }}
+                  onInvalid={(e) => e.currentTarget.setCustomValidity(upstreamUrlValidityMessage(e.currentTarget.validity))}
                   className="flex h-9 w-full rounded-md border border-gray-300 dark:border-[#2A2D3E] bg-white dark:bg-[#161822] px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand"
                 />
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">

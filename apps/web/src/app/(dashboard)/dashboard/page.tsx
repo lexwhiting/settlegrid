@@ -19,6 +19,7 @@ import {
   toFraudSignals,
   type ConsumerInsightsData,
   type FraudSignalsData,
+  formatErrorRatePct,
 } from '@/lib/dashboard-summaries'
 
 interface DeveloperStats {
@@ -1374,8 +1375,8 @@ export default function DeveloperDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <StatCard
             title="Error Rate"
-            value={`${(analytics.errorRate * 100).toFixed(2)}%`}
-            subtitle="Last 30 days"
+            value={formatErrorRatePct(analytics.errorRate)}
+            subtitle="All time"
           />
           <StatCard
             title="Latency (p50)"
@@ -1475,8 +1476,8 @@ export default function DeveloperDashboardPage() {
                       <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{(Number(method.invocations ?? method.count ?? 0)).toLocaleString()}</td>
                       <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(Number(method.revenueCents ?? method.totalRevenueCents ?? 0))}</td>
                       <td className="py-3 px-4 text-right">
-                        <span className={Number(method.errorRate ?? 0) > 0.05 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
-                          {(Number(method.errorRate ?? 0) * 100).toFixed(2)}%
+                        <span className={Number(method.errorRate ?? 0) > 5 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                          {formatErrorRatePct(method.errorRate)}
                         </span>
                       </td>
                     </tr>
