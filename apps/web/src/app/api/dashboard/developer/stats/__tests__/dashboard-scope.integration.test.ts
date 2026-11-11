@@ -1,9 +1,8 @@
 /**
  * The dashboard routes (stats, analytics, insights, forecast) against real SQL (pglite).
- * Activity covers the developer's non-deleted tools; earnings cover every tool;
- * no route caps the tool set; the forecast needs 7 days. The schema is a test-only
- * CREATE TABLE bootstrap of the columns these routes read (no drizzle-kit, no
- * migrations); fixtures are SQL inserts; the clock is fixed.
+ * Activity covers the developer's non-deleted tools; earnings cover every tool; no route
+ * caps the tool set. The schema is a test-only CREATE TABLE bootstrap of the columns the
+ * routes read (no drizzle-kit, no migrations); fixtures are SQL inserts; the clock is fixed.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -16,25 +15,10 @@ import { dashboardToolsWhere, invocationsInDashboardScope } from '@/lib/dashboar
 const holder = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof drizzle> }))
 const authState = vi.hoisted(() => ({ id: '' }))
 
-vi.mock('@/lib/db', () => ({
-  db: new Proxy(
-    {},
-    {
-      get(_t, prop, recv) {
-        const real = holder.db as unknown as Record<string | symbol, unknown>
-        if (!real) throw new Error('pglite db not initialized (beforeAll did not run)')
-        const value = Reflect.get(real, prop, recv)
-        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(real) : value
-      },
-    },
-  ),
-}))
-vi.mock('@/lib/middleware/auth', () => ({
-  requireDeveloper: vi.fn(async () => ({ id: authState.id, email: 'dev@example.test' })),
-}))
+vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
+vi.mock('@/lib/middleware/auth', () => ({ requireDeveloper: vi.fn(async () => ({ id: authState.id })) }))
 vi.mock('@/lib/rate-limit', () => ({
-  getClientIp: () => 'test-ip',
-  apiLimiter: {},
+  getClientIp: () => 'test-ip', apiLimiter: {},
   checkRateLimit: vi.fn().mockResolvedValue({ success: true, limit: 100, remaining: 99, reset: 0 }),
 }))
 
@@ -67,11 +51,9 @@ const at = (msBeforeNow: number) => new Date(NOW.getTime() - msBeforeNow).toISOS
 let n = 0 // deterministic UUIDs: prefix + counter
 const uid = (prefix: string) => `${prefix}-0000-4000-8000-${String(++n).padStart(12, '0')}`
 
-const DEV = { a: '', b: '', gone: '', manyDeleted: '', wide: '', trend: '' }
+const DEV = { a: '', b: '', gone: '', manyDeleted: '', wide: '', trend: '', zeroDays: '' }
 const TOOL = { live: '', draft: '', deleted: '', other: '' }
-const C1 = uid('c0000001')
-const C2 = uid('c0000002')
-
+const [C1, C2] = [uid('c0000001'), uid('c0000002')]
 let pg: PGlite
 
 async function developer(tier = 'standard') {
@@ -81,12 +63,14 @@ async function developer(tier = 'standard') {
 }
 async function tool(developerId: string, status: string, totalRevenueCents = 0) {
   const id = uid('a0000000')
-  await pg.query(
-    'INSERT INTO tools (id, developer_id, status, total_revenue_cents) VALUES ($1, $2, $3, $4)',
-    [id, developerId, status, totalRevenueCents],
-  )
+  const row = [id, developerId, status, totalRevenueCents]
+  await pg.query('INSERT INTO tools (id, developer_id, status, total_revenue_cents) VALUES ($1, $2, $3, $4)', row)
   return id
 }
+const tools520 = (developerId: string, status: string) => pg.query(
+  'INSERT INTO tools (id, developer_id, status) SELECT gen_random_uuid(), $1, $2 FROM generate_series(1, 520)',
+  [developerId, status],
+)
 async function invocation(toolId: string, consumerId: string, costCents: number, createdAt: string, status = 'success') {
   await pg.query(
     'INSERT INTO invocations (tool_id, consumer_id, cost_cents, status, created_at) VALUES ($1, $2, $3, $4, $5)',
@@ -103,12 +87,10 @@ async function call(handler: typeof getStats, developerId: string, path: string)
 beforeAll(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
-
   pg = new PGlite()
   await pg.waitReady
   await pg.exec(BOOTSTRAP_SQL)
   holder.db = drizzle(pg, { schema })
-
   await pg.query('INSERT INTO consumers (id, email) VALUES ($1, $2), ($3, $4)', [C1, 'c1@example.test', C2, 'c2@example.test'])
 
   // Developer A: one live, one draft and one deleted tool. Developer B: one live tool.
@@ -127,27 +109,19 @@ beforeAll(async () => {
   await invocation(TOOL.other, C1, 50, at(1 * MIN))
 
   // A developer whose only tool is deleted.
-  DEV.gone = await developer()
+  DEV.gone = await developer('builder')
   await invocation(await tool(DEV.gone, 'deleted', 3), C1, 3, at(5 * DAY))
 
   // 520 deleted tools ahead of one live tool.
   DEV.manyDeleted = await developer()
-  await pg.query(
-    `INSERT INTO tools (id, developer_id, status)
-     SELECT gen_random_uuid(), $1, 'deleted' FROM generate_series(1, 520)`,
-    [DEV.manyDeleted],
-  )
+  await tools520(DEV.manyDeleted, 'deleted')
   const manyLive = await tool(DEV.manyDeleted, 'active')
   await invocation(manyLive, C1, 1, at(1 * MIN))
   await invocation(manyLive, C1, 1, at(1 * MIN))
 
   // 520 live tools, one 1-cent call each, spread over 8 days this month.
   DEV.wide = await developer('scale')
-  await pg.query(
-    `INSERT INTO tools (id, developer_id, status)
-     SELECT gen_random_uuid(), $1, 'active' FROM generate_series(1, 520)`,
-    [DEV.wide],
-  )
+  await tools520(DEV.wide, 'active')
   await pg.query(
     `INSERT INTO invocations (tool_id, consumer_id, cost_cents, created_at)
      SELECT t.id, $2, 1, $3::timestamptz - ((row_number() OVER (ORDER BY t.id)) % 8 + 1) * interval '1 day'
@@ -161,22 +135,22 @@ beforeAll(async () => {
   const trendDeleted = await tool(DEV.trend, 'deleted')
   for (let i = 0; i < 8; i++) await invocation(trendLive, C1, 10 + i, at((i + 1) * DAY))
   for (let i = 0; i < 5; i++) await invocation(trendDeleted, C1, 10, at((i + 10) * DAY))
+
+  // One day with revenue and six days of calls that earned nothing.
+  DEV.zeroDays = await developer('builder')
+  const zeroLive = await tool(DEV.zeroDays, 'active')
+  await invocation(zeroLive, C1, 5, at(1 * DAY))
+  for (let i = 2; i <= 7; i++) await invocation(zeroLive, C1, 0, at(i * DAY))
 }, 120_000)
 
-afterAll(async () => {
-  vi.useRealTimers()
-  await pg?.close()
-})
+afterAll(async () => { vi.useRealTimers(); await pg?.close() })
 
 describe('dashboard tool scope (pglite)', () => {
   it('dashboardToolsWhere and invocationsInDashboardScope select the owner\'s non-deleted tools, uncapped', async () => {
-    const db = holder.db
-    const rows = await db.select({ id: tools.id }).from(tools).where(dashboardToolsWhere(DEV.a))
+    const rows = await holder.db.select({ id: tools.id }).from(tools).where(dashboardToolsWhere(DEV.a))
     expect(rows.map((r) => r.id).sort()).toEqual([TOOL.live, TOOL.draft].sort())
-    const [scoped] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(invocations)
-      .where(invocationsInDashboardScope(DEV.wide))
+    const count = { n: sql<number>`count(*)::int` }
+    const [scoped] = await holder.db.select(count).from(invocations).where(invocationsInDashboardScope(DEV.wide))
     expect(scoped.n).toBe(520)
   }, 20_000)
 
@@ -217,16 +191,13 @@ describe('dashboard tool scope (pglite)', () => {
     const stats = await call(getStats, DEV.wide, '/api/dashboard/developer/stats')
     expect(stats.body.toolCount).toBe(520)
     expect(stats.body.totalInvocations).toBe(520)
-
     const analytics = await call(getAnalytics, DEV.wide, '/api/dashboard/developer/stats/analytics')
     expect(analytics.status).toBe(200)
     const breakdown = analytics.body.methodBreakdown as Array<{ count: number }>
     expect(breakdown.reduce((s, m) => s + m.count, 0)).toBe(520)
-
     const insights = await call(getInsights, DEV.wide, '/api/dashboard/developer/consumers/insights')
     expect(insights.status).toBe(200)
     expect(insights.body.topConsumers[0].totalInvocations).toBe(520)
-
     const forecast = await call(getForecast, DEV.wide, '/api/dashboard/developer/stats/forecast')
     expect(forecast.body.dailyDataPoints).toBe(8)
     expect(forecast.body.currentMonthRevenueCents).toBe(520)
@@ -236,7 +207,6 @@ describe('dashboard tool scope (pglite)', () => {
     const analytics = await call(getAnalytics, DEV.a, '/api/dashboard/developer/stats/analytics')
     const breakdown = analytics.body.methodBreakdown as Array<{ count: number }>
     expect(breakdown.reduce((s, m) => s + m.count, 0)).toBe(4)
-
     const insights = await call(getInsights, DEV.a, '/api/dashboard/developer/consumers/insights')
     const top = insights.body.topConsumers as Array<{ consumerId: string; totalSpendCents: number }>
     expect(top.find((c) => c.consumerId === C1)?.totalSpendCents).toBe(10) // not the 14 on the deleted tool or B's 50
@@ -246,8 +216,24 @@ describe('dashboard tool scope (pglite)', () => {
     const { status, body } = await call(getForecast, DEV.a, '/api/dashboard/developer/stats/forecast')
     expect(status).toBe(200)
     expect(body.insufficientData).toBe(true)
-    expect(body.dailyDataPoints).toBe(2)
+    expect(body.dailyDataPoints).toBe(1) // Nov 15 earned 12 cents; Nov 12 had only a zero-cost call
     expect(body.projectedNextMonthCents).toBe(0)
+  }, 20_000)
+
+  it('forecast: days of calls that earned nothing do not count towards the 7 days', async () => {
+    const { body } = await call(getForecast, DEV.zeroDays, '/api/dashboard/developer/stats/forecast')
+    expect(body.insufficientData).toBe(true)
+    expect(body.dailyDataPoints).toBe(1)
+  }, 20_000)
+
+  it('forecast: this month\'s earnings match stats and keep deleted tools', async () => {
+    for (const [id, cents] of [[DEV.a, 26], [DEV.gone, 3]] as const) {
+      const stats = await call(getStats, id, '/api/dashboard/developer/stats')
+      const forecast = await call(getForecast, id, '/api/dashboard/developer/stats/forecast')
+      expect(forecast.status).toBe(200)
+      expect(forecast.body.currentMonthRevenueCents).toBe(cents)
+      expect(stats.body.monthRevenueCents).toBe(cents)
+    }
   }, 20_000)
 
   it('forecast: 8 days on a live tool give a trend; days only on a deleted tool are not counted', async () => {

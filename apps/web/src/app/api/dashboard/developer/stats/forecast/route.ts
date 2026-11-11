@@ -3,7 +3,7 @@ import { eq, sql, gte, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
-import { dashboardToolsWhere, invocationsInDashboardScope } from '@/lib/dashboard-scope'
+import { dashboardToolsWhere, invocationsInDashboardScope, monthEarningsCents } from '@/lib/dashboard-scope'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
@@ -21,7 +21,7 @@ interface ForecastResult {
   trend: Trend
   dailyDataPoints: number
   confidence: 'low' | 'medium' | 'high'
-  /** Fewer than MIN_DATA_POINTS_MEDIUM days with revenue: no projection or trend is shown. */
+  /** Fewer than MIN_DATA_POINTS_MEDIUM days with revenue (dailyDataPoints counts them): no projection or trend. */
   insufficientData?: boolean
 }
 
@@ -124,9 +124,10 @@ export async function GET(request: NextRequest) {
 
     const toolScope = invocationsInDashboardScope(auth.id)
 
-    // Empty defaults
+    // Empty defaults. This month's earnings cover every tool, deleted ones included.
+    const currentMonthRevenueCents = await monthEarningsCents(auth.id)
     const emptyForecast: ForecastResult = {
-      currentMonthRevenueCents: 0,
+      currentMonthRevenueCents,
       projectedNextMonthCents: 0,
       growthRate: 0,
       trend: 'stable',
@@ -160,25 +161,12 @@ export async function GET(request: NextRequest) {
       return successResponse(emptyForecast)
     }
 
-    // ── Calculate current month revenue ─────────────────────────────────
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const monthStartStr = monthStart.toISOString().split('T')[0]
-
-    const currentMonthRevenueCents = dailyRevenue
-      .filter((d) => d.date >= monthStartStr)
-      .reduce((sum, d) => sum + d.revenueCents, 0)
-
     // ── Linear regression on daily revenue ──────────────────────────────
     // A projection or trend from a handful of days is noise (one day of revenue read as
     // "-100% declining"), so below the medium-confidence threshold report only the facts.
-    if (dailyRevenue.length < MIN_DATA_POINTS_MEDIUM) {
-      return successResponse({
-        ...emptyForecast,
-        currentMonthRevenueCents,
-        dailyDataPoints: dailyRevenue.length,
-        insufficientData: true,
-      })
+    const revenueDays = dailyRevenue.filter((d) => d.revenueCents > 0).length
+    if (revenueDays < MIN_DATA_POINTS_MEDIUM) {
+      return successResponse({ ...emptyForecast, dailyDataPoints: revenueDays, insufficientData: true })
     }
 
     const regressionData = dailyRevenue.map((d, idx) => ({
@@ -242,7 +230,7 @@ export async function GET(request: NextRequest) {
       projectedNextMonthCents,
       growthRate,
       trend,
-      dailyDataPoints: dataPoints,
+      dailyDataPoints: revenueDays,
       confidence,
     }
 

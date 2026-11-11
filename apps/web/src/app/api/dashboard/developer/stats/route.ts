@@ -3,7 +3,7 @@ import { eq, sql, gte, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
-import { dashboardToolsWhere } from '@/lib/dashboard-scope'
+import { dashboardToolsWhere, monthEarningsCents } from '@/lib/dashboard-scope'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -31,8 +31,7 @@ export async function GET(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    // Tool counts and lifetime earnings over every tool the developer owns, in SQL
-    // (no row cap). Earnings include deleted tools: their earnings are still the developer's.
+    // Tool counts and lifetime earnings in SQL over every tool the developer owns, deleted ones included.
     const [toolTotals] = await db
       .select({
         toolCount: sql<number>`count(*) filter (where ${tools.status} = 'active')::int`,
@@ -66,8 +65,7 @@ export async function GET(request: NextRequest) {
         .limit(1)
       totalInvocations = Number(totals?.count ?? 0)
 
-      // Last 24h by hour, over every tool the developer owns: the call count leaves
-      // deleted tools out (activity), revenue keeps them (earnings, the "Revenue (24h)" card).
+      // Last 24h by hour over every owned tool: calls skip deleted tools (activity), revenue keeps them (earnings).
       const recentRows = await db
         .select({
           hour: sql<string>`date_trunc('hour', ${invocations.createdAt})::text`,
@@ -88,8 +86,8 @@ export async function GET(request: NextRequest) {
 
       recentInvocations = recentRows.map((row) => ({
         hour: row.hour,
-        count: Number(row.count),
-        revenueCents: Number(row.revenueCents),
+        count: row.count,
+        revenueCents: row.revenueCents,
       }))
 
       // Getting Started: has the developer ever made a call, on any tool?
@@ -104,21 +102,7 @@ export async function GET(request: NextRequest) {
             .limit(1)
         ).length > 0
 
-      // Earnings this month: every tool, deleted ones included.
-      const now = new Date()
-      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-      const [monthRow] = await db
-        .select({ revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::bigint` })
-        .from(invocations)
-        .innerJoin(tools, eq(invocations.toolId, tools.id))
-        .where(
-          and(
-            eq(tools.developerId, auth.id),
-            gte(invocations.createdAt, sql`${monthStart.toISOString()}::timestamptz`)
-          )
-        )
-        .limit(1)
-      monthRevenueCents = Number(monthRow?.revenueCents ?? 0)
+      monthRevenueCents = await monthEarningsCents(auth.id)
     }
 
     return successResponse({
