@@ -8,7 +8,6 @@ const { mockDb } = vi.hoisted(() => ({
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
     groupBy: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn(),
@@ -31,13 +30,12 @@ const day = (i: number, cents: number) => ({ date: `2026-11-${String(i).padStart
 describe('GET /api/dashboard/developer/stats/forecast', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    for (const k of ['select', 'from', 'where', 'innerJoin', 'groupBy', 'orderBy'] as const) mockDb[k].mockReturnThis()
+    for (const k of ['select', 'from', 'where', 'groupBy', 'orderBy'] as const) mockDb[k].mockReturnThis()
   })
 
   it('reports not enough data instead of a trend for fewer than 7 days of revenue', async () => {
     mockDb.limit
       .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: true }])
-      .mockResolvedValueOnce([{ id: 'tool-1' }])
       .mockResolvedValueOnce([{ revenueCents: 0 }]) // this month's earnings
       .mockResolvedValueOnce([day(1, 1)]) // one day, one cent
     const data = await (await GET(req())).json()
@@ -51,7 +49,6 @@ describe('GET /api/dashboard/developer/stats/forecast', () => {
   it('computes a trend once there are at least 7 days', async () => {
     mockDb.limit
       .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: true }])
-      .mockResolvedValueOnce([{ id: 'tool-1' }])
       .mockResolvedValueOnce([{ revenueCents: 0 }]) // this month's earnings
       .mockResolvedValueOnce([1, 2, 3, 4, 5, 6, 7, 8].map((i) => day(i, i * 100))) // rising
     const data = await (await GET(req())).json()

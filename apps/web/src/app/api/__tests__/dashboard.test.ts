@@ -6,7 +6,6 @@ const { mockDb, mockRequireDeveloper } = vi.hoisted(() => {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue([]),
     groupBy: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
@@ -51,7 +50,6 @@ vi.mock('@/lib/rate-limit', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ field: a, value: b })),
-  ne: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ ne: [a, b] })),
   and: vi.fn().mockImplementation((...args: unknown[]) => ({ and: args })),
   gte: vi.fn().mockImplementation((a: unknown, b: unknown) => ({ gte: [a, b] })),
   desc: vi.fn().mockImplementation((col: unknown) => ({ desc: col })),
@@ -67,9 +65,9 @@ vi.mock('drizzle-orm', () => ({
 
 import { GET as getStats } from '@/app/api/dashboard/developer/stats/route'
 
-/** The first query: tool counts and lifetime earnings, aggregated in SQL. */
-function toolTotals(toolCount: number, toolsCreated: number, totalRevenueCents: number) {
-  return [{ toolCount, toolsCreated, totalRevenueCents }]
+/** The first query: tool counts and the all-time counters, aggregated in SQL. */
+function toolTotals(toolCount: number, toolsCreated: number, totalInvocations: number, totalRevenueCents: number) {
+  return [{ toolCount, toolsCreated, totalInvocations, totalRevenueCents }]
 }
 
 function makeRequest(url: string): NextRequest {
@@ -85,7 +83,6 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
     mockDb.select.mockReturnThis()
     mockDb.from.mockReturnThis()
     mockDb.where.mockReturnThis()
-    mockDb.innerJoin.mockReturnThis()
     mockDb.limit.mockReset()
     mockDb.limit.mockResolvedValue([])
     mockDb.groupBy.mockReturnThis()
@@ -94,8 +91,7 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
 
   it('returns aggregated stats for developer with tools', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(2, 2, 750))
-      .mockResolvedValueOnce([{ count: 150 }]) // recorded calls on non-deleted tools
+      .mockResolvedValueOnce(toolTotals(2, 2, 150, 750))
       .mockResolvedValueOnce([]) // recent invocations
 
     const request = makeRequest('/api/dashboard/developer/stats')
@@ -110,8 +106,7 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
 
   it('returns this calendar month\'s revenue separately from lifetime revenue', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(1, 1, 5000))
-      .mockResolvedValueOnce([{ count: 3 }]) // recorded calls
+      .mockResolvedValueOnce(toolTotals(1, 1, 3, 5000))
       .mockResolvedValueOnce([]) // recent invocations
       .mockResolvedValueOnce([{ revenueCents: 120 }]) // this month
 
@@ -148,8 +143,7 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
 
   it('includes recentInvocations array in response', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(1, 1, 50))
-      .mockResolvedValueOnce([{ count: 5 }]) // recorded calls
+      .mockResolvedValueOnce(toolTotals(1, 1, 5, 50))
       .mockResolvedValueOnce([
         { hour: '2026-03-11T08:00:00', count: 5, revenueCents: 25 },
       ])
@@ -165,8 +159,7 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
 
   it('returns recentInvocations as empty when tools exist but no recent invocations', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(1, 1, 500))
-      .mockResolvedValueOnce([{ count: 100 }]) // recorded calls
+      .mockResolvedValueOnce(toolTotals(1, 1, 100, 500))
       .mockResolvedValueOnce([])
 
     const request = makeRequest('/api/dashboard/developer/stats')
@@ -178,8 +171,7 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
 
   it('sums revenue across multiple tools', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(3, 3, 600))
-      .mockResolvedValueOnce([{ count: 60 }]) // recorded calls
+      .mockResolvedValueOnce(toolTotals(3, 3, 60, 600))
       .mockResolvedValueOnce([])
 
     const request = makeRequest('/api/dashboard/developer/stats')
@@ -191,10 +183,9 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
     expect(data.toolCount).toBe(3)
   })
 
-  it('counts activity on non-deleted tools only, keeps all earnings, and counts active tools', async () => {
+  it('reports active tools and tools created separately, with the all-time counters', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(1, 3, 140))
-      .mockResolvedValueOnce([{ count: 7 }]) // recorded calls on non-deleted tools
+      .mockResolvedValueOnce(toolTotals(1, 3, 7, 140)) // 1 active of 3 created
       .mockResolvedValueOnce([]) // recent invocations
       .mockResolvedValueOnce([{ revenueCents: 0 }]) // this month
 
@@ -204,20 +195,16 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
     expect(data.toolsCreated).toBe(3)
     expect(data.totalInvocations).toBe(7)
     expect(data.hasInvocations).toBe(true)
-    expect(data.totalRevenueCents).toBe(140) // a deleted tool's earnings stay the developer's
-    // the call count and the 24h chart join tools and exclude deleted ones in SQL
-    // (real filtering is proven in stats/__tests__/dashboard-scope.integration.test.ts)
-    const { ne } = await import('drizzle-orm')
-    expect(vi.mocked(ne)).toHaveBeenCalledWith('status', 'deleted')
-    expect(mockDb.innerJoin).toHaveBeenCalled()
+    expect(data.totalRevenueCents).toBe(140)
+    // real SQL behaviour is proven in stats/__tests__/dashboard-stats.integration.test.ts
+    expect(mockDb.limit).toHaveBeenCalledTimes(3) // no log probe when the counter is above 0
   })
 
-  it('ticks "made a test invocation" from calls on deleted tools too', async () => {
+  it('ticks "made a test invocation" from a logged call when the counter is 0', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(0, 1, 3))
-      .mockResolvedValueOnce([{ count: 0 }]) // no calls on non-deleted tools
+      .mockResolvedValueOnce(toolTotals(0, 1, 0, 3))
       .mockResolvedValueOnce([]) // recent invocations
-      .mockResolvedValueOnce([{ id: 'inv-1' }]) // any call, any tool
+      .mockResolvedValueOnce([{ id: 'inv-1' }]) // any call still in the logs
       .mockResolvedValueOnce([]) // this month
 
     const data = await (await getStats(makeRequest('/api/dashboard/developer/stats'))).json()
@@ -242,8 +229,7 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
 
   it('handles single tool correctly', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(1, 1, 210))
-      .mockResolvedValueOnce([{ count: 42 }]) // recorded calls
+      .mockResolvedValueOnce(toolTotals(1, 1, 42, 210))
       .mockResolvedValueOnce([])
 
     const request = makeRequest('/api/dashboard/developer/stats')
@@ -257,15 +243,14 @@ describe('Developer Stats (GET /api/dashboard/developer/stats)', () => {
 
   it('limits recent invocations query', async () => {
     mockDb.limit
-      .mockResolvedValueOnce(toolTotals(1, 1, 5000))
-      .mockResolvedValueOnce([{ count: 1000 }]) // recorded calls
-      .mockResolvedValueOnce([]) // The query uses .limit(24)
+      .mockResolvedValueOnce(toolTotals(1, 1, 1000, 5000))
+      .mockResolvedValueOnce([]) // The query uses .limit(25)
 
     const request = makeRequest('/api/dashboard/developer/stats')
     const response = await getStats(request)
 
     expect(response.status).toBe(200)
     // Verify limit was called (multiple times for different queries)
-    expect(mockDb.limit).toHaveBeenCalled()
+    expect(mockDb.limit).toHaveBeenNthCalledWith(2, 25) // a rolling 24 hours touches 25 clock hours
   })
 })

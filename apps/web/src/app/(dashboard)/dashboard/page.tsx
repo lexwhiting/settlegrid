@@ -19,7 +19,6 @@ import {
   toFraudSignals,
   type ConsumerInsightsData,
   type FraudSignalsData,
-  formatErrorRatePct,
 } from '@/lib/dashboard-summaries'
 
 interface DeveloperStats {
@@ -1394,7 +1393,7 @@ export default function DeveloperDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <StatCard
             title="Error Rate"
-            value={formatErrorRatePct(analytics.errorRate)}
+            value={`${(analytics.errorRate * 100).toFixed(2)}%`}
             subtitle="Last 30 days"
           />
           <StatCard
@@ -1421,7 +1420,7 @@ export default function DeveloperDashboardPage() {
           <CardTitle className="text-lg">Invocations (Last 24 Hours)</CardTitle>
         </CardHeader>
         <CardContent>
-          {stats?.recentInvocations?.some((point) => point.count > 0) ? (
+          {stats?.recentInvocations && stats.recentInvocations.length > 0 ? (
             <BarChart
               data={stats.recentInvocations.map((point, i) => ({
                 hour: point.hour || String(i),
@@ -1497,8 +1496,8 @@ export default function DeveloperDashboardPage() {
                       <td className="py-3 px-4 text-right text-gray-700 dark:text-gray-300">{(Number(method.invocations ?? method.count ?? 0)).toLocaleString()}</td>
                       <td className="py-3 px-4 text-right font-medium text-indigo dark:text-gray-100">{formatCents(Number(method.revenueCents ?? method.totalRevenueCents ?? 0))}</td>
                       <td className="py-3 px-4 text-right">
-                        <span className={Number(method.errorRate ?? 0) > 5 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
-                          {formatErrorRatePct(method.errorRate)}
+                        <span className={Number(method.errorRate ?? 0) > 0.05 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                          {(Number(method.errorRate ?? 0) * 100).toFixed(2)}%
                         </span>
                       </td>
                     </tr>

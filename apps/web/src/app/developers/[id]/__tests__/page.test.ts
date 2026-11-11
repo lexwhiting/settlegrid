@@ -57,22 +57,7 @@ describe('/developers/[id]', () => {
 
   it('does not redirect when the profile is not found', async () => {
     mockProfileResponse({ error: 'not found' }, false)
-    // An id (UUID) with no profile. Slug-shaped ids redirect; see the next test.
-    await DeveloperProfilePage({ params: Promise.resolve({ id: '22222222-2222-2222-2222-222222222222' }) })
-    expect(mockPermanentRedirect).not.toHaveBeenCalled()
-  })
-
-  it('permanently redirects an old /developers/{slug} link to /dev/{slug} without a lookup', async () => {
-    mockProfileResponse({ error: 'not found' }, false)
-    await expect(
-      DeveloperProfilePage({ params: Promise.resolve({ id: 'sg-e2e-test-dev' }) }),
-    ).rejects.toThrow('REDIRECT:/dev/sg-e2e-test-dev')
-    expect(global.fetch).not.toHaveBeenCalled()
-  })
-
-  it('does not redirect an id that is neither a UUID nor a valid slug', async () => {
-    mockProfileResponse({ error: 'not found' }, false)
-    await DeveloperProfilePage({ params: Promise.resolve({ id: 'Not_A_Slug!' }) })
+    await DeveloperProfilePage({ params: Promise.resolve({ id: 'missing' }) })
     expect(mockPermanentRedirect).not.toHaveBeenCalled()
   })
 
