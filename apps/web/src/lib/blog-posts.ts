@@ -375,7 +375,7 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: 'free-mcp-monetization',
     title: 'Free MCP Monetization Platform: Getting Started with SettleGrid',
     description:
-      'Get started with SettleGrid for free. 50,000 operations per month, progressive take rate starting at 0%, up to 100% revenue share. Quickstart walkthrough for monetizing your MCP tools without upfront costs.',
+      'Get started with SettleGrid for free. 50,000 operations per month, progressive take rate starting at 0%, 95–100% revenue share. Quickstart walkthrough for monetizing your MCP tools without upfront costs.',
     datePublished: '2026-03-26',
     dateModified: '2026-03-26',
     keywords: [
@@ -436,8 +436,8 @@ export const BLOG_POSTS: BlogPost[] = [
         tableRows: [
           ['Operations/month', '50,000', '200,000', '2,000,000'],
           ['Take rate', 'Progressive (0% on first $1K)', 'Progressive', 'Progressive'],
-          ['Revenue share', 'Up to 100%', 'Up to 100%', 'Up to 100%'],
-          ['Payment protocols', 'All 10', 'All 10', 'All 10'],
+          ['Revenue share', '95–100%', '95–100%', '95–100%'],
+          ['Payment protocols', '9 brokered', '9 brokered', '9 brokered'],
           ['Marketplace listing', 'Yes', 'Yes', 'Yes'],
           ['Usage dashboard', 'Basic', 'Full', 'Full'],
           ['IP allowlisting', 'No', 'Yes', 'Yes'],

@@ -670,7 +670,7 @@ const faqCategories: Array<{ title: string; faqs: Array<{ q: string; a: string }
     },
     {
       q: 'How is SettleGrid different from Paid.ai?',
-      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, up to 100% revenue share). One SDK. Zero vendor lock-in.",
+      a: "Paid.ai supports MCP per-call billing only. SettleGrid is a protocol-agnostic settlement layer — the Smart Proxy brokers 9 agent payment protocols (MCP, x402, Stripe MPP, AP2, ACP, UCP, Visa TAP, Mastercard Verifiable Intent, Circle Nanopayments), has detection adapters for 2 more (L402, KYAPay), and tracks 3 emerging rails (ACTP, EMVCo agent payments, DRAIN). Plus multi-hop settlement, agent identity, outcome-based billing, IP allowlisting, fraud detection, and progressive take rates (0% on first $1K/mo, 95–100% revenue share). One SDK. Zero vendor lock-in.",
     },
   ],
 },
@@ -1146,7 +1146,7 @@ try {
               SettleGrid uses a simple, transparent pricing model:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 mb-6">
-              <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep up to 100% of revenue.</li>
+              <li><strong>Developers:</strong> Free to sign up. Set your own prices. Keep 95–100% of revenue.</li>
               <li><strong>Consumers:</strong> Prepaid credits. Purchase $5, $20, $50, or custom amounts.</li>
               <li><strong>Platform fee:</strong> Progressive take rate: 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K.</li>
               <li><strong>Payouts:</strong> Daily, weekly, or monthly via Stripe Connect. $1 minimum — the lowest in the industry.</li>

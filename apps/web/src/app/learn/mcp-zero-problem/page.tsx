@@ -355,7 +355,7 @@ export default function McpZeroProblemPage() {
           <p className="text-gray-300 leading-relaxed mb-6">
             That is the entire integration. Your handler code does not change. The wrapper intercepts
             each call, verifies credits, meters usage, and settles payment. Failed calls are not charged.
-            You keep up to 100% of every transaction with the progressive take rate (0% on your first $1K/mo). The free tier includes 50,000 operations per month.
+            You keep 95–100% of your revenue with the progressive take rate (0% on your first $1K/mo). The free tier includes 50,000 operations per month.
           </p>
 
           <p className="text-gray-300 leading-relaxed mb-6">
@@ -432,7 +432,7 @@ export default function McpZeroProblemPage() {
               Start Earning From Your MCP Tools
             </h2>
             <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-              Two lines of code. Free tier. Up to 100% revenue share. No billing code.
+              Two lines of code. Free tier. 95–100% revenue share. No billing code.
               No Stripe integration. No excuses.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
