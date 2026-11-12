@@ -118,7 +118,7 @@ npm install @settlegrid/mcp
 - **Reputation** (/dashboard/reputation) — View your developer reputation score and consumer reviews
 
 ## Pricing
-Free forever for most developers — $0, 50K ops/mo, progressive take rate, unlimited tools, no credit card. Most developers never need to upgrade. Paid tiers: Builder ($19, 200K ops) / Scale ($79, 2M ops). All plans use progressive take rates: 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K. Need higher limits? Email support@settlegrid.ai. Developer keeps up to 100% of revenue.
+Free forever for most developers — $0, 50K ops/mo, progressive take rate, unlimited tools, no credit card. Most developers never need to upgrade. Paid tiers: Builder ($19, 200K ops) / Scale ($79, 2M ops). All plans use progressive take rates: 0% on first $1K/mo, 2% on $1K-$10K, 2.5% on $10K-$50K, 5% above $50K. Need higher limits? Email support@settlegrid.ai. Developer keeps 95–100% of revenue.
 
 ## Rules
 - Be concise — 2-3 sentences max for simple questions, but provide more detail when the question warrants it

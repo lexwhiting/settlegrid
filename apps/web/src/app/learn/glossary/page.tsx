@@ -134,7 +134,7 @@ const glossaryTerms = [
   {
     name: 'Revenue Share',
     definition:
-      'The split of revenue between the service provider (developer) and the platform. On SettleGrid, developers keep up to 100% of their revenue on the first $1,000/month and 95-98% above that, compared to 85% on marketplace-style competitors.',
+      'The split of revenue between the service provider (developer) and the platform. On SettleGrid, developers keep 100% of their revenue on the first $1,000/month and 95-98% above that, compared to 85% on marketplace-style competitors.',
     link: '/pricing',
   },
   {

@@ -1,6 +1,6 @@
 # SettleGrid — Full Technical Reference
 
-> Settlement infrastructure for AI tools. Monetize AI services — MCP tools, REST APIs, AI agents, model endpoints — with one SDK and multiple agent payment protocols. Free forever for most developers. Progressive take rate: 0% on first $1K/mo, up to 100% revenue share.
+> Settlement infrastructure for AI tools. Monetize AI services — MCP tools, REST APIs, AI agents, model endpoints — with one SDK and multiple agent payment protocols. Free forever for most developers. Progressive take rate: 0% on first $1K/mo, 95–100% revenue share.
 
 Website: https://settlegrid.ai
 Documentation: https://settlegrid.ai/docs

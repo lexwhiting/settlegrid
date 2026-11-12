@@ -506,7 +506,7 @@ export default function StateOfMcp2026Page() {
               Start Monetizing Your MCP Tools
             </h2>
             <p className="text-gray-400 mb-6 max-w-lg mx-auto">
-              Two lines of code. 14 agent payment protocols tracked. Up to 100% revenue share.
+              Two lines of code. 14 agent payment protocols tracked. 95–100% revenue share.
               Join the 5% of MCP developers who are earning from their tools.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
