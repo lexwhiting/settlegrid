@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, inArray } from 'drizzle-orm'
+import { eq, sql, gte, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
+import { invocationsOfDeveloper, monthEarningsCents } from '@/lib/developer-invocations'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -30,31 +31,36 @@ export async function GET(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    // Get tool-level aggregates
-    const developerTools = await db
+    // Tool-level aggregates over every tool the developer owns, in SQL (no row cap).
+    // "Active Tools" is the number with status 'active'; the all-time counters and
+    // toolsCreated cover every tool, deleted ones included.
+    const [toolTotals] = await db
       .select({
-        id: tools.id,
-        totalInvocations: tools.totalInvocations,
-        totalRevenueCents: tools.totalRevenueCents,
+        toolCount: sql<number>`(count(*) filter (where ${tools.status} = 'active'))::int`,
+        toolsCreated: sql<number>`count(*)::int`,
+        totalInvocations: sql<number>`coalesce(sum(${tools.totalInvocations}), 0)::bigint`,
+        totalRevenueCents: sql<number>`coalesce(sum(${tools.totalRevenueCents}), 0)::bigint`,
       })
       .from(tools)
       .where(eq(tools.developerId, auth.id))
-      .limit(500)
+      .limit(1)
 
-    const toolCount = developerTools.length
-    const totalInvocations = developerTools.reduce((sum, t) => sum + t.totalInvocations, 0)
-    const totalRevenueCents = developerTools.reduce((sum, t) => sum + t.totalRevenueCents, 0)
+    const toolCount = Number(toolTotals?.toolCount ?? 0)
+    const toolsCreated = Number(toolTotals?.toolsCreated ?? 0)
+    const totalInvocations = Number(toolTotals?.totalInvocations ?? 0)
+    const totalRevenueCents = Number(toolTotals?.totalRevenueCents ?? 0)
 
     // Get invocations from the last 24 hours, grouped by hour
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-
-    const toolIds = developerTools.map((t) => t.id)
+    const ownInvocations = invocationsOfDeveloper(auth.id)
 
     let recentInvocations: Array<{ hour: string; count: number; revenueCents: number }> = []
+    // Getting Started: any call ever counted, or any call still in the logs
+    let hasInvocations = totalInvocations > 0
     // Revenue this UTC calendar month (the basis of the progressive take)
     let monthRevenueCents = 0
 
-    if (toolIds.length > 0) {
+    if (toolsCreated > 0) {
       // Get recent invocations for all developer's tools
       const recentRows = await db
         .select({
@@ -66,12 +72,12 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             gte(invocations.createdAt, sql`${twentyFourHoursAgo.toISOString()}::timestamptz`),
-            inArray(invocations.toolId, toolIds)
+            ownInvocations
           )
         )
         .groupBy(sql`date_trunc('hour', ${invocations.createdAt})`)
         .orderBy(sql`date_trunc('hour', ${invocations.createdAt})`)
-        .limit(24)
+        .limit(25) // a rolling 24 hours touches up to 25 clock-hour buckets
 
       recentInvocations = recentRows.map((row) => ({
         hour: row.hour,
@@ -79,26 +85,21 @@ export async function GET(request: NextRequest) {
         revenueCents: row.revenueCents,
       }))
 
-      const now = new Date()
-      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-      const monthRows = await db
-        .select({ revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int` })
-        .from(invocations)
-        .where(
-          and(
-            gte(invocations.createdAt, sql`${monthStart.toISOString()}::timestamptz`),
-            inArray(invocations.toolId, toolIds)
-          )
-        )
-        .limit(1)
-      monthRevenueCents = Number(monthRows[0]?.revenueCents ?? 0)
+      if (!hasInvocations) {
+        const anyCall = await db.select({ id: invocations.id }).from(invocations).where(ownInvocations).limit(1)
+        hasInvocations = anyCall.length > 0
+      }
+
+      monthRevenueCents = await monthEarningsCents(auth.id)
     }
 
     return successResponse({
       totalRevenueCents,
       monthRevenueCents,
       totalInvocations,
+      hasInvocations,
       toolCount,
+      toolsCreated,
       recentInvocations,
     })
   } catch (error) {

@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, inArray } from 'drizzle-orm'
+import { eq, sql, gte, lt, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, tools, invocations } from '@/lib/db/schema'
+import { developers, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
+import { invocationsOfDeveloper, monthEarningsCents } from '@/lib/developer-invocations'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
@@ -18,8 +19,11 @@ interface ForecastResult {
   projectedNextMonthCents: number
   growthRate: number
   trend: Trend
+  /** Days with revenue in the lookback window */
   dailyDataPoints: number
   confidence: 'low' | 'medium' | 'high'
+  /** Fewer than MIN_DATA_POINTS_MEDIUM days with revenue: no projection or trend is given */
+  insufficientData?: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -111,59 +115,47 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // ── Get developer's tools ───────────────────────────────────────────
-    const developerTools = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-
-    // Empty defaults
+    // The response whenever there is too little data to forecast from. This month's
+    // revenue comes from the same query the stats route uses.
+    const currentMonthRevenueCents = await monthEarningsCents(auth.id)
     const emptyForecast: ForecastResult = {
-      currentMonthRevenueCents: 0,
+      currentMonthRevenueCents,
       projectedNextMonthCents: 0,
       growthRate: 0,
       trend: 'stable',
       dailyDataPoints: 0,
       confidence: 'low',
+      insufficientData: true,
     }
 
-    if (toolIds.length === 0) {
-      return successResponse(emptyForecast)
-    }
-
-    // ── Get daily revenue for last 30 days ──────────────────────────────
-    const lookbackStart = new Date()
-    lookbackStart.setDate(lookbackStart.getDate() - LOOKBACK_DAYS)
+    // ── Get daily revenue for the last 30 complete UTC days ─────────────
+    // Today is left out: a part-day would read as a drop in revenue.
+    const todayStart = new Date()
+    todayStart.setUTCHours(0, 0, 0, 0)
+    const lookbackStart = new Date(todayStart.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+    const utcDay = sql`(${invocations.createdAt} at time zone 'UTC')::date`
 
     const dailyRevenue = await db
       .select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        invocationsOfDeveloper(auth.id),
         gte(invocations.createdAt, sql`${lookbackStart.toISOString()}::timestamptz`),
+        lt(invocations.createdAt, sql`${todayStart.toISOString()}::timestamptz`),
       ))
-      .groupBy(sql`${invocations.createdAt}::date`)
-      .orderBy(sql`${invocations.createdAt}::date`)
+      .groupBy(utcDay)
+      .orderBy(utcDay)
       .limit(LOOKBACK_DAYS)
 
-    if (dailyRevenue.length === 0) {
-      return successResponse(emptyForecast)
+    // A projection or trend from a handful of days is noise (one day of revenue read
+    // as "-100% declining"). Days whose calls earned nothing don't count.
+    const revenueDays = dailyRevenue.filter((d) => d.revenueCents > 0).length
+    if (revenueDays < MIN_DATA_POINTS_MEDIUM) {
+      return successResponse({ ...emptyForecast, dailyDataPoints: revenueDays })
     }
-
-    // ── Calculate current month revenue ─────────────────────────────────
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const monthStartStr = monthStart.toISOString().split('T')[0]
-
-    const currentMonthRevenueCents = dailyRevenue
-      .filter((d) => d.date >= monthStartStr)
-      .reduce((sum, d) => sum + d.revenueCents, 0)
 
     // ── Linear regression on daily revenue ──────────────────────────────
     const regressionData = dailyRevenue.map((d, idx) => ({
@@ -212,7 +204,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Confidence level ────────────────────────────────────────────────
-    const dataPoints = dailyRevenue.length
+    const dataPoints = revenueDays
     let confidence: 'low' | 'medium' | 'high'
     if (dataPoints >= MIN_DATA_POINTS_HIGH && rSquared > 0.5) {
       confidence = 'high'
