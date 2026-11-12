@@ -1,3 +1,4 @@
+import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { auditLogs } from '@/lib/db/schema'
 import { logger } from '@/lib/logger'
@@ -12,7 +13,7 @@ export {
   type AuditResourceType,
 } from '@/lib/audit-actions'
 
-export async function writeAuditLog(params: {
+export function writeAuditLog(params: {
   developerId?: string
   consumerId?: string
   action: AuditAction
@@ -22,6 +23,21 @@ export async function writeAuditLog(params: {
   ipAddress?: string
   userAgent?: string
 }): Promise<void> {
+  const write = insertAuditLog(params)
+  // Most callers don't await this. On Vercel a function can stop as soon as its
+  // response is sent, which drops a write still in flight (a second save in a row
+  // went unlogged). after() keeps the invocation alive until the write settles.
+  // Outside a request scope (tests, scripts) after() throws; the caller's promise
+  // still carries the write.
+  try {
+    after(() => write)
+  } catch {
+    /* not in a request scope */
+  }
+  return write
+}
+
+async function insertAuditLog(params: Parameters<typeof writeAuditLog>[0]): Promise<void> {
   try {
     await db.insert(auditLogs).values({
       developerId: params.developerId ?? null,

@@ -71,3 +71,26 @@ export function toolsWithoutBudgetRow(
     .filter((s) => !budgeted.has(s.toolId))
     .sort((a, b) => b.totalCostCents - a.totalCostCents)
 }
+
+/**
+ * Format an error rate the dashboard APIs return as a PERCENTAGE (0–100, e.g. 50 for
+ * one failed call in two). Never multiply by 100 again before calling this.
+ */
+export function formatErrorRatePct(pct: unknown): string {
+  const n = Number(pct)
+  if (!Number.isFinite(n) || n <= 0) return '0.00%'
+  return `${Math.min(n, 100).toFixed(2)}%`
+}
+
+/** The Settings plan card's fee figures, derived from the monthly take-rate brackets (lib/pricing.ts). */
+export function takeRateSummary(brackets: readonly { upTo: number; rate: number }[]) {
+  const pct = brackets.map((b) => Math.round(b.rate * 10_000) / 100)
+  const [low, high] = [Math.min(...pct), Math.max(...pct)]
+  const free = brackets.find((b) => b.rate === 0)
+  const range = (a: number, b: number) => (a === b ? `${a}%` : `${a}–${b}%`)
+  return {
+    takeRate: range(low, high),
+    revenueShare: range(100 - high, 100 - low),
+    freeUpTo: free ? `$${(free.upTo / 100).toLocaleString('en-US')}` : null,
+  }
+}

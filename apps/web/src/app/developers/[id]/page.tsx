@@ -46,6 +46,11 @@ function formatNumber(n: number): string {
   return n.toString()
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// A developer slug: 3 to 30 characters, the rule in lib/developer-slug.ts.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/
+const isSlugId = (id: string) => !UUID_RE.test(id) && SLUG_RE.test(id)
+
 async function getProfile(id: string): Promise<ProfileData | null> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3005'
@@ -66,6 +71,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>
 }): Promise<Metadata> {
   const { id } = await params
+  if (isSlugId(id)) return {} // the page redirects to /dev/<slug>; no lookup here either
   const profile = await getProfile(id)
   if (!profile) return { title: 'Profile Not Found | SettleGrid' }
   // /dev/{slug} is the canonical profile URL; this route redirects there.
@@ -92,6 +98,10 @@ export default async function DeveloperProfilePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  // Old links used /developers/<slug>; the canonical profile is /dev/<slug>.
+  if (isSlugId(id)) {
+    permanentRedirect(`/dev/${encodeURIComponent(id)}`)
+  }
   const profile = await getProfile(id)
 
   if (profile?.slug) {

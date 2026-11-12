@@ -29,7 +29,8 @@ import {
   isNotificationOptedOut,
   type NotificationEventDef,
 } from '@/lib/notification-events'
-import { getProgressiveTakeDescription } from '@/lib/pricing'
+import { getProgressiveTakeDescription, TAKE_RATE_BRACKETS } from '@/lib/pricing'
+import { takeRateSummary } from '@/lib/dashboard-summaries'
 import { getEffectiveTier } from '@/lib/tier-config'
 import {
   LOG_RETENTION_OPTIONS,
@@ -1220,6 +1221,7 @@ export default function SettingsPage() {
                   {profileSlug && /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(profileSlug) && profileSlug.length >= 3 && (
                     <p className="mt-1 text-xs text-brand dark:text-amber-400">
                       Your profile: settlegrid.ai/dev/{profileSlug}
+                      {!publicProfile && ' (not live until Public profile is on; the link shows "not found" until then)'}
                     </p>
                   )}
                 </div>
@@ -1837,8 +1839,7 @@ export default function SettingsPage() {
                   const planKey = currentPlanKey === 'standard' ? 'free' : normalizePlanKey(currentPlanKey)
                   const plan = PLANS[planKey]
                   const opsLimit = planKey === 'free' ? '50,000' : planKey === 'builder' ? '200,000' : '2,000,000'
-                  const takeRate = 'Progressive'
-                  const revenueShare = 'Up to 100%'
+                  const { takeRate, revenueShare, freeUpTo } = takeRateSummary(TAKE_RATE_BRACKETS)
                   return (
                     <div className="rounded-lg border border-brand/30 bg-brand/5 dark:bg-brand/10 p-4">
                       <div className="flex items-center gap-3 mb-3">
@@ -1851,7 +1852,7 @@ export default function SettingsPage() {
                       <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
                           <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{revenueShare}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Revenue Share</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Revenue share (per calendar month)</p>
                         </div>
                         <div>
                           <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{opsLimit}</p>
@@ -1859,7 +1860,7 @@ export default function SettingsPage() {
                         </div>
                         <div>
                           <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{takeRate}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Platform Fee</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Platform fee{freeUpTo ? ` (0% on the first ${freeUpTo}/month)` : ''}</p>
                         </div>
                       </div>
                     </div>
