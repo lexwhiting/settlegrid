@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
 // The revenue-share claim is "95–100%" (AGENTS.md, Honest claims, rule 8): the
@@ -22,9 +22,24 @@ const SURFACES = [
   'src/lib/blog-posts.ts',
 ]
 
+/** Every source and public text file of the web app, tests excluded. */
+function publicTextFiles(dir: string): string[] {
+  return readdirSync(path.join(WEB, dir), { withFileTypes: true }).flatMap((entry) => {
+    const rel = `${dir}/${entry.name}`
+    if (entry.isDirectory()) return entry.name === '__tests__' ? [] : publicTextFiles(rel)
+    return /\.(ts|tsx|md|mdx|txt|json)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [rel] : []
+  })
+}
+
 describe('revenue-share wording', () => {
   it.each(SURFACES)('%s does not say "up to 100%%"', (rel) => {
     expect(read(rel)).not.toMatch(/up to 100\s?%/i)
+  })
+
+  it('no source or public file of the web app says "up to 100%"', () => {
+    const files = [...publicTextFiles('src'), ...publicTextFiles('public')]
+    expect(files.length).toBeGreaterThan(500)
+    expect(files.filter((rel) => /up to 100\s?%/i.test(read(rel)))).toEqual([])
   })
 
   it('the surfaces that state the share use the 95–100% range', () => {
