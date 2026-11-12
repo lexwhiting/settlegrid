@@ -25,7 +25,12 @@ interface DeveloperStats {
   totalRevenueCents: number
   monthRevenueCents?: number
   totalInvocations: number
+  /** Any call ever recorded, on any tool (Getting Started) */
+  hasInvocations?: boolean
+  /** Tools with status 'active' */
   toolCount: number
+  /** Every tool the developer has created, deleted ones included */
+  toolsCreated?: number
   recentInvocations: { hour: string; count: number; revenueCents?: number }[]
 }
 
@@ -106,6 +111,8 @@ interface ForecastData {
   trend: 'growing' | 'stable' | 'declining'
   dailyDataPoints: number
   confidence: 'low' | 'medium' | 'high'
+  /** Too few days of revenue for a projection or trend */
+  insufficientData?: boolean
 }
 
 interface NotificationConfig {
@@ -515,9 +522,9 @@ export default function DeveloperDashboardPage() {
   }
 
   // Checklist step completion
-  const hasTools = (stats?.toolCount ?? 0) > 0
+  const hasTools = (stats?.toolsCreated ?? stats?.toolCount ?? 0) > 0
   const stripeConnected = profile?.stripeConnectStatus === 'active'
-  const hasInvocations = (stats?.totalInvocations ?? 0) > 0
+  const hasInvocations = stats?.hasInvocations ?? (stats?.totalInvocations ?? 0) > 0
   const hasActiveTool = toolList.some((t) => t.status === 'active')
   const sdkInstalled = sdkStepDismissed
   const hasPublicProfile = !!profile?.publicProfile && !!profile?.slug
@@ -782,7 +789,7 @@ export default function DeveloperDashboardPage() {
         <StatCard
           title="Active Tools"
           value={String(stats?.toolCount ?? 0)}
-          subtitle="Published tools"
+          subtitle="Live now"
           animate
         />
         <StatCard
@@ -851,7 +858,19 @@ export default function DeveloperDashboardPage() {
         ) : null}
 
         {/* Revenue Forecast (Builder+) */}
-        {forecastData && forecastData.projectedNextMonthCents > 0 ? (
+        {forecastData?.insufficientData ? (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Revenue Forecast</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Not enough data yet. A forecast needs at least 7 days with revenue in the last 30
+                ({forecastData.dailyDataPoints} so far).
+              </p>
+            </CardContent>
+          </Card>
+        ) : forecastData && forecastData.projectedNextMonthCents > 0 ? (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -1417,7 +1436,9 @@ export default function DeveloperDashboardPage() {
               }}
             />
           ) : (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">No activity yet. Publish your first tool to start earning.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              {hasTools ? 'No calls in the last 24 hours.' : 'No activity yet. Publish your first tool to start earning.'}
+            </p>
           )}
         </CardContent>
       </Card>
