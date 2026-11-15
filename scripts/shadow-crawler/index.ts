@@ -179,39 +179,14 @@ function isMainEntry(): boolean {
   }
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-
-  let source: string | undefined
-  const srcIdx = args.indexOf('--source')
-  if (srcIdx !== -1) {
-    source = args[srcIdx + 1]
-    if (!source || source.startsWith('--')) {
-      console.error('Error: --source requires a name')
-      process.exit(1)
-    }
-  }
-
-  let limit: number | undefined
-  const limIdx = args.indexOf('--limit')
-  if (limIdx !== -1) {
-    limit = parseInt(args[limIdx + 1], 10)
-    if (!Number.isFinite(limit) || limit <= 0) {
-      console.error('Error: --limit requires a positive integer')
-      process.exit(1)
-    }
-  }
-
-  const dryRun = args.includes('--dry-run')
-
-  try {
-    await crawl({ source, limit, dryRun })
-  } catch (err) {
-    console.error('Crawl failed:', err instanceof Error ? err.message : err)
-    process.exit(1)
-  }
-}
-
+// Disabled (2026-11-15). The crawled MCP directory is unpublished, and this
+// crawler stores GitHub owner logins, which can identify individuals. It stays
+// off until the founder has decided, with a documented purpose and lawful basis,
+// to publish a directory again. `crawl()` stays exported for its tests.
 if (isMainEntry()) {
-  main()
+  console.error(
+    'shadow-crawler is disabled: the crawled MCP directory is unpublished and needs a founder decision before any crawl.',
+  )
+  process.exitCode = 1
 }
+
