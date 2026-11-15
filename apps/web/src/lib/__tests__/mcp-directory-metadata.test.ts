@@ -20,4 +20,10 @@ describe('mcpDirectoryMetadata', () => {
     )
     expect(metadata.title).toBe('MCP Server Directory | SettleGrid')
   })
+
+  it('never claims more than the real count', () => {
+    for (const count of [0, 1, 50_000]) {
+      expect(mcpDirectoryMetadata(count).description).not.toMatch(/thousands|every MCP server|all MCP servers/i)
+    }
+  })
 })
