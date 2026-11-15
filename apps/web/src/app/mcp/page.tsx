@@ -5,7 +5,9 @@ import { Footer } from '@/components/marketing/footer'
 import { Badge } from '@/components/ui/badge'
 import { getAllShadowEntries, countShadowEntries, listOwners } from '@/lib/shadow-index'
 
-export const dynamic = 'force-static'
+// Rendered per request, not at build time: the build must not wait on the
+// database (a slow read here failed the production build on 2026-11-12).
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'MCP Server Directory | SettleGrid',
