@@ -3,9 +3,11 @@ import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
 import { Badge } from '@/components/ui/badge'
-import { getAllShadowEntries, countShadowEntries, listOwners } from '@/lib/shadow-index'
+import { loadMcpDirectory } from '@/lib/mcp-directory'
 
-export const dynamic = 'force-static'
+// Rendered per request, not at build time, so the build never waits on these
+// database reads (slow reads here failed the production build on 2026-11-12).
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'MCP Server Directory | SettleGrid',
@@ -15,11 +17,7 @@ export const metadata: Metadata = {
 }
 
 export default async function McpDirectoryPage() {
-  const [entries, totalCount, owners] = await Promise.all([
-    getAllShadowEntries(50),
-    countShadowEntries(),
-    listOwners(),
-  ])
+  const { entries, totalCount, owners } = await loadMcpDirectory()
 
   // Group top 50 by category for navigation
   const byCategory = new Map<string, typeof entries>()
