@@ -3,21 +3,19 @@ import type { Metadata } from 'next'
 import { Navbar } from '@/components/marketing/navbar'
 import { Footer } from '@/components/marketing/footer'
 import { Badge } from '@/components/ui/badge'
-import { loadMcpDirectory } from '@/lib/mcp-directory'
+import { getMcpDirectory, mcpDirectoryMetadata } from '@/lib/mcp-directory'
 
 // Rendered per request, not at build time, so the build never waits on these
 // database reads (slow reads here failed the production build on 2026-11-12).
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'MCP Server Directory | SettleGrid',
-  description:
-    'Browse thousands of MCP servers from GitHub, npm, PyPI, and more. Add per-call billing with one command.',
-  alternates: { canonical: 'https://settlegrid.ai/mcp' },
+export async function generateMetadata(): Promise<Metadata> {
+  const { totalCount } = await getMcpDirectory()
+  return mcpDirectoryMetadata(totalCount)
 }
 
 export default async function McpDirectoryPage() {
-  const { entries, totalCount, owners } = await loadMcpDirectory()
+  const { entries, totalCount, owners } = await getMcpDirectory()
 
   // Group top 50 by category for navigation
   const byCategory = new Map<string, typeof entries>()
@@ -47,8 +45,9 @@ export default async function McpDirectoryPage() {
                 : 'MCP Server Directory'}
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Every MCP server on the web — from GitHub, npm, PyPI, Smithery,
-              and more. Add per-call billing with one command.
+              {totalCount > 0
+                ? 'MCP servers indexed from public sources such as GitHub, npm and PyPI. Add per-call billing with one command.'
+                : 'A directory of MCP servers you can add per-call billing to with one command.'}
             </p>
           </div>
 
@@ -130,7 +129,7 @@ export default async function McpDirectoryPage() {
             </div>
           ) : (
             <div className="text-center py-16 text-muted-foreground mb-12">
-              The shadow directory is being populated. Run the crawler to seed data.
+              No servers are listed here yet.
             </div>
           )}
 

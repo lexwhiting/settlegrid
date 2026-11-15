@@ -39,7 +39,7 @@ export async function generateMetadata({
   const { owner, repo } = await params
   const entry = await getShadowEntry(owner, repo)
   if (!entry) {
-    return { title: 'MCP Server Not Found | SettleGrid' }
+    return { title: 'MCP Server Not Found | SettleGrid', robots: { index: false, follow: false } }
   }
 
   const title = `${entry.name} — Monetize with SettleGrid`
@@ -77,7 +77,7 @@ export default async function ShadowDetailPage({
       <div className="min-h-screen flex flex-col bg-background">
         <Navbar />
         <main className="flex-1 flex items-center justify-center px-6 py-16 pt-24">
-          <p className="text-muted-foreground">Shadow directory is being populated.</p>
+          <p className="text-muted-foreground">No servers are listed here yet.</p>
         </main>
         <Footer />
       </div>

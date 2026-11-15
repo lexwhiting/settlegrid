@@ -3,6 +3,8 @@
  * Server-side only.
  */
 
+import { cache } from 'react'
+import type { Metadata } from 'next'
 import { getAllShadowEntries, countShadowEntries, listOwners, type ShadowEntry } from '@/lib/shadow-index'
 import { logger } from '@/lib/logger'
 
@@ -38,5 +40,30 @@ export async function loadMcpDirectory(timeoutMs = MCP_DIRECTORY_TIMEOUT_MS): Pr
     return await Promise.race([reads, timedOut])
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/** `loadMcpDirectory` memoized per request, so the page and its metadata share one set of reads. */
+export const getMcpDirectory = cache(() => loadMcpDirectory())
+
+/**
+ * Metadata for /mcp. An empty directory is kept out of search indexes and its
+ * description names no server count; a populated one states the real count.
+ */
+export function mcpDirectoryMetadata(totalCount: number): Metadata {
+  const base: Metadata = {
+    title: 'MCP Server Directory | SettleGrid',
+    alternates: { canonical: 'https://settlegrid.ai/mcp' },
+  }
+  if (totalCount <= 0) {
+    return {
+      ...base,
+      description: 'A directory of MCP servers you can add per-call billing to with one command. No servers are listed yet.',
+      robots: { index: false, follow: true },
+    }
+  }
+  return {
+    ...base,
+    description: `Browse ${totalCount.toLocaleString('en-US')} MCP servers indexed from public sources such as GitHub, npm and PyPI. Add per-call billing with one command.`,
   }
 }
