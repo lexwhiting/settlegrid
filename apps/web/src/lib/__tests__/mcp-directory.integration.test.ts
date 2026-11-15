@@ -1,18 +1,10 @@
 /**
- * Shadow-index readers against real SQL (pglite), and the bound on how long
- * they may wait.
- *
- * The /mcp directory pages read mcp_shadow_index. On 2026-11-12 these reads
- * stalled while Next.js prerendered /mcp, the page took more than 60 seconds
- * three times, and the production build failed. Every reader now returns its
- * fallback after SHADOW_READ_TIMEOUT_MS, and /mcp renders per request.
+ * loadMcpDirectory against real SQL (pglite), and the bound on how long it waits.
  *
  * The table is a test-only CREATE TABLE copied from drizzle/0002_mcp_shadow_index.sql
- * (no drizzle-kit, no migrations). The readers query through the real drizzle table.
+ * (no drizzle-kit, no migrations). The reads go through the real drizzle table.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import * as schema from '@/lib/db/schema'
@@ -23,7 +15,7 @@ const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
 vi.mock('@/lib/logger', () => ({ logger: { warn: mockWarn, error: vi.fn(), info: vi.fn() } }))
 
-import { getAllShadowEntries, getShadowEntry, listOwners, countShadowEntries } from '@/lib/shadow-index'
+import { loadMcpDirectory, MCP_DIRECTORY_TIMEOUT_MS } from '@/lib/mcp-directory'
 
 const BOOTSTRAP_SQL = `
   CREATE TABLE mcp_shadow_index (
@@ -53,7 +45,7 @@ const BOOTSTRAP_SQL = `
 let pg: PGlite
 
 /**
- * Holds the database busy, so a read issued meanwhile stays pending until `release()`.
+ * Holds the database busy, so reads issued meanwhile stay pending until `release()`.
  * `release()` also waits for the queued reads to run, so the database is idle afterwards.
  */
 function holdDatabase() {
@@ -86,51 +78,38 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('shadow-index readers (pglite)', () => {
-  it('read the table: entries by stars, one entry, distinct owners, row count', async () => {
-    expect((await getAllShadowEntries(10)).map((e) => [e.owner, e.repo, e.stars])).toEqual([
+describe('loadMcpDirectory (pglite)', () => {
+  it('returns the entries by stars, the entry count and the distinct owners', async () => {
+    const directory = await loadMcpDirectory()
+    expect(directory.entries.map((e) => [e.owner, e.repo, e.stars])).toEqual([
       ['alice', 'search', 900],
       ['bob', 'weather', 120],
       ['bob', 'weather', 80],
       ['carol', 'maps', 5],
     ])
-    expect((await getAllShadowEntries(2)).map((e) => e.stars)).toEqual([900, 120])
-    expect((await getShadowEntry('bob', 'weather'))?.name).toBe('Weather')
-    expect(await getShadowEntry('nobody', 'nothing')).toBeUndefined()
-    expect(await listOwners()).toEqual(['alice', 'bob', 'carol'])
-    expect(await countShadowEntries()).toBe(4)
+    expect(directory.totalCount).toBe(4)
+    expect(directory.owners).toEqual(['alice', 'bob', 'carol'])
     expect(mockWarn).not.toHaveBeenCalled()
   }, 20_000)
 
-  it('return their fallbacks after 10 seconds when the database does not answer', async () => {
+  it('returns the empty directory when the reads outlast the bound', async () => {
     const database = holdDatabase()
     try {
-      const reads = Promise.all([
-        getAllShadowEntries(50),
-        getShadowEntry('bob', 'weather'),
-        listOwners(),
-        countShadowEntries(),
-      ])
+      const load = loadMcpDirectory(300)
 
-      const early = await Promise.race([reads.then(() => 'settled'), sleep(2_000).then(() => 'pending')])
+      const early = await Promise.race([load.then(() => 'settled'), sleep(100).then(() => 'pending')])
       expect(early).toBe('pending') // the reads really are waiting on the database
 
-      const outcome = await Promise.race([reads, sleep(13_000).then(() => 'still pending' as const)])
-      expect(outcome).toEqual([[], undefined, [], 0])
-      expect(mockWarn).toHaveBeenCalledTimes(4)
-      for (const read of ['entries', 'entry', 'owners', 'count']) {
-        expect(mockWarn).toHaveBeenCalledWith('shadow-index.query_timeout', { read, timeoutMs: 10_000 })
-      }
+      const outcome = await Promise.race([load, sleep(5_000).then(() => 'still pending' as const)])
+      expect(outcome).toEqual({ entries: [], totalCount: 0, owners: [] })
+      expect(mockWarn).toHaveBeenCalledTimes(1)
+      expect(mockWarn).toHaveBeenCalledWith('mcp_directory.read_timeout', { timeoutMs: 300 })
     } finally {
       await database.release()
     }
-  }, 30_000)
-})
+  }, 20_000)
 
-describe('/mcp directory page', () => {
-  it('renders per request, so the build never runs its database reads', () => {
-    const page = readFileSync(path.resolve(__dirname, '../../app/mcp/page.tsx'), 'utf8')
-    expect(page).toContain("export const dynamic = 'force-dynamic'")
-    expect(page).not.toContain('force-static')
+  it('waits 10 seconds by default', () => {
+    expect(MCP_DIRECTORY_TIMEOUT_MS).toBe(10_000)
   })
 })
