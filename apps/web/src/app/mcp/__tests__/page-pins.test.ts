@@ -36,6 +36,8 @@ describe('crawled MCP directory (unpublished)', () => {
   it('/mcp reads no data and exposes no directory metadata', async () => {
     const page = read('mcp/page.tsx')
     expect(page).toContain("redirect('/servers')")
+    expect(page).toMatch(/^export const dynamic = 'force-dynamic'$/m) // rendered per request, never during the build
+    expect(page).not.toMatch(/^export const dynamic = 'force-static'$/m)
     expect(page).not.toMatch(/shadow-index|mcp-directory|@\/lib\/db/)
     expect(page).not.toMatch(/export (const metadata|(async )?function generateMetadata)/)
     const mod: Record<string, unknown> = await import('../page')
@@ -45,7 +47,7 @@ describe('crawled MCP directory (unpublished)', () => {
   it('/mcp makes no directory claims and shows no internal wording', () => {
     const page = read('mcp/page.tsx')
     expect(page).not.toMatch(/every MCP server|all MCP servers|thousands of MCP servers/i)
-    expect(page).not.toMatch(/run the crawler|seed data/i)
+    expect(page).not.toMatch(/run the crawler|shadow directory|seed data/i)
   })
 
   it('serves no per-repo pages under /mcp', () => {
