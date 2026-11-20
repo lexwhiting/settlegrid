@@ -99,7 +99,7 @@ async function json(handler: (req: NextRequest) => Promise<Response>, developerI
   return res.json()
 }
 
-const DEV = { big: '', churn: '', atRisk: '', utc: '' }
+const DEV = { big: '', churn: '', atRisk: '', utc: '', daily: '' }
 const C = { big: '', stopped1: '', stopped2: '', decliner: '', faller: '', edge: '' }
 
 beforeAll(async () => {
@@ -166,6 +166,15 @@ beforeAll(async () => {
   DEV.utc = await developer()
   const utcTool = await tool(DEV.utc, 'UTC tool')
   await calls(utcTool, uid('c2000000'), 2, 5, '2026-11-15T00:30:00.000Z', { sessionId: 's-utc' })
+
+  // DAILY: one 1-cent call at 12:30 on each of the 91 UTC dates of a 90-day period, today included.
+  DEV.daily = await developer()
+  const dailyTool = await tool(DEV.daily, 'Daily tool')
+  await pg.query(
+    `INSERT INTO invocations (tool_id, consumer_id, cost_cents, created_at)
+     SELECT $1, 'c3000000-0000-4000-8000-000000000001', 1, $2::timestamptz - d * interval '1 day' FROM generate_series(0, 90) d`,
+    [dailyTool, NOW.toISOString()],
+  )
 }, 120_000)
 
 afterAll(async () => {
@@ -226,6 +235,17 @@ describe('consumer insights: filter, then limit (pglite)', () => {
       { consumerId: C.faller, email: 'faller@example.com', currentWeekInvocations: 6, previousWeekInvocations: 10, declinePct: 40 },
     ])
   }, 30_000)
+})
+
+describe('advanced analytics: daily series (pglite)', () => {
+  it('a 90-day period keeps all 91 UTC dates, today included', async () => {
+    const advanced = await json(getAdvanced, DEV.daily, 'stats/advanced?period=90')
+    for (const series of [advanced.revenueTrend, advanced.errorTrend, advanced.costEfficiency]) {
+      expect(series).toHaveLength(91)
+      expect(series[0].date).toBe('2026-08-17')
+      expect(series.at(-1).date).toBe('2026-11-15')
+    }
+  }, 20_000)
 })
 
 describe('dashboard routes: UTC days and hours (pglite)', () => {

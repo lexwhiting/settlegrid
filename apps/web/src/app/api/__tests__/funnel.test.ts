@@ -108,7 +108,7 @@ describe('R12: Funnel (GET /api/dashboard/developer/stats/funnel)', () => {
     expect(typeof data.funnelSummary).toBe('object')
   })
 
-  it('reads no capped list of tool ids: one row only, to see whether the developer has a tool', async () => {
+  it('checks whether the developer has a tool with a one-row query, not a 500-row list of tool ids', async () => {
     mockDb.limit.mockResolvedValueOnce([])
     await GET(makeRequest('/api/dashboard/developer/stats/funnel'))
     expect(mockDb.limit).toHaveBeenCalledWith(1)

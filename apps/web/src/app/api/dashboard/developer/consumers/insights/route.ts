@@ -195,12 +195,12 @@ export async function GET(request: NextRequest) {
     const churnEmailMap = new Map(churnEmails.map((c) => [c.id, c.email]))
 
     const churningConsumers: ChurningConsumer[] = churningRaw.map((r) => ({
-        consumerId: r.consumerId,
-        email: churnEmailMap.get(r.consumerId) ?? 'unknown',
-        previousSpendCents: r.previousSpendCents,
-        previousInvocations: r.previousInvocations,
-        lastSeenAt: r.lastSeenAt,
-      }))
+      consumerId: r.consumerId,
+      email: churnEmailMap.get(r.consumerId) ?? 'unknown',
+      previousSpendCents: r.previousSpendCents,
+      previousInvocations: r.previousInvocations,
+      lastSeenAt: r.lastSeenAt,
+    }))
 
     // ── At-risk consumers: usage declining >30% week-over-week ────────
     // Counted, filtered (at least 5 calls the week before, a fall of more than
@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
       ))
       .groupBy(invocations.consumerId)
       .having(sql`${previousWeek} >= 5 and (${previousWeek} - ${currentWeek}) * 10 > ${previousWeek} * 3`)
-      .orderBy(sql`(${previousWeek} - ${currentWeek})::float / ${previousWeek} desc`, invocations.consumerId)
+      .orderBy(sql`(${previousWeek} - ${currentWeek})::float / nullif(${previousWeek}, 0) desc`, invocations.consumerId)
       .limit(TOP_CONSUMERS_LIMIT)
 
     const atRiskSlice = atRiskRows.map((r) => ({

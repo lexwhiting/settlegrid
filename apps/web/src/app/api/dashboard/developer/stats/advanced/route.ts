@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
         .groupBy(utcDay)
         .orderBy(utcDay)
-        .limit(90),
+        .limit(periodDays + 1), // a period of N days touches N + 1 UTC dates, today included
 
       // ── 2. Revenue trend (previous period for comparison) ─────────────────
       db.select({
@@ -213,7 +213,7 @@ export async function GET(request: NextRequest) {
         ))
         .groupBy(utcDay)
         .orderBy(utcDay)
-        .limit(90),
+        .limit(periodDays + 1), // a period of N days touches N + 1 UTC dates, today included
 
       // ── 3. Consumer cohort (current period) ───────────────────────────────
       db.select({
@@ -260,7 +260,7 @@ export async function GET(request: NextRequest) {
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
         .groupBy(utcDay)
         .orderBy(utcDay)
-        .limit(90),
+        .limit(periodDays + 1), // a period of N days touches N + 1 UTC dates, today included
 
       // ── 7. Top consumers ──────────────────────────────────────────────────
       db.select({
@@ -314,7 +314,7 @@ export async function GET(request: NextRequest) {
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
         .groupBy(utcDay)
         .orderBy(utcDay)
-        .limit(90),
+        .limit(periodDays + 1), // a period of N days touches N + 1 UTC dates, today included
 
       // ── 11. Referral attribution ──────────────────────────────────────────
       db.select({
