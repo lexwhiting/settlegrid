@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, and, gte, inArray } from 'drizzle-orm'
+import { eq, sql, and, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, tools, invocations } from '@/lib/db/schema'
+import { developers, invocations } from '@/lib/db/schema'
+import { developerHasTools, invocationsOfDeveloper } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -61,15 +62,6 @@ export async function GET(request: NextRequest) {
     const tier = getEffectiveTier(developer?.tier ?? 'standard', isFoundingMember)
     const tierLimit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard
 
-    // Get developer's tool IDs
-    const developerTools = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-
     // Calculate current month boundaries
     const now = new Date()
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -82,7 +74,7 @@ export async function GET(request: NextRequest) {
     // Count invocations for developer's tools this calendar month
     let currentMonthOps = 0
 
-    if (toolIds.length > 0) {
+    if (await developerHasTools(auth.id)) {
       const [result] = await db
         .select({
           count: sql<number>`count(*)::int`,
@@ -90,7 +82,7 @@ export async function GET(request: NextRequest) {
         .from(invocations)
         .where(
           and(
-            inArray(invocations.toolId, toolIds),
+            invocationsOfDeveloper(auth.id),
             gte(invocations.createdAt, sql`${periodStart.toISOString()}::timestamptz`)
           )
         )

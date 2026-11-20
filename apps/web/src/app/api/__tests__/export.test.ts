@@ -112,7 +112,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
   it('returns CSV data for invocations', async () => {
     mockDb.limit
       .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }]) // dev tier
-      .mockResolvedValueOnce([{ id: 'tool-1', name: 'My Tool' }]) // tools
+      .mockResolvedValueOnce([{ id: 'tool-1' }]) // has a tool
       .mockResolvedValueOnce([
         {
           createdAt: new Date('2026-03-01T10:00:00Z'),
@@ -123,6 +123,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
           status: 'success',
         },
       ]) // invocations
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'My Tool' }]) // names of the tools in those rows
 
     const response = await GET(makeRequest('/api/dashboard/developer/stats/export'))
     const text = await response.text()
@@ -175,7 +176,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
   it('properly escapes commas in tool names with RFC 4180 quoting', async () => {
     mockDb.limit
       .mockResolvedValueOnce([{ tier: 'scale', isFoundingMember: false }]) // dev tier
-      .mockResolvedValueOnce([{ id: 'tool-1', name: 'Tool, With, Commas' }])
+      .mockResolvedValueOnce([{ id: 'tool-1' }]) // has a tool
       .mockResolvedValueOnce([
         {
           createdAt: new Date('2026-03-01T10:00:00Z'),
@@ -186,6 +187,7 @@ describe('CSV Export (GET /api/dashboard/developer/stats/export)', () => {
           status: 'success',
         },
       ])
+      .mockResolvedValueOnce([{ id: 'tool-1', name: 'Tool, With, Commas' }]) // names of the tools in those rows
 
     const response = await GET(makeRequest('/api/dashboard/developer/stats/export'))
     const text = await response.text()

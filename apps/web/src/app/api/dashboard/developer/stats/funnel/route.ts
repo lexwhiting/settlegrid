@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, inArray } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, conversionEvents } from '@/lib/db/schema'
+import { conversionEvents } from '@/lib/db/schema'
+import { developerHasTools, onToolsOfDeveloper } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -24,15 +25,6 @@ export async function GET(request: NextRequest) {
     const userRl = await checkRateLimit(apiLimiter, `dev-funnel:uid:${auth.id}`)
     if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
-    // Get developer's tool IDs
-    const developerTools = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-
     const emptyResult = {
       conversionRates: [],
       upgradeTriggers: [],
@@ -40,11 +32,12 @@ export async function GET(request: NextRequest) {
       funnelSummary: { totalTrials: 0, totalUpgrades: 0, totalDowngrades: 0, totalChurns: 0 },
     }
 
-    if (toolIds.length === 0) {
+    if (!(await developerHasTools(auth.id))) {
       return successResponse(emptyResult)
     }
 
-    const toolFilter = inArray(conversionEvents.toolId, toolIds)
+    // Every tool the developer owns, deleted ones included, with no cap on how many
+    const toolFilter = onToolsOfDeveloper(conversionEvents.toolId, auth.id)
 
     // Conversion rates by event type
     const conversionRates = await db

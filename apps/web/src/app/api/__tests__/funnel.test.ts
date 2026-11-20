@@ -108,10 +108,11 @@ describe('R12: Funnel (GET /api/dashboard/developer/stats/funnel)', () => {
     expect(typeof data.funnelSummary).toBe('object')
   })
 
-  it('limits tool query to 500', async () => {
+  it('reads no capped list of tool ids: one row only, to see whether the developer has a tool', async () => {
     mockDb.limit.mockResolvedValueOnce([])
     await GET(makeRequest('/api/dashboard/developer/stats/funnel'))
-    expect(mockDb.limit).toHaveBeenCalledWith(500)
+    expect(mockDb.limit).toHaveBeenCalledWith(1)
+    expect(mockDb.limit).not.toHaveBeenCalledWith(500)
   })
 
   it('returns conversion rates grouped by event type', async () => {

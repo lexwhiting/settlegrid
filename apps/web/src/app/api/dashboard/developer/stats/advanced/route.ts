@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, inArray, lte } from 'drizzle-orm'
+import { eq, sql, gte, and, lte } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, tools, invocations } from '@/lib/db/schema'
+import { developers, invocations } from '@/lib/db/schema'
+import { developerHasTools, invocationsOfDeveloper, toolNamesOf } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -137,16 +138,6 @@ export async function GET(request: NextRequest) {
     const VALID_PERIODS = new Set(['7', '30', '90'])
     const periodDays = VALID_PERIODS.has(periodParam ?? '') ? Number(periodParam) : 30
 
-    // ── Get developer's tool IDs ────────────────────────────────────────────
-    const developerTools = await db
-      .select({ id: tools.id, name: tools.name })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-    const toolNameMap = new Map(developerTools.map((t) => [t.id, t.name]))
-
     // ── Empty defaults ──────────────────────────────────────────────────────
     const emptyResult: AdvancedAnalytics = {
       revenueTrend: [],
@@ -161,11 +152,17 @@ export async function GET(request: NextRequest) {
       periodDays,
     }
 
-    if (toolIds.length === 0) {
+    if (!(await developerHasTools(auth.id))) {
       return successResponse(emptyResult)
     }
 
-    const toolFilter = inArray(invocations.toolId, toolIds)
+    // Every tool the developer owns, deleted ones included, with no cap on how many
+    const toolFilter = invocationsOfDeveloper(auth.id)
+    // Days, weekdays and hours in UTC, whatever the database session's time zone
+    const createdAtUtc = sql`(${invocations.createdAt} at time zone 'UTC')`
+    const utcDay = sql`${createdAtUtc}::date`
+    const utcIsoDow = sql`extract(isodow from ${createdAtUtc})`
+    const utcHour = sql`extract(hour from ${createdAtUtc})`
     const now = new Date()
     const periodStart = new Date(now)
     periodStart.setDate(periodStart.getDate() - periodDays)
@@ -192,19 +189,19 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       // ── 1. Revenue trend (current period) ─────────────────────────────────
       db.select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
         invocations: sql<number>`count(*)::int`,
       })
         .from(invocations)
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
-        .groupBy(sql`${invocations.createdAt}::date`)
-        .orderBy(sql`${invocations.createdAt}::date`)
+        .groupBy(utcDay)
+        .orderBy(utcDay)
         .limit(90),
 
       // ── 2. Revenue trend (previous period for comparison) ─────────────────
       db.select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
         invocations: sql<number>`count(*)::int`,
       })
@@ -214,8 +211,8 @@ export async function GET(request: NextRequest) {
           gte(invocations.createdAt, previousPeriodStartSql),
           lte(invocations.createdAt, periodEndSql),
         ))
-        .groupBy(sql`${invocations.createdAt}::date`)
-        .orderBy(sql`${invocations.createdAt}::date`)
+        .groupBy(utcDay)
+        .orderBy(utcDay)
         .limit(90),
 
       // ── 3. Consumer cohort (current period) ───────────────────────────────
@@ -255,14 +252,14 @@ export async function GET(request: NextRequest) {
 
       // ── 6. Error trend (daily) ────────────────────────────────────────────
       db.select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         totalCount: sql<number>`count(*)::int`,
         errorCount: sql<number>`count(*) filter (where ${invocations.status} != 'success')::int`,
       })
         .from(invocations)
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
-        .groupBy(sql`${invocations.createdAt}::date`)
-        .orderBy(sql`${invocations.createdAt}::date`)
+        .groupBy(utcDay)
+        .orderBy(utcDay)
         .limit(90),
 
       // ── 7. Top consumers ──────────────────────────────────────────────────
@@ -271,8 +268,8 @@ export async function GET(request: NextRequest) {
         totalSpendCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
         invocationCount: sql<number>`count(*)::int`,
         avgCostCents: sql<number>`coalesce(avg(${invocations.costCents}), 0)::int`,
-        firstSeen: sql<string>`to_char(min(${invocations.createdAt}), 'YYYY-MM-DD')`,
-        lastSeen: sql<string>`to_char(max(${invocations.createdAt}), 'YYYY-MM-DD')`,
+        firstSeen: sql<string>`to_char(min(${createdAtUtc}), 'YYYY-MM-DD')`,
+        lastSeen: sql<string>`to_char(max(${createdAtUtc}), 'YYYY-MM-DD')`,
       })
         .from(invocations)
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
@@ -297,26 +294,26 @@ export async function GET(request: NextRequest) {
 
       // ── 9. Hourly heatmap (day-of-week x hour-of-day) ────────────────────
       db.select({
-        dayOfWeek: sql<number>`extract(isodow from ${invocations.createdAt})::int`,
-        hour: sql<number>`extract(hour from ${invocations.createdAt})::int`,
+        dayOfWeek: sql<number>`${utcIsoDow}::int`,
+        hour: sql<number>`${utcHour}::int`,
         count: sql<number>`count(*)::int`,
       })
         .from(invocations)
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
-        .groupBy(sql`extract(isodow from ${invocations.createdAt})`, sql`extract(hour from ${invocations.createdAt})`)
-        .orderBy(sql`extract(isodow from ${invocations.createdAt})`, sql`extract(hour from ${invocations.createdAt})`)
+        .groupBy(utcIsoDow, utcHour)
+        .orderBy(utcIsoDow, utcHour)
         .limit(168), // 7 days * 24 hours
 
       // ── 10. Cost efficiency (daily) ───────────────────────────────────────
       db.select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
         invocations: sql<number>`count(*)::int`,
       })
         .from(invocations)
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql)))
-        .groupBy(sql`${invocations.createdAt}::date`)
-        .orderBy(sql`${invocations.createdAt}::date`)
+        .groupBy(utcDay)
+        .orderBy(utcDay)
         .limit(90),
 
       // ── 11. Referral attribution ──────────────────────────────────────────
@@ -377,6 +374,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Assemble latency by tool ────────────────────────────────────────────
+    const toolNameMap = await toolNamesOf(auth.id, latencyRows.map((row) => row.toolId))
     const latencyByTool: LatencyBreakdown[] = latencyRows.map((row) => ({
       toolId: row.toolId,
       toolName: toolNameMap.get(row.toolId) ?? 'Unknown',
