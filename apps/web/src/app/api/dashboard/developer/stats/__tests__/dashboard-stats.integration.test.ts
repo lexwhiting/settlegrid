@@ -95,7 +95,7 @@ async function call(handler: typeof getStats, developerId: string) {
 
 const DEV = {
   a: '', b: '', gone: '', idle: '', none: '', logOnly: '', many: '', hourly: '', steady: '', today: '',
-  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '', spread: '', spreadCents: '', stopped: '', future: '',
+  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '', spread: '', spreadCents: '', stopped: '', future: '', lateNight: '',
 }
 
 beforeAll(async () => {
@@ -176,6 +176,10 @@ beforeAll(async () => {
   DEV.spread = (await earner(spreadDays, () => 100)).id
   DEV.spreadCents = (await earner(spreadDays, () => 1)).id
   DEV.stopped = (await earner(range(24, 30), () => 100)).id // 100 cents on each of the first 7 window days, then nothing
+  // 100 cents at 00:30 UTC on each of the last 7 complete days: the evening before, in New York.
+  const lateNight = await earner([], () => 0)
+  DEV.lateNight = lateNight.id
+  for (const d of range(1, 7)) await invocation(lateNight.tool, 100, new Date(Date.UTC(2026, 10, 15 - d, 0, 30)).toISOString())
   // 5 cents today and a future-dated 7 cents tomorrow (a skewed clock).
   const future = await earner([], () => 0)
   DEV.future = future.id
@@ -330,6 +334,12 @@ describe('dashboard stats and forecast (pglite)', () => {
       expect(trend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 50 })
       const steady = (await call(getForecast, DEV.steady)).body
       expect(steady).toMatchObject({ dailyDataPoints: 30, projectedNextMonthCents: 30 })
+      // Calls at 00:30 UTC belong to that UTC day, not to the New York evening before.
+      const hourlyTrend = (await call(getAnalytics, DEV.hourly)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+      expect(hourlyTrend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 13 }) // 00:30 to 12:30 UTC today
+      expect(hourlyTrend.at(-2)).toEqual({ date: '2026-11-14', revenueCents: 111 }) // 12:29 to 23:30 UTC yesterday
+      const lateNight = (await call(getForecast, DEV.lateNight)).body
+      expect(lateNight).toMatchObject({ dailyDataPoints: 7, projectedNextMonthCents: 3000, growthRate: 0, trend: 'stable' })
     } finally {
       await pg.exec("SET TIME ZONE 'UTC'")
     }
