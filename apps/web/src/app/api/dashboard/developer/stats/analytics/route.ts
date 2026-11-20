@@ -8,6 +8,8 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
+const TREND_DAYS = 30
+
 
 /** GET /api/dashboard/developer/stats/analytics — detailed analytics for developer */
 export async function GET(request: NextRequest) {
@@ -121,24 +123,28 @@ export async function GET(request: NextRequest) {
       ? Math.round((errorStats.errors / errorStats.total) * 10000) / 100
       : 0
 
-    // ── Revenue Trend (last 30 days) ────────────────────────────────────────────
-    const thirtyDaysAgoDate = new Date()
-    thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 30)
+    // ── Revenue Trend (last 30 UTC days, today included) ────────────────────────
+    // Starting 29 days before today keeps the window at 30 dates, so the limit
+    // can never drop today.
+    const todayStart = new Date()
+    todayStart.setUTCHours(0, 0, 0, 0)
+    const trendStart = new Date(todayStart.getTime() - (TREND_DAYS - 1) * 24 * 60 * 60 * 1000)
+    const utcDay = sql`(${invocations.createdAt} at time zone 'UTC')::date`
     const revenueTrend = await db
       .select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
       })
       .from(invocations)
       .where(
         and(
           toolFilter,
-          gte(invocations.createdAt, sql`${thirtyDaysAgoDate.toISOString()}::timestamptz`)
+          gte(invocations.createdAt, sql`${trendStart.toISOString()}::timestamptz`)
         )
       )
-      .groupBy(sql`${invocations.createdAt}::date`)
-      .orderBy(sql`${invocations.createdAt}::date`)
-      .limit(30)
+      .groupBy(utcDay)
+      .orderBy(utcDay)
+      .limit(TREND_DAYS)
 
     return successResponse({
       methodBreakdown,

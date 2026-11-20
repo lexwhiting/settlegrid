@@ -7,6 +7,7 @@ import { invocationsOfDeveloper, monthEarningsCents } from '@/lib/developer-invo
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { hasFeature } from '@/lib/tier-config'
+import { denseDailyCents, forecastFromDailyCents } from '@/lib/revenue-forecast'
 
 export const maxDuration = 30
 
@@ -33,51 +34,6 @@ const PROJECTION_DAYS = 30
 const GROWTH_THRESHOLD = 0.05 // 5% growth rate threshold
 const MIN_DATA_POINTS_HIGH = 20
 const MIN_DATA_POINTS_MEDIUM = 7
-
-/**
- * Simple linear regression: y = mx + b
- * Returns slope (m), intercept (b), and R-squared
- */
-function linearRegression(data: Array<{ x: number; y: number }>): {
-  slope: number
-  intercept: number
-  rSquared: number
-} {
-  const n = data.length
-  if (n === 0) return { slope: 0, intercept: 0, rSquared: 0 }
-  if (n === 1) return { slope: 0, intercept: data[0].y, rSquared: 0 }
-
-  let sumX = 0
-  let sumY = 0
-  let sumXY = 0
-  let sumXX = 0
-
-  for (const point of data) {
-    sumX += point.x
-    sumY += point.y
-    sumXY += point.x * point.y
-    sumXX += point.x * point.x
-  }
-
-  const denominator = n * sumXX - sumX * sumX
-  if (denominator === 0) return { slope: 0, intercept: sumY / n, rSquared: 0 }
-
-  const slope = (n * sumXY - sumX * sumY) / denominator
-  const intercept = (sumY - slope * sumX) / n
-
-  // R-squared
-  const meanY = sumY / n
-  let ssRes = 0
-  let ssTot = 0
-  for (const point of data) {
-    const predicted = slope * point.x + intercept
-    ssRes += (point.y - predicted) ** 2
-    ssTot += (point.y - meanY) ** 2
-  }
-  const rSquared = ssTot === 0 ? 0 : Math.max(0, 1 - ssRes / ssTot)
-
-  return { slope, intercept, rSquared }
-}
 
 /** GET /api/dashboard/developer/stats/forecast — revenue forecast (Builder+) */
 export async function GET(request: NextRequest) {
@@ -157,41 +113,12 @@ export async function GET(request: NextRequest) {
       return successResponse({ ...emptyForecast, dailyDataPoints: revenueDays })
     }
 
-    // ── Linear regression on daily revenue ──────────────────────────────
-    const regressionData = dailyRevenue.map((d, idx) => ({
-      x: idx,
-      y: d.revenueCents,
-    }))
-
-    const { slope, intercept, rSquared } = linearRegression(regressionData)
-
-    // Project next 30 days: sum of predicted daily values
-    const lastIdx = regressionData.length - 1
-    let projectedNextMonthCents = 0
-    for (let i = 1; i <= PROJECTION_DAYS; i++) {
-      const predicted = slope * (lastIdx + i) + intercept
-      // Floor at 0 — revenue can't be negative
-      projectedNextMonthCents += Math.max(0, Math.round(predicted))
-    }
-
-    // ── Calculate growth rate ───────────────────────────────────────────
-    // Compare second half avg to first half avg
-    // For a single data point, both halves are the same — growth rate is 0
-    const midpoint = Math.max(1, Math.floor(dailyRevenue.length / 2))
-    const firstHalf = dailyRevenue.slice(0, midpoint)
-    const secondHalf = dailyRevenue.slice(midpoint)
-
-    const firstHalfAvg = firstHalf.length > 0
-      ? firstHalf.reduce((s, d) => s + d.revenueCents, 0) / firstHalf.length
-      : 0
-    const secondHalfAvg = secondHalf.length > 0
-      ? secondHalf.reduce((s, d) => s + d.revenueCents, 0) / secondHalf.length
-      : 0
-
-    // Guard against division by zero: if first half had zero revenue, growth rate is 0
-    const growthRate = firstHalfAvg > 0
-      ? Math.round(((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 10000) / 10000
-      : 0
+    // ── Projection and growth over every day of the window ─────────────
+    // Days without calls have no row; they count as 0, so revenue spread over
+    // the month is not read as consecutive days.
+    const series = denseDailyCents(dailyRevenue, lookbackStart, LOOKBACK_DAYS)
+    const { projectedCents: projectedNextMonthCents, growthRate, rSquared } =
+      forecastFromDailyCents(series, PROJECTION_DAYS)
 
     // ── Determine trend ─────────────────────────────────────────────────
     let trend: Trend

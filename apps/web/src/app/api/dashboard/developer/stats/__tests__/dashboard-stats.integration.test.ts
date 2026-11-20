@@ -1,10 +1,11 @@
 /**
- * The dashboard stats and forecast routes against real SQL (pglite).
+ * The dashboard stats, forecast and analytics routes against real SQL (pglite).
  *
  * Every figure covers all of the developer's tools, deleted ones included, and
  * never another developer's. "Active Tools" counts status 'active'. No figure
  * is capped by the number of tools. The forecast reads the last 30 complete UTC
- * days and needs 7 of them with revenue.
+ * days and needs 7 of them with revenue; days without revenue count as 0. The
+ * analytics revenue trend covers the 30 UTC days ending today.
  *
  * The schema is a test-only CREATE TABLE bootstrap of the columns these two
  * routes read (no drizzle-kit, no migrations). Fixtures are SQL inserts. The
@@ -29,6 +30,7 @@ vi.mock('@/lib/rate-limit', () => ({
 
 import { GET as getStats } from '../route'
 import { GET as getForecast } from '../forecast/route'
+import { GET as getAnalytics } from '../analytics/route'
 
 const BOOTSTRAP_SQL = `
   SET TIME ZONE 'UTC';
@@ -39,7 +41,8 @@ const BOOTSTRAP_SQL = `
     total_invocations integer NOT NULL DEFAULT 0, total_revenue_cents integer NOT NULL DEFAULT 0);
   CREATE TABLE invocations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tool_id uuid NOT NULL REFERENCES tools(id), cost_cents integer NOT NULL,
-    status text NOT NULL DEFAULT 'success', created_at timestamptz NOT NULL);
+    status text NOT NULL DEFAULT 'success', created_at timestamptz NOT NULL,
+    consumer_id uuid, method text, latency_ms integer);
 `
 
 // Not hour-aligned: the last 24 hours touch 25 clock hours. "Today" is 2026-11-15, so the
@@ -89,7 +92,7 @@ async function call(handler: typeof getStats, developerId: string) {
 
 const DEV = {
   a: '', b: '', gone: '', idle: '', none: '', logOnly: '', many: '', hourly: '', steady: '', today: '',
-  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '',
+  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '', spread: '', spreadCents: '', stopped: '',
 }
 
 beforeAll(async () => {
@@ -165,6 +168,11 @@ beforeAll(async () => {
   DEV.rising = (await earner(range(1, 30), (d) => (31 - d) * 10)).id // 10 cents 30 days ago up to 300 yesterday
   DEV.zeroDays = (await earner(range(1, 7), (d) => (d === 1 ? 5 : 0))).id // one revenue day, six that earned nothing
   DEV.mixed = (await earner(range(1, 20), (d) => (d <= 7 ? (8 - d) * 100 : 0))).id // 7 revenue days among 20 with calls
+  // Eight revenue days placed symmetrically about the middle of the window (days 30 to 1 ago), and none between.
+  const spreadDays = [30, 26, 22, 18, 13, 9, 5, 1]
+  DEV.spread = (await earner(spreadDays, () => 100)).id
+  DEV.spreadCents = (await earner(spreadDays, () => 1)).id
+  DEV.stopped = (await earner(range(24, 30), () => 100)).id // 100 cents on each of the first 7 window days, then nothing
 }, 120_000)
 
 afterAll(async () => {
@@ -259,5 +267,28 @@ describe('dashboard stats and forecast (pglite)', () => {
     const mixed = await call(getForecast, DEV.mixed)
     expect(mixed.body.insufficientData).toBeUndefined()
     expect(mixed.body).toMatchObject({ dailyDataPoints: 7, confidence: 'medium' })
+  }, 20_000)
+
+  it('forecast: days without calls count as 0, and the daily predictions are rounded once', async () => {
+    // 100 cents on 8 days spread over the window: 800 cents a month, not 100 a day for 30 days.
+    const spread = await call(getForecast, DEV.spread)
+    expect(spread.body).toMatchObject({ dailyDataPoints: 8, projectedNextMonthCents: 800, growthRate: 0, trend: 'stable', confidence: 'medium' })
+    // 1 cent on the same days: 8/30 of a cent a day rounds to 0 each day but 8 cents over 30.
+    const cents = await call(getForecast, DEV.spreadCents)
+    expect(cents.body).toMatchObject({ dailyDataPoints: 8, projectedNextMonthCents: 8 })
+    // Revenue in the first week only: nothing projected, and the trend says so.
+    const stopped = await call(getForecast, DEV.stopped)
+    expect(stopped.body.insufficientData).toBeUndefined()
+    expect(stopped.body).toMatchObject({ dailyDataPoints: 7, projectedNextMonthCents: 0, growthRate: -1, trend: 'declining' })
+  }, 20_000)
+
+  it('analytics: the revenue trend covers the 30 UTC days ending today, today included', async () => {
+    const { status, body } = await call(getAnalytics, DEV.steady)
+    expect(status).toBe(200)
+    const trend = body.revenueTrend as Array<{ date: string; revenueCents: number }>
+    expect(trend).toHaveLength(30)
+    expect(trend[0]).toEqual({ date: '2026-10-17', revenueCents: 1 }) // 29 days before today
+    expect(trend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 50 }) // today
+    expect(trend.reduce((s, d) => s + d.revenueCents, 0)).toBe(29 + 50) // not the call 31 days ago
   }, 20_000)
 })

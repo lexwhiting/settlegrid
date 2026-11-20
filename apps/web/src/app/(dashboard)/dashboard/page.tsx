@@ -20,6 +20,7 @@ import {
   type ConsumerInsightsData,
   type FraudSignalsData,
   formatErrorRatePct,
+  hourLabel,
 } from '@/lib/dashboard-summaries'
 
 interface DeveloperStats {
@@ -871,7 +872,7 @@ export default function DeveloperDashboardPage() {
               </p>
             </CardContent>
           </Card>
-        ) : forecastData && forecastData.projectedNextMonthCents > 0 ? (
+        ) : forecastData ? (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -1418,7 +1419,7 @@ export default function DeveloperDashboardPage() {
       {/* Invocation chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Invocations (Last 24 Hours)</CardTitle>
+          <CardTitle className="text-lg">Invocations (Last 24 Hours, UTC)</CardTitle>
         </CardHeader>
         <CardContent>
           {stats?.recentInvocations && stats.recentInvocations.length > 0 ? (
@@ -1431,10 +1432,7 @@ export default function DeveloperDashboardPage() {
               yKey="count"
               height={200}
               ariaLabel="Invocations per hour over the last 24 hours"
-              formatXAxis={(v) => {
-                const h = parseInt(v, 10)
-                return isNaN(h) ? v : `${h}:00`
-              }}
+              formatXAxis={hourLabel}
             />
           ) : (
             <p className="text-gray-500 dark:text-gray-400 text-sm">
