@@ -62,9 +62,11 @@ export async function GET(request: NextRequest) {
 
     if (toolsCreated > 0) {
       // Get recent invocations for all developer's tools
+      // Hour buckets in UTC whatever the session time zone, sent as ISO 8601 ("2026-11-15T12:00:00Z").
+      const utcHour = sql`date_trunc('hour', ${invocations.createdAt} at time zone 'UTC')`
       const recentRows = await db
         .select({
-          hour: sql<string>`date_trunc('hour', ${invocations.createdAt})::text`,
+          hour: sql<string>`to_char(${utcHour}, 'YYYY-MM-DD"T"HH24:00:00"Z"')`,
           count: sql<number>`count(*)::int`,
           revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
         })
@@ -75,8 +77,8 @@ export async function GET(request: NextRequest) {
             ownInvocations
           )
         )
-        .groupBy(sql`date_trunc('hour', ${invocations.createdAt})`)
-        .orderBy(sql`date_trunc('hour', ${invocations.createdAt})`)
+        .groupBy(utcHour)
+        .orderBy(utcHour)
         .limit(25) // a rolling 24 hours touches up to 25 clock-hour buckets
 
       recentInvocations = recentRows.map((row) => ({

@@ -1,21 +1,24 @@
 /**
  * The dashboard stats, forecast and analytics routes against real SQL (pglite).
  *
- * Every figure covers all of the developer's tools, deleted ones included, and
- * never another developer's. "Active Tools" counts status 'active'. No figure
- * is capped by the number of tools. The forecast reads the last 30 complete UTC
+ * Every stats and forecast figure covers all of the developer's tools, deleted
+ * ones included, and never another developer's. "Active Tools" counts status
+ * 'active'. No stats or forecast figure is capped by the number of tools (the
+ * analytics route still reads at most 500 tool ids; a separate follow-up). The forecast reads the last 30 complete UTC
  * days and needs 7 of them with revenue; days without revenue count as 0. The
- * analytics revenue trend covers the 30 UTC days ending today.
+ * analytics revenue trend covers every one of the 30 UTC days ending today.
+ * Hours and days are UTC whatever the session time zone.
  *
- * The schema is a test-only CREATE TABLE bootstrap of the columns these two
+ * The schema is a test-only CREATE TABLE bootstrap of the columns these
  * routes read (no drizzle-kit, no migrations). Fixtures are SQL inserts. The
- * clock is fixed and the session time zone is UTC.
+ * clock is fixed and the session time zone is UTC unless a test sets another.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import { NextRequest } from 'next/server'
 import * as schema from '@/lib/db/schema'
+import { hourLabel } from '@/lib/dashboard-summaries'
 
 const holder = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof drizzle> }))
 const authState = vi.hoisted(() => ({ id: '' }))
@@ -92,7 +95,7 @@ async function call(handler: typeof getStats, developerId: string) {
 
 const DEV = {
   a: '', b: '', gone: '', idle: '', none: '', logOnly: '', many: '', hourly: '', steady: '', today: '',
-  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '', spread: '', spreadCents: '', stopped: '',
+  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '', spread: '', spreadCents: '', stopped: '', future: '',
 }
 
 beforeAll(async () => {
@@ -173,6 +176,11 @@ beforeAll(async () => {
   DEV.spread = (await earner(spreadDays, () => 100)).id
   DEV.spreadCents = (await earner(spreadDays, () => 1)).id
   DEV.stopped = (await earner(range(24, 30), () => 100)).id // 100 cents on each of the first 7 window days, then nothing
+  // 5 cents today and a future-dated 7 cents tomorrow (a skewed clock).
+  const future = await earner([], () => 0)
+  DEV.future = future.id
+  await invocation(future.tool, 5, at(1 * MIN))
+  await invocation(future.tool, 7, at(-1 * DAY))
 }, 120_000)
 
 afterAll(async () => {
@@ -227,7 +235,7 @@ describe('dashboard stats and forecast (pglite)', () => {
     const { body } = await call(getStats, DEV.hourly)
     const rows = body.recentInvocations as Array<{ hour: string; count: number; revenueCents: number }>
     expect(rows).toHaveLength(25)
-    expect(rows.at(-1)?.hour).toContain('2026-11-15 12:00')
+    expect(rows.at(-1)?.hour).toBe('2026-11-15T12:00:00Z') // ISO 8601, UTC
     expect(rows.reduce((s, r) => s + r.revenueCents, 0)).toBe(25)
   }, 20_000)
 
@@ -291,4 +299,39 @@ describe('dashboard stats and forecast (pglite)', () => {
     expect(trend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 50 }) // today
     expect(trend.reduce((s, d) => s + d.revenueCents, 0)).toBe(29 + 50) // not the call 31 days ago
   }, 20_000)
+
+  it('analytics: days without calls are in the trend as 0, and nothing after today is', async () => {
+    const spread = (await call(getAnalytics, DEV.spread)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+    expect(spread).toHaveLength(30)
+    expect(spread.map((d) => d.date)).toEqual(
+      Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2026, 9, 17 + i)).toISOString().slice(0, 10)),
+    )
+    expect(spread.filter((d) => d.revenueCents > 0)).toHaveLength(7) // the call 30 days ago is before the window
+    expect(spread.filter((d) => d.revenueCents === 0)).toHaveLength(23)
+    const future = (await call(getAnalytics, DEV.future)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+    expect(future).toHaveLength(30)
+    expect(future.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 5 })
+    expect(future.reduce((s, d) => s + d.revenueCents, 0)).toBe(5)
+  }, 20_000)
+
+  it('hours and days stay UTC when the database session uses another time zone', async () => {
+    await pg.exec("SET TIME ZONE 'America/New_York'")
+    try {
+      const hourly = (await call(getStats, DEV.hourly)).body.recentInvocations as Array<{ hour: string; revenueCents: number }>
+      expect(hourly).toHaveLength(25)
+      expect(hourly.at(-1)?.hour).toBe('2026-11-15T12:00:00Z')
+      expect(hourLabel(hourly.at(-1)!.hour)).toBe('12:00')
+      const analytics = (await call(getAnalytics, DEV.hourly)).body
+      const hours = analytics.hourlyDistribution as Array<{ hour: number; count: number }>
+      expect(hours.find((h) => h.hour === 12)?.count).toBe(3) // 12:30 today; 12:29 and 12:45 yesterday (UTC)
+      expect(hours.find((h) => h.hour === 7)?.count).toBe(1) // 07:30 UTC today, not New York's 7 a.m.
+      const trend = (await call(getAnalytics, DEV.steady)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+      expect(trend[0]).toEqual({ date: '2026-10-17', revenueCents: 1 })
+      expect(trend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 50 })
+      const steady = (await call(getForecast, DEV.steady)).body
+      expect(steady).toMatchObject({ dailyDataPoints: 30, projectedNextMonthCents: 30 })
+    } finally {
+      await pg.exec("SET TIME ZONE 'UTC'")
+    }
+  }, 30_000)
 })

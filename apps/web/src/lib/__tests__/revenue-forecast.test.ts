@@ -50,6 +50,12 @@ describe('forecastFromDailyCents', () => {
     expect(stopped.growthRate).toBe(-1)
   })
 
+  it('can project 0 while a developer still earns: the straight line falls through zero', () => {
+    // $1 a day for 15 days, then 20 cents a day: the fitted line is below 0 by day 31.
+    const stepDown = Array.from({ length: 30 }, (_, i) => (i < 15 ? 100 : 20))
+    expect(forecastFromDailyCents(stepDown, 30)).toMatchObject({ projectedCents: 0, growthRate: -0.8 })
+  })
+
   it('gives nothing for a month without revenue', () => {
     expect(forecastFromDailyCents(Array(30).fill(0), 30)).toEqual({ projectedCents: 0, growthRate: 0, rSquared: 0 })
   })
