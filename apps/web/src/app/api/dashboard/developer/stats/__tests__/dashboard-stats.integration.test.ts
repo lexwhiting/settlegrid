@@ -206,6 +206,22 @@ describe('dashboard stats and forecast (pglite)', () => {
     expect(b.body.monthRevenueCents).toBe(50)
   }, 20_000)
 
+  it('analytics: covers only the developer\'s own tools, deleted ones included, never another developer\'s', async () => {
+    // A: 8 calls (live, draft and deleted tools; one error), 50 cents in all. B: one 50-cent call on its own tool.
+    const a = (await call(getAnalytics, DEV.a)).body
+    const aCalls = (a.methodBreakdown as Array<{ count: number }>).reduce((s, m) => s + m.count, 0)
+    expect(aCalls).toBe(8) // not 9: B's call is left out
+    expect((a.revenueTrend as Array<{ revenueCents: number }>).reduce((s, d) => s + d.revenueCents, 0)).toBe(50) // not 100
+    expect(a.errorRate).toBe(12.5) // 1 error in A's 8 calls
+    const b = (await call(getAnalytics, DEV.b)).body
+    expect((b.methodBreakdown as Array<{ count: number }>).reduce((s, m) => s + m.count, 0)).toBe(1)
+    expect((b.revenueTrend as Array<{ revenueCents: number }>).reduce((s, d) => s + d.revenueCents, 0)).toBe(50)
+    expect(b.errorRate).toBe(0)
+    // A developer with no tools gets the empty response, not anyone else's data.
+    const none = (await call(getAnalytics, DEV.none)).body
+    expect(none).toMatchObject({ methodBreakdown: [], topConsumers: [], revenueTrend: [], errorRate: 0 })
+  }, 20_000)
+
   it('stats: the last 24 hours cover every tool the developer owns', async () => {
     const { body } = await call(getStats, DEV.a)
     const rows = body.recentInvocations as Array<{ count: number; revenueCents: number }>
