@@ -4,8 +4,8 @@
  * - Every tool the developer owns counts, however many: a 501st tool's proxy
  *   calls, name and slug, and both tool counts.
  * - Another developer's tools and calls never count.
- * - Today, this week (from Sunday) and this month are UTC, whatever the
- *   server's time zone.
+ * - Today, this week (from Sunday) and this month start at 00:00 UTC,
+ *   boundaries included, whatever the server's time zone.
  *
  * The schema is a test-only CREATE TABLE bootstrap of the columns the route
  * reads (no drizzle-kit, no migrations). Fixtures are SQL inserts. The clock
@@ -39,10 +39,15 @@ const BOOTSTRAP_SQL = `
     status text NOT NULL DEFAULT 'success', created_at timestamptz NOT NULL);
 `
 
-// "Now" is Sunday 2026-11-15 12:30 UTC: today, this week and this month all start at
-// 00:00 UTC on Nov 15, Nov 15 and Nov 1.
-const NOW = new Date('2026-11-15T12:30:00.000Z')
-const DEV = { big: 'd0000000-0000-4000-8000-000000000001', other: 'd0000000-0000-4000-8000-000000000002', none: 'd0000000-0000-4000-8000-000000000003' }
+// "Now" is Wednesday 2026-11-18 12:30 UTC: today starts Wed Nov 18 00:00, this week Sun Nov 15
+// 00:00 and this month Nov 1 00:00, all UTC.
+const NOW = new Date('2026-11-18T12:30:00.000Z')
+const DEV = {
+  big: 'd0000000-0000-4000-8000-000000000001',
+  other: 'd0000000-0000-4000-8000-000000000002',
+  none: 'd0000000-0000-4000-8000-000000000003',
+  tz: 'd0000000-0000-4000-8000-000000000004',
+}
 let pg: PGlite
 
 async function proxyCall(toolId: string, createdAt: string, cents = 1, status = 'success') {
@@ -67,9 +72,8 @@ beforeAll(async () => {
   await pg.exec(BOOTSTRAP_SQL)
   holder.db = drizzle(pg, { schema })
 
-  // BIG: 500 tools without a proxy endpoint, then "Tool 501" with one. All calls are on Tool 501:
-  // one at 01:00 UTC today, one on Nov 1 at 03:00 UTC (this month, not this week), one in October,
-  // and one non-proxy call today.
+  // BIG: 500 tools without a proxy endpoint, then "Tool 501" with one. All calls are on Tool 501,
+  // at the edges of today, this week and this month, plus one in October and one non-proxy call.
   await pg.query(
     `INSERT INTO tools (developer_id, name, slug) SELECT $1, 'Tool ' || g, 'tool-' || g FROM generate_series(1, 500) g`,
     [DEV.big],
@@ -78,12 +82,15 @@ beforeAll(async () => {
     `INSERT INTO tools (developer_id, name, slug, proxy_endpoint) VALUES ($1, 'Tool 501', 'tool-501', 'https://example.com') RETURNING id`,
     [DEV.big],
   )).rows
-  await proxyCall(tool501, '2026-11-15T01:00:00.000Z', 4)
-  await proxyCall(tool501, '2026-11-01T03:00:00.000Z', 6, 'error')
-  await proxyCall(tool501, '2026-10-31T23:00:00.000Z', 99)
+  await proxyCall(tool501, '2026-11-18T00:00:00.000Z', 4) // the first instant of today
+  await proxyCall(tool501, '2026-11-17T23:59:00.000Z', 2) // this week, not today
+  await proxyCall(tool501, '2026-11-15T00:00:00.000Z', 3) // the first instant of this week (Sunday)
+  await proxyCall(tool501, '2026-11-14T23:59:59.000Z', 5, 'error') // Saturday: this month, not this week
+  await proxyCall(tool501, '2026-11-01T03:00:00.000Z', 6) // this month, not this week
+  await proxyCall(tool501, '2026-10-31T23:00:00.000Z', 99) // last month
   await pg.query(
     `INSERT INTO invocations (tool_id, method, cost_cents, status, created_at) VALUES ($1, 'run', 50, 'success', $2)`,
-    [tool501, '2026-11-15T02:00:00.000Z'],
+    [tool501, '2026-11-18T02:00:00.000Z'],
   )
 
   // OTHER: one tool with a proxy endpoint and a proxy call today.
@@ -91,7 +98,15 @@ beforeAll(async () => {
     `INSERT INTO tools (developer_id, name, slug, proxy_endpoint) VALUES ($1, 'Other', 'other', 'https://example.org') RETURNING id`,
     [DEV.other],
   )).rows
-  await proxyCall(otherTool, '2026-11-15T03:00:00.000Z', 7)
+  await proxyCall(otherTool, '2026-11-18T03:00:00.000Z', 7)
+
+  // TZ: three tools (far below any cap) and three calls that fall in the UTC day, week and month
+  // but before the same boundaries in Los Angeles time.
+  await pg.query(`INSERT INTO tools (developer_id, name, slug) SELECT $1, 'TZ ' || g, 'tz-' || g FROM generate_series(1, 3) g`, [DEV.tz])
+  const [{ id: tzTool }] = (await pg.query<{ id: string }>(`SELECT id FROM tools WHERE developer_id = $1 LIMIT 1`, [DEV.tz])).rows
+  await proxyCall(tzTool, '2026-11-18T01:00:00.000Z') // Tue 17:00 in Los Angeles
+  await proxyCall(tzTool, '2026-11-15T02:00:00.000Z') // Sat 18:00 in Los Angeles
+  await proxyCall(tzTool, '2026-11-01T03:00:00.000Z') // Oct 31 in Los Angeles
 }, 120_000)
 
 afterAll(async () => {
@@ -104,14 +119,19 @@ describe('GET /api/proxy/stats (pglite)', () => {
     const data = await stats(DEV.big)
     expect(data.totalTools).toBe(501)
     expect(data.proxyEnabledTools).toBe(1)
-    expect(data.today).toEqual({ totalCalls: 1, successCalls: 1, errorCalls: 0, totalCostCents: 4 })
-    expect(data.thisWeek).toEqual({ totalCalls: 1, successCalls: 1, errorCalls: 0, totalCostCents: 4 })
-    expect(data.thisMonth).toEqual({ totalCalls: 2, successCalls: 1, errorCalls: 1, totalCostCents: 10 })
-    expect(data.errorRate).toBe(50)
+    expect(data.thisMonth).toEqual({ totalCalls: 5, successCalls: 4, errorCalls: 1, totalCostCents: 20 })
+    expect(data.errorRate).toBe(20)
+    expect(data.averageLatencyMs).toBe(100)
     expect(data.topTools).toEqual([
-      { toolId: expect.any(String), toolName: 'Tool 501', toolSlug: 'tool-501', totalCalls: 2, totalCostCents: 10, avgLatencyMs: 100, errorRate: 50 },
+      { toolId: expect.any(String), toolName: 'Tool 501', toolSlug: 'tool-501', totalCalls: 5, totalCostCents: 20, avgLatencyMs: 100, errorRate: 20 },
     ])
   }, 30_000)
+
+  it('today starts at 00:00 UTC and this week at 00:00 UTC on Sunday, boundaries included', async () => {
+    const data = await stats(DEV.big)
+    expect(data.today).toEqual({ totalCalls: 1, successCalls: 1, errorCalls: 0, totalCostCents: 4 })
+    expect(data.thisWeek).toEqual({ totalCalls: 3, successCalls: 3, errorCalls: 0, totalCostCents: 9 }) // Sun 00:00, Tue 23:59, Wed 00:00
+  }, 20_000)
 
   it('never counts another developer\'s tools or calls', async () => {
     const other = await stats(DEV.other)
@@ -127,11 +147,11 @@ describe('GET /api/proxy/stats (pglite)', () => {
     const saved = process.env.TZ
     process.env.TZ = 'America/Los_Angeles'
     try {
-      expect(new Date(NOW).getHours()).toBe(4) // the server clock reads 04:30 on Sunday Nov 15
-      const data = await stats(DEV.big)
-      expect(data.today.totalCalls).toBe(1) // 01:00 UTC today (17:00 on Saturday in Los Angeles)
-      expect(data.thisWeek.totalCalls).toBe(1)
-      expect(data.thisMonth.totalCalls).toBe(2) // Nov 1 03:00 UTC (Oct 31 in Los Angeles)
+      expect(new Date(NOW).getHours()).toBe(4) // the server clock reads 04:30 on Wednesday Nov 18
+      const data = await stats(DEV.tz)
+      expect(data.today.totalCalls).toBe(1)
+      expect(data.thisWeek.totalCalls).toBe(2)
+      expect(data.thisMonth.totalCalls).toBe(3)
     } finally {
       if (saved === undefined) delete process.env.TZ
       else process.env.TZ = saved
