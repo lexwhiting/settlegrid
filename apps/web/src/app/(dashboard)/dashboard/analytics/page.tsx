@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { BarChart } from '@/components/charts/bar-chart'
 import { AreaChart } from '@/components/charts/area-chart'
+import { hourLabel } from '@/lib/dashboard-summaries'
 import { Breadcrumbs } from '@/components/dashboard/breadcrumbs'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -133,8 +134,9 @@ function formatCents(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
 
+/** "Nov 15" for a UTC date ("2026-11-15") from the analytics APIs, in every viewer's time zone. */
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
 function formatNumber(n: number): string {
@@ -748,7 +750,11 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Invocation Volume</CardTitle>
-          <CardDescription>Daily invocation count ({period}d period).</CardDescription>
+          <CardDescription>
+            {(advanced?.revenueTrend ?? []).length > 0
+              ? `Daily invocation count (${period}d period, UTC dates).`
+              : 'Invocations per hour, last 24 hours (UTC).'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {(advanced?.revenueTrend ?? []).length > 0 ? (
@@ -767,7 +773,7 @@ export default function AnalyticsPage() {
           ) : (stats?.recentInvocations ?? []).length > 0 ? (
             <BarChart
               data={stats!.recentInvocations.map((r) => ({
-                date: new Date(r.hour).toLocaleTimeString('en-US', { hour: 'numeric' }),
+                date: hourLabel(r.hour),
                 invocations: r.count,
               }))}
               xKey="date"

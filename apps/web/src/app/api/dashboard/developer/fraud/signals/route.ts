@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
 
     // Get scanned today count (all invocations today)
     const todayStartDate = new Date()
-    todayStartDate.setHours(0, 0, 0, 0)
+    todayStartDate.setUTCHours(0, 0, 0, 0) // the UTC day, whatever the server's time zone
     let scannedTodayTotal = 0
     let flaggedThisWeekTotal = 0
     let lastFlaggedAt: Date | null = null

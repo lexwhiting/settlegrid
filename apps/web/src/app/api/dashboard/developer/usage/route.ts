@@ -64,8 +64,9 @@ export async function GET(request: NextRequest) {
 
     // Calculate current month boundaries
     const now = new Date()
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    // The UTC calendar month, whatever the server's time zone (as monthEarningsCents)
+    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
     const daysRemaining = Math.max(
       0,
       Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))

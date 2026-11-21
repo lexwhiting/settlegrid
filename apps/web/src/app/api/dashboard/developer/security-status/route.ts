@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, and, lt, inArray } from 'drizzle-orm'
+import { eq, sql, and, lt } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, tools, apiKeys, webhookEndpoints, consumerToolBalances } from '@/lib/db/schema'
+import { developers, apiKeys, webhookEndpoints, consumerToolBalances } from '@/lib/db/schema'
+import { developerHasTools, onToolsOfDeveloper } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -49,20 +50,15 @@ export async function GET(request: NextRequest) {
 
     const stripeConnected = developer?.stripeConnectStatus === 'active'
 
-    // Get developer's tool IDs (needed for several checks)
-    const developerTools = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
+    // Whether the developer owns any tool; the checks below cover every tool they
+    // own (deleted ones included) through a subquery, with no cap on how many.
+    const hasTools = await developerHasTools(auth.id)
 
     // 2. IP Allowlisting — check if any API key for developer's tools has non-null ipAllowlist
     let ipAllowlistEnabled = false
     let keysWithoutIpRestriction = 0
 
-    if (toolIds.length > 0) {
+    if (hasTools) {
       const keysWithAllowlist = await db
         .select({
           total: sql<number>`count(*)::int`,
@@ -71,7 +67,7 @@ export async function GET(request: NextRequest) {
         .from(apiKeys)
         .where(
           and(
-            inArray(apiKeys.toolId, toolIds),
+            onToolsOfDeveloper(apiKeys.toolId, auth.id),
             eq(apiKeys.status, 'active')
           )
         )
@@ -98,13 +94,13 @@ export async function GET(request: NextRequest) {
     // 4. Budget Controls — check if any consumer_tool_balance for developer's tools has spendingLimitCents
     let budgetControlsEnabled = false
 
-    if (toolIds.length > 0) {
+    if (hasTools) {
       const [budgetRow] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(consumerToolBalances)
         .where(
           and(
-            inArray(consumerToolBalances.toolId, toolIds),
+            onToolsOfDeveloper(consumerToolBalances.toolId, auth.id),
             sql`${consumerToolBalances.spendingLimitCents} is not null`
           )
         )
@@ -115,7 +111,7 @@ export async function GET(request: NextRequest) {
     let hasStaleKeys = false
     let staleKeyCount = 0
 
-    if (toolIds.length > 0) {
+    if (hasTools) {
       const ninetyDaysAgoDate = new Date()
       ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90)
       const [staleRow] = await db
@@ -123,7 +119,7 @@ export async function GET(request: NextRequest) {
         .from(apiKeys)
         .where(
           and(
-            inArray(apiKeys.toolId, toolIds),
+            onToolsOfDeveloper(apiKeys.toolId, auth.id),
             eq(apiKeys.status, 'active'),
             lt(apiKeys.createdAt, sql`${ninetyDaysAgoDate.toISOString()}::timestamptz`)
           )

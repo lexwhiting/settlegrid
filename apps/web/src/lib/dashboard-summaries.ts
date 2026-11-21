@@ -98,9 +98,11 @@ export function takeRateSummary(brackets: readonly { upTo: number; rate: number 
 /**
  * X-axis label for an hour bucket of the 24-hour chart. The stats API sends each
  * bucket as an ISO 8601 UTC timestamp ("2026-11-15T13:00:00Z"), so the label is
- * the hour of day in UTC ("13:00"). Anything else is shown as it is.
+ * the hour of day in UTC ("13:00"). Anything else, including a timestamp with
+ * another offset, is shown as it is.
  */
 export function hourLabel(bucket: string): string {
-  const m = /^\d{4}-\d{2}-\d{2}[ T](\d{2}):\d{2}/.exec(bucket)
+  // Only a UTC timestamp ("Z", "+00" or "+00:00"); one with another offset is shown as it is.
+  const m = /^\d{4}-\d{2}-\d{2}[ T](\d{2}):\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|\+00(?::?00)?)$/.exec(bucket)
   return m ? `${m[1]}:00` : bucket
 }

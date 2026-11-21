@@ -1,13 +1,17 @@
 /**
- * Seven dashboard routes against real SQL (pglite): attribution, funnel, usage,
- * fraud signals, CSV export, advanced analytics and consumer insights.
+ * Eight dashboard routes against real SQL (pglite): attribution, funnel, usage,
+ * fraud signals, CSV export, advanced analytics, consumer insights and the
+ * security checklist.
  *
  * - No route caps the number of tools it reads: a developer's 501st tool counts
  *   like the first, and its name shows where names are shown.
  * - Consumer insights filters before it limits: churning consumers are the top
  *   spenders among those who stopped, and at-risk consumers are found among all
  *   consumers, not the first 1,000 rows of an unordered list.
- * - Days, weekdays and hours are UTC whatever the session time zone.
+ * - Advanced analytics counts returning consumers over all consumers, and
+ *   compares each day with the same day one period earlier.
+ * - Days, weekdays, hours and months are UTC whatever the session or server
+ *   time zone.
  *
  * The schema is a test-only CREATE TABLE bootstrap of the columns these routes
  * read (no drizzle-kit, no migrations). Fixtures are SQL inserts. The clock is
@@ -38,11 +42,20 @@ import { GET as getFraudSignals } from '../fraud/signals/route'
 import { GET as getExport } from '../stats/export/route'
 import { GET as getAdvanced } from '../stats/advanced/route'
 import { GET as getInsights } from '../consumers/insights/route'
+import { GET as getSecurityStatus } from '../security-status/route'
 
 const BOOTSTRAP_SQL = `
   SET TIME ZONE 'UTC';
   CREATE TABLE developers (id uuid PRIMARY KEY, tier text NOT NULL DEFAULT 'standard',
-    is_founding_member boolean NOT NULL DEFAULT false);
+    is_founding_member boolean NOT NULL DEFAULT false,
+    stripe_connect_status text NOT NULL DEFAULT 'not_started');
+  CREATE TABLE api_keys (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), consumer_id uuid NOT NULL,
+    tool_id uuid NOT NULL, status text NOT NULL DEFAULT 'active', ip_allowlist jsonb,
+    created_at timestamptz NOT NULL);
+  CREATE TABLE consumer_tool_balances (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    consumer_id uuid NOT NULL, tool_id uuid NOT NULL, spending_limit_cents integer);
+  CREATE TABLE webhook_endpoints (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), developer_id uuid NOT NULL,
+    status text NOT NULL DEFAULT 'active');
   CREATE TABLE tools (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), developer_id uuid NOT NULL,
     name text NOT NULL, status text NOT NULL DEFAULT 'active');
   CREATE TABLE consumers (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text NOT NULL);
@@ -99,7 +112,7 @@ async function json(handler: (req: NextRequest) => Promise<Response>, developerI
   return res.json()
 }
 
-const DEV = { big: '', churn: '', atRisk: '', utc: '', daily: '' }
+const DEV = { big: '', churn: '', atRisk: '', utc: '', daily: '', cohort: '', trend: '' }
 const C = { big: '', stopped1: '', stopped2: '', decliner: '', faller: '', edge: '' }
 
 beforeAll(async () => {
@@ -166,6 +179,31 @@ beforeAll(async () => {
   DEV.utc = await developer()
   const utcTool = await tool(DEV.utc, 'UTC tool')
   await calls(utcTool, uid('c2000000'), 2, 5, '2026-11-15T00:30:00.000Z', { sessionId: 's-utc' })
+
+  // BIG's 501st tool also has an active key with no IP allowlist, created 100 days ago, and a
+  // consumer balance with a spending limit.
+  await pg.query('INSERT INTO api_keys (consumer_id, tool_id, created_at) VALUES ($1, $2, $3)', [C.big, tool501, at(100 * DAY)])
+  await pg.query('INSERT INTO consumer_tool_balances (consumer_id, tool_id, spending_limit_cents) VALUES ($1, $2, 500)', [C.big, tool501])
+
+  // COHORT (7-day period): 25 consumers called in both the current and the previous period;
+  // 3 more only in the previous one.
+  DEV.cohort = await developer()
+  const cohortTool = await tool(DEV.cohort, 'Cohort tool')
+  for (let i = 0; i < 25; i++) {
+    const c = uid('c4000000')
+    await calls(cohortTool, c, 1, 10 + i, at(2 * DAY))
+    await calls(cohortTool, c, 1, 1, at(9 * DAY))
+  }
+  for (let i = 0; i < 3; i++) await calls(cohortTool, uid('c5000000'), 1, 1, at(9 * DAY))
+
+  // TREND (7-day period): this period has calls on Nov 12 and Nov 14; the previous one on
+  // Nov 2, Nov 5 and Nov 7. Nov 12 compares with Nov 5, and Nov 14 with Nov 7.
+  DEV.trend = await developer()
+  const trendTool = await tool(DEV.trend, 'Trend tool')
+  const trendConsumer = uid('c6000000')
+  for (const [daysAgo, cents] of [[3, 30], [1, 40], [13, 5], [10, 10], [8, 20]]) {
+    await calls(trendTool, trendConsumer, 1, cents, at(daysAgo * DAY))
+  }
 
   // DAILY: one 1-cent call at 12:30 on each of the 91 UTC dates of a 90-day period, today included.
   DEV.daily = await developer()
@@ -244,6 +282,54 @@ describe('advanced analytics: daily series (pglite)', () => {
       expect(series).toHaveLength(91)
       expect(series[0].date).toBe('2026-08-17')
       expect(series.at(-1).date).toBe('2026-11-15')
+    }
+  }, 20_000)
+})
+
+describe('security checklist: no tool cap (pglite)', () => {
+  it('counts the keys and balances on the 501st tool', async () => {
+    const res = await json(getSecurityStatus, DEV.big, 'security-status')
+    const item = (id: string) => (res.items as Array<{ id: string; completed: boolean; statusDetail: string }>).find((i) => i.id === id)
+    expect(item('key-rotation')).toMatchObject({ completed: false, statusDetail: '1 key older than 90 days' })
+    expect(item('budget-controls')).toMatchObject({ completed: true, statusDetail: 'Active' })
+    expect(item('ip-allowlist')?.completed).toBe(false) // one active key, no allowlist
+  }, 20_000)
+})
+
+describe('advanced analytics: cohort and period comparison (pglite)', () => {
+  it('counts returning consumers over all consumers, not the top 20', async () => {
+    const advanced = await json(getAdvanced, DEV.cohort, 'stats/advanced?period=7')
+    expect(advanced.cohortMetrics).toMatchObject({
+      totalConsumers: 25,
+      returningConsumers: 25,
+      newConsumers: 0,
+      retentionRate: 89.29, // 25 of the previous period's 28
+    })
+    expect(advanced.topConsumers).toHaveLength(20)
+  }, 20_000)
+
+  it('compares each day with the same day one period earlier', async () => {
+    const advanced = await json(getAdvanced, DEV.trend, 'stats/advanced?period=7')
+    expect(advanced.revenueTrend).toEqual([
+      { date: '2026-11-12', revenueCents: 30, invocations: 1, previousRevenueCents: 10, previousInvocations: 1 },
+      { date: '2026-11-14', revenueCents: 40, invocations: 1, previousRevenueCents: 20, previousInvocations: 1 },
+    ])
+  }, 20_000)
+})
+
+describe('usage and fraud signals: UTC month and day whatever the server time zone (pglite)', () => {
+  it('uses the UTC month and the UTC day on a server set to Los Angeles time', async () => {
+    const saved = process.env.TZ
+    process.env.TZ = 'America/Los_Angeles'
+    try {
+      expect(new Date(NOW).getHours()).toBe(4) // the server clock now reads 04:30 on Nov 15
+      const usage = await json(getUsage, DEV.utc, 'usage')
+      expect(usage).toMatchObject({ periodStart: '2026-11-01T00:00:00.000Z', periodEnd: '2026-12-01T00:00:00.000Z', currentMonthOps: 2 })
+      const fraud = await json(getFraudSignals, DEV.utc, 'fraud/signals')
+      expect(fraud.summary.scannedToday).toBe(2) // the calls at 00:30 UTC today (16:30 yesterday in Los Angeles)
+    } finally {
+      if (saved === undefined) delete process.env.TZ
+      else process.env.TZ = saved
     }
   }, 20_000)
 })
