@@ -1323,9 +1323,9 @@ export default function SettingsPage() {
                   <div>
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Revenue Share</dt>
                     <dd className="text-sm text-gray-900 dark:text-gray-100 mt-1">
-                      Progressive
+                      {takeRateSummary(TAKE_RATE_BRACKETS).revenueShare}
                       <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-                        ({getProgressiveTakeDescription().replace(/^Progressive:\s*/, '')}, deducted at payout)
+                        (platform fee {getProgressiveTakeDescription().replace(/^Progressive:\s*/, '')}, deducted at payout)
                       </span>
                     </dd>
                   </div>

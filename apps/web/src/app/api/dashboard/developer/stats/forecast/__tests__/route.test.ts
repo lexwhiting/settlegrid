@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // The forecast must not read a trend into a handful of days (one day of revenue
@@ -29,8 +29,15 @@ const day = (i: number, cents: number) => ({ date: `2026-11-${String(i).padStart
 
 describe('GET /api/dashboard/developer/stats/forecast', () => {
   beforeEach(() => {
+    // "Today" is 2026-11-09, so the window is 2026-10-10 to 2026-11-08.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-09T12:00:00.000Z'))
     vi.clearAllMocks()
     for (const k of ['select', 'from', 'where', 'groupBy', 'orderBy'] as const) mockDb[k].mockReturnThis()
+  })
+
+  afterAll(() => {
+    vi.useRealTimers()
   })
 
   it('reports not enough data instead of a trend for fewer than 7 days of revenue', async () => {

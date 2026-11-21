@@ -1,20 +1,24 @@
 /**
- * The dashboard stats and forecast routes against real SQL (pglite).
+ * The dashboard stats, forecast and analytics routes against real SQL (pglite).
  *
- * Every figure covers all of the developer's tools, deleted ones included, and
- * never another developer's. "Active Tools" counts status 'active'. No figure
- * is capped by the number of tools. The forecast reads the last 30 complete UTC
- * days and needs 7 of them with revenue.
+ * Every stats and forecast figure covers all of the developer's tools, deleted
+ * ones included, and never another developer's. "Active Tools" counts status
+ * 'active'. No stats or forecast figure is capped by the number of tools (the
+ * analytics route still reads at most 500 tool ids; a separate follow-up). The forecast reads the last 30 complete UTC
+ * days and needs 7 of them with revenue; days without revenue count as 0. The
+ * analytics revenue trend covers every one of the 30 UTC days ending today.
+ * Hours and days are UTC whatever the session time zone.
  *
- * The schema is a test-only CREATE TABLE bootstrap of the columns these two
+ * The schema is a test-only CREATE TABLE bootstrap of the columns these
  * routes read (no drizzle-kit, no migrations). Fixtures are SQL inserts. The
- * clock is fixed and the session time zone is UTC.
+ * clock is fixed and the session time zone is UTC unless a test sets another.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 import { NextRequest } from 'next/server'
 import * as schema from '@/lib/db/schema'
+import { hourLabel } from '@/lib/dashboard-summaries'
 
 const holder = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof drizzle> }))
 const authState = vi.hoisted(() => ({ id: '' }))
@@ -29,6 +33,7 @@ vi.mock('@/lib/rate-limit', () => ({
 
 import { GET as getStats } from '../route'
 import { GET as getForecast } from '../forecast/route'
+import { GET as getAnalytics } from '../analytics/route'
 
 const BOOTSTRAP_SQL = `
   SET TIME ZONE 'UTC';
@@ -39,7 +44,8 @@ const BOOTSTRAP_SQL = `
     total_invocations integer NOT NULL DEFAULT 0, total_revenue_cents integer NOT NULL DEFAULT 0);
   CREATE TABLE invocations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tool_id uuid NOT NULL REFERENCES tools(id), cost_cents integer NOT NULL,
-    status text NOT NULL DEFAULT 'success', created_at timestamptz NOT NULL);
+    status text NOT NULL DEFAULT 'success', created_at timestamptz NOT NULL,
+    consumer_id uuid, method text, latency_ms integer);
 `
 
 // Not hour-aligned: the last 24 hours touch 25 clock hours. "Today" is 2026-11-15, so the
@@ -89,7 +95,7 @@ async function call(handler: typeof getStats, developerId: string) {
 
 const DEV = {
   a: '', b: '', gone: '', idle: '', none: '', logOnly: '', many: '', hourly: '', steady: '', today: '',
-  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '',
+  old: '', six: '', falling: '', rising: '', zeroDays: '', mixed: '', spread: '', spreadCents: '', stopped: '', future: '', lateNight: '',
 }
 
 beforeAll(async () => {
@@ -165,6 +171,20 @@ beforeAll(async () => {
   DEV.rising = (await earner(range(1, 30), (d) => (31 - d) * 10)).id // 10 cents 30 days ago up to 300 yesterday
   DEV.zeroDays = (await earner(range(1, 7), (d) => (d === 1 ? 5 : 0))).id // one revenue day, six that earned nothing
   DEV.mixed = (await earner(range(1, 20), (d) => (d <= 7 ? (8 - d) * 100 : 0))).id // 7 revenue days among 20 with calls
+  // Eight revenue days placed symmetrically about the middle of the window (days 30 to 1 ago), and none between.
+  const spreadDays = [30, 26, 22, 18, 13, 9, 5, 1]
+  DEV.spread = (await earner(spreadDays, () => 100)).id
+  DEV.spreadCents = (await earner(spreadDays, () => 1)).id
+  DEV.stopped = (await earner(range(24, 30), () => 100)).id // 100 cents on each of the first 7 window days, then nothing
+  // 100 cents at 00:30 UTC on each of the last 7 complete days: the evening before, in New York.
+  const lateNight = await earner([], () => 0)
+  DEV.lateNight = lateNight.id
+  for (const d of range(1, 7)) await invocation(lateNight.tool, 100, new Date(Date.UTC(2026, 10, 15 - d, 0, 30)).toISOString())
+  // 5 cents today and a future-dated 7 cents tomorrow (a skewed clock).
+  const future = await earner([], () => 0)
+  DEV.future = future.id
+  await invocation(future.tool, 5, at(1 * MIN))
+  await invocation(future.tool, 7, at(-1 * DAY))
 }, 120_000)
 
 afterAll(async () => {
@@ -219,7 +239,7 @@ describe('dashboard stats and forecast (pglite)', () => {
     const { body } = await call(getStats, DEV.hourly)
     const rows = body.recentInvocations as Array<{ hour: string; count: number; revenueCents: number }>
     expect(rows).toHaveLength(25)
-    expect(rows.at(-1)?.hour).toContain('2026-11-15 12:00')
+    expect(rows.at(-1)?.hour).toBe('2026-11-15T12:00:00Z') // ISO 8601, UTC
     expect(rows.reduce((s, r) => s + r.revenueCents, 0)).toBe(25)
   }, 20_000)
 
@@ -260,4 +280,68 @@ describe('dashboard stats and forecast (pglite)', () => {
     expect(mixed.body.insufficientData).toBeUndefined()
     expect(mixed.body).toMatchObject({ dailyDataPoints: 7, confidence: 'medium' })
   }, 20_000)
+
+  it('forecast: days without calls count as 0, and the daily predictions are rounded once', async () => {
+    // 100 cents on 8 days spread over the window: 800 cents a month, not 100 a day for 30 days.
+    const spread = await call(getForecast, DEV.spread)
+    expect(spread.body).toMatchObject({ dailyDataPoints: 8, projectedNextMonthCents: 800, growthRate: 0, trend: 'stable', confidence: 'medium' })
+    // 1 cent on the same days: 8/30 of a cent a day rounds to 0 each day but 8 cents over 30.
+    const cents = await call(getForecast, DEV.spreadCents)
+    expect(cents.body).toMatchObject({ dailyDataPoints: 8, projectedNextMonthCents: 8 })
+    // Revenue in the first week only: nothing projected, and the trend says so.
+    const stopped = await call(getForecast, DEV.stopped)
+    expect(stopped.body.insufficientData).toBeUndefined()
+    expect(stopped.body).toMatchObject({ dailyDataPoints: 7, projectedNextMonthCents: 0, growthRate: -1, trend: 'declining' })
+  }, 20_000)
+
+  it('analytics: the revenue trend covers the 30 UTC days ending today, today included', async () => {
+    const { status, body } = await call(getAnalytics, DEV.steady)
+    expect(status).toBe(200)
+    const trend = body.revenueTrend as Array<{ date: string; revenueCents: number }>
+    expect(trend).toHaveLength(30)
+    expect(trend[0]).toEqual({ date: '2026-10-17', revenueCents: 1 }) // 29 days before today
+    expect(trend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 50 }) // today
+    expect(trend.reduce((s, d) => s + d.revenueCents, 0)).toBe(29 + 50) // not the call 31 days ago
+  }, 20_000)
+
+  it('analytics: days without calls are in the trend as 0, and nothing after today is', async () => {
+    const spread = (await call(getAnalytics, DEV.spread)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+    expect(spread).toHaveLength(30)
+    expect(spread.map((d) => d.date)).toEqual(
+      Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2026, 9, 17 + i)).toISOString().slice(0, 10)),
+    )
+    expect(spread.filter((d) => d.revenueCents > 0)).toHaveLength(7) // the call 30 days ago is before the window
+    expect(spread.filter((d) => d.revenueCents === 0)).toHaveLength(23)
+    const future = (await call(getAnalytics, DEV.future)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+    expect(future).toHaveLength(30)
+    expect(future.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 5 })
+    expect(future.reduce((s, d) => s + d.revenueCents, 0)).toBe(5)
+  }, 20_000)
+
+  it('hours and days stay UTC when the database session uses another time zone', async () => {
+    await pg.exec("SET TIME ZONE 'America/New_York'")
+    try {
+      const hourly = (await call(getStats, DEV.hourly)).body.recentInvocations as Array<{ hour: string; revenueCents: number }>
+      expect(hourly).toHaveLength(25)
+      expect(hourly.at(-1)?.hour).toBe('2026-11-15T12:00:00Z')
+      expect(hourLabel(hourly.at(-1)!.hour)).toBe('12:00')
+      const analytics = (await call(getAnalytics, DEV.hourly)).body
+      const hours = analytics.hourlyDistribution as Array<{ hour: number; count: number }>
+      expect(hours.find((h) => h.hour === 12)?.count).toBe(3) // 12:30 today; 12:29 and 12:45 yesterday (UTC)
+      expect(hours.find((h) => h.hour === 7)?.count).toBe(1) // 07:30 UTC today, not New York's 7 a.m.
+      const trend = (await call(getAnalytics, DEV.steady)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+      expect(trend[0]).toEqual({ date: '2026-10-17', revenueCents: 1 })
+      expect(trend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 50 })
+      const steady = (await call(getForecast, DEV.steady)).body
+      expect(steady).toMatchObject({ dailyDataPoints: 30, projectedNextMonthCents: 30 })
+      // Calls at 00:30 UTC belong to that UTC day, not to the New York evening before.
+      const hourlyTrend = (await call(getAnalytics, DEV.hourly)).body.revenueTrend as Array<{ date: string; revenueCents: number }>
+      expect(hourlyTrend.at(-1)).toEqual({ date: '2026-11-15', revenueCents: 13 }) // 00:30 to 12:30 UTC today
+      expect(hourlyTrend.at(-2)).toEqual({ date: '2026-11-14', revenueCents: 111 }) // 12:29 to 23:30 UTC yesterday
+      const lateNight = (await call(getForecast, DEV.lateNight)).body
+      expect(lateNight).toMatchObject({ dailyDataPoints: 7, projectedNextMonthCents: 3000, growthRate: 0, trend: 'stable' })
+    } finally {
+      await pg.exec("SET TIME ZONE 'UTC'")
+    }
+  }, 30_000)
 })

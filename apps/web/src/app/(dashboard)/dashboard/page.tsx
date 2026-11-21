@@ -20,6 +20,7 @@ import {
   type ConsumerInsightsData,
   type FraudSignalsData,
   formatErrorRatePct,
+  hourLabel,
 } from '@/lib/dashboard-summaries'
 
 interface DeveloperStats {
@@ -871,7 +872,7 @@ export default function DeveloperDashboardPage() {
               </p>
             </CardContent>
           </Card>
-        ) : forecastData && forecastData.projectedNextMonthCents > 0 ? (
+        ) : forecastData ? (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -886,13 +887,18 @@ export default function DeveloperDashboardPage() {
                 {formatCents(forecastData.projectedNextMonthCents)}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Projected next month
+                Projected next 30 days (linear trend)
                 {forecastData.growthRate !== 0 && (
                   <span className={forecastData.growthRate > 0 ? 'text-green-600 dark:text-green-400 ml-1' : 'text-red-500 ml-1'}>
                     ({forecastData.growthRate > 0 ? '+' : ''}{Math.round(forecastData.growthRate * 100)}%)
                   </span>
                 )}
               </p>
+              {forecastData.projectedNextMonthCents === 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  On its straight-line trend, daily revenue is at $0 for all of the next 30 days.
+                </p>
+              )}
               <div className="flex items-center gap-2 mt-2">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                   forecastData.trend === 'growing'
@@ -1418,7 +1424,7 @@ export default function DeveloperDashboardPage() {
       {/* Invocation chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Invocations (Last 24 Hours)</CardTitle>
+          <CardTitle className="text-lg">Invocations (Last 24 Hours, UTC)</CardTitle>
         </CardHeader>
         <CardContent>
           {stats?.recentInvocations && stats.recentInvocations.length > 0 ? (
@@ -1431,10 +1437,7 @@ export default function DeveloperDashboardPage() {
               yKey="count"
               height={200}
               ariaLabel="Invocations per hour over the last 24 hours"
-              formatXAxis={(v) => {
-                const h = parseInt(v, 10)
-                return isNaN(h) ? v : `${h}:00`
-              }}
+              formatXAxis={hourLabel}
             />
           ) : (
             <p className="text-gray-500 dark:text-gray-400 text-sm">
@@ -1448,7 +1451,7 @@ export default function DeveloperDashboardPage() {
       {analytics?.revenueTrend && analytics.revenueTrend.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Revenue Trend (Last 30 Days)</CardTitle>
+            <CardTitle className="text-lg">Revenue Trend (Last 30 Days, UTC)</CardTitle>
           </CardHeader>
           <CardContent>
             <AreaChart
@@ -1464,7 +1467,7 @@ export default function DeveloperDashboardPage() {
                 new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v / 100)
               }
               formatXAxis={(v) =>
-                new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
               }
             />
           </CardContent>

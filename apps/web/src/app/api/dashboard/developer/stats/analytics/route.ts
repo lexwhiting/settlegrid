@@ -5,8 +5,12 @@ import { tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { denseDailyCents } from '@/lib/revenue-forecast'
 
 export const maxDuration = 60
+
+const TREND_DAYS = 30
+const DAY_MS = 24 * 60 * 60 * 1000
 
 
 /** GET /api/dashboard/developer/stats/analytics — detailed analytics for developer */
@@ -77,12 +81,13 @@ export async function GET(request: NextRequest) {
       .orderBy(sql`sum(${invocations.costCents}) desc`)
       .limit(10)
 
-    // ── Hourly Distribution (last 7 days) ───────────────────────────────────────
+    // ── Hourly Distribution (last 7 days, UTC hour of day) ──────────────────────
+    const utcHourOfDay = sql`extract(hour from ${invocations.createdAt} at time zone 'UTC')`
     const sevenDaysAgoDate = new Date()
     sevenDaysAgoDate.setDate(sevenDaysAgoDate.getDate() - 7)
     const hourlyDistribution = await db
       .select({
-        hour: sql<number>`extract(hour from ${invocations.createdAt})::int`,
+        hour: sql<number>`${utcHourOfDay}::int`,
         count: sql<number>`count(*)::int`,
       })
       .from(invocations)
@@ -92,8 +97,8 @@ export async function GET(request: NextRequest) {
           gte(invocations.createdAt, sql`${sevenDaysAgoDate.toISOString()}::timestamptz`)
         )
       )
-      .groupBy(sql`extract(hour from ${invocations.createdAt})`)
-      .orderBy(sql`extract(hour from ${invocations.createdAt})`)
+      .groupBy(utcHourOfDay)
+      .orderBy(utcHourOfDay)
       .limit(24)
 
     // ── Latency Percentiles ─────────────────────────────────────────────────────
@@ -121,24 +126,37 @@ export async function GET(request: NextRequest) {
       ? Math.round((errorStats.errors / errorStats.total) * 10000) / 100
       : 0
 
-    // ── Revenue Trend (last 30 days) ────────────────────────────────────────────
-    const thirtyDaysAgoDate = new Date()
-    thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 30)
-    const revenueTrend = await db
+    // ── Revenue Trend (last 30 UTC days, today included) ────────────────────────
+    // Starting 29 days before today and stopping at tomorrow keeps the window at
+    // 30 dates, so the limit can never drop today.
+    const todayStart = new Date()
+    todayStart.setUTCHours(0, 0, 0, 0)
+    const trendStart = new Date(todayStart.getTime() - (TREND_DAYS - 1) * DAY_MS)
+    const tomorrowStart = new Date(todayStart.getTime() + DAY_MS)
+    const utcDay = sql`(${invocations.createdAt} at time zone 'UTC')::date`
+    const trendRows = await db
       .select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         revenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
       })
       .from(invocations)
       .where(
         and(
           toolFilter,
-          gte(invocations.createdAt, sql`${thirtyDaysAgoDate.toISOString()}::timestamptz`)
+          gte(invocations.createdAt, sql`${trendStart.toISOString()}::timestamptz`),
+          sql`${invocations.createdAt} < ${tomorrowStart.toISOString()}::timestamptz`
         )
       )
-      .groupBy(sql`${invocations.createdAt}::date`)
-      .orderBy(sql`${invocations.createdAt}::date`)
-      .limit(30)
+      .groupBy(utcDay)
+      .orderBy(utcDay)
+      .limit(TREND_DAYS)
+    // Every day of the window, days without calls as 0, so the chart's spacing is calendar time.
+    const revenueTrend = trendRows.length === 0
+      ? []
+      : denseDailyCents(trendRows, trendStart, TREND_DAYS).map((revenueCents, i) => ({
+          date: new Date(trendStart.getTime() + i * DAY_MS).toISOString().slice(0, 10),
+          revenueCents,
+        }))
 
     return successResponse({
       methodBreakdown,
