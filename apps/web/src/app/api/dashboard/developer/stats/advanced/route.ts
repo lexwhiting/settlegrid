@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, lte } from 'drizzle-orm'
+import { eq, sql, gte, and, lt } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { developers, invocations } from '@/lib/db/schema'
 import { developerHasTools, invocationsOfDeveloper, toolNamesOf } from '@/lib/developer-invocations'
@@ -163,15 +163,15 @@ export async function GET(request: NextRequest) {
     const utcDay = sql`${createdAtUtc}::date`
     const utcIsoDow = sql`extract(isodow from ${createdAtUtc})`
     const utcHour = sql`extract(hour from ${createdAtUtc})`
+    // Rolling windows of exactly periodDays × 24 hours, whatever the server's time zone
     const now = new Date()
-    const periodStart = new Date(now)
-    periodStart.setDate(periodStart.getDate() - periodDays)
-    const previousPeriodStart = new Date(periodStart)
-    previousPeriodStart.setDate(previousPeriodStart.getDate() - periodDays)
+    const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000)
+    const previousPeriodStart = new Date(periodStart.getTime() - periodDays * 24 * 60 * 60 * 1000)
 
     const periodStartSql = sql`${periodStart.toISOString()}::timestamptz`
     const previousPeriodStartSql = sql`${previousPeriodStart.toISOString()}::timestamptz`
-    const periodEndSql = sql`${periodStart.toISOString()}::timestamptz`
+    // Consumers of the developer's tools in the previous period (a subquery, no cap)
+    const previousPeriodConsumers = sql`select ${invocations.consumerId} from ${invocations} where ${toolFilter} and ${invocations.createdAt} >= ${previousPeriodStartSql} and ${invocations.createdAt} < ${periodStartSql}`
 
     // Run all queries in parallel for performance
     const [
@@ -209,32 +209,32 @@ export async function GET(request: NextRequest) {
         .where(and(
           toolFilter,
           gte(invocations.createdAt, previousPeriodStartSql),
-          lte(invocations.createdAt, periodEndSql),
+          lt(invocations.createdAt, periodStartSql),
         ))
         .groupBy(utcDay)
         .orderBy(utcDay)
         .limit(periodDays + 1), // a period of N days touches N + 1 UTC dates, today included
 
-      // ── 3. Consumer cohort (current period) ───────────────────────────────
+      // ── 3. Consumer cohort (current period), with the consumers who also
+      //       called in the previous period, counted over all consumers ─────
       db.select({
         totalConsumers: sql<number>`count(distinct ${invocations.consumerId})::int`,
         totalRevenueCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
+        returningConsumers: sql<number>`(count(distinct ${invocations.consumerId}) filter (where ${invocations.consumerId} in (${previousPeriodConsumers})))::int`,
       })
         .from(invocations)
         .where(and(toolFilter, gte(invocations.createdAt, periodStartSql))),
 
-      // ── 4. Consumer cohort (previous period — to find returning) ──────────
+      // ── 4. Consumer cohort (previous period), counted in full ─────────────
       db.select({
-        consumerId: invocations.consumerId,
+        consumers: sql<number>`count(distinct ${invocations.consumerId})::int`,
       })
         .from(invocations)
         .where(and(
           toolFilter,
           gte(invocations.createdAt, previousPeriodStartSql),
-          lte(invocations.createdAt, periodEndSql),
-        ))
-        .groupBy(invocations.consumerId)
-        .limit(10000),
+          lt(invocations.createdAt, periodStartSql),
+        )),
 
       // ── 5. Latency percentiles per tool ───────────────────────────────────
       db.select({
@@ -331,13 +331,14 @@ export async function GET(request: NextRequest) {
     ])
 
     // ── Assemble revenue trend with previous period ─────────────────────────
-    const prevByOffset = new Map<number, { revenueCents: number; invocations: number }>()
-    previousRevenueTrendRows.forEach((row, idx) => {
-      prevByOffset.set(idx, { revenueCents: row.revenueCents, invocations: row.invocations })
-    })
+    // Each day is compared with the same day one period earlier (date − periodDays),
+    // not with the row in the same position: days without calls have no row.
+    const prevByDate = new Map(previousRevenueTrendRows.map((row) => [row.date, row]))
+    const periodMs = periodDays * 24 * 60 * 60 * 1000
 
-    const revenueTrend: RevenueTrendPoint[] = revenueTrendRows.map((row, idx) => {
-      const prev = prevByOffset.get(idx)
+    const revenueTrend: RevenueTrendPoint[] = revenueTrendRows.map((row) => {
+      const prevDate = new Date(Date.parse(`${row.date}T00:00:00Z`) - periodMs).toISOString().slice(0, 10)
+      const prev = prevByDate.get(prevDate)
       return {
         date: row.date,
         revenueCents: row.revenueCents,
@@ -351,22 +352,16 @@ export async function GET(request: NextRequest) {
     const currentCohort = cohortRows[0]
     const totalConsumers = currentCohort?.totalConsumers ?? 0
     const totalRevenue = currentCohort?.totalRevenueCents ?? 0
-    const previousConsumerIds = new Set(previousCohortRows.map((r) => r.consumerId))
-
-    // Count current-period consumers who also appeared in previous period
-    const currentConsumerIds = new Set(topConsumerRows.map((r) => r.consumerId))
-    let returningCount = 0
-    for (const id of currentConsumerIds) {
-      if (previousConsumerIds.has(id)) returningCount++
-    }
+    const returningCount = currentCohort?.returningConsumers ?? 0
+    const previousConsumerCount = previousCohortRows[0]?.consumers ?? 0
     const newConsumers = Math.max(0, totalConsumers - returningCount)
 
     const cohortMetrics: CohortMetrics = {
       totalConsumers,
       newConsumers,
       returningConsumers: returningCount,
-      retentionRate: previousConsumerIds.size > 0
-        ? Math.round((returningCount / previousConsumerIds.size) * 10000) / 100
+      retentionRate: previousConsumerCount > 0
+        ? Math.round((returningCount / previousConsumerCount) * 10000) / 100
         : 0,
       avgRevenuePerConsumer: totalConsumers > 0
         ? Math.round(totalRevenue / totalConsumers)

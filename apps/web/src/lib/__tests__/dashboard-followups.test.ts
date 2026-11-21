@@ -14,6 +14,13 @@ describe('hourLabel (24-hour chart x-axis)', () => {
     expect(hourLabel('2026-11-15 09:00:00+00')).toBe('09:00')
   })
 
+  it('labels only UTC timestamps; one with another offset is shown as it is', () => {
+    expect(hourLabel('2026-11-15T13:00:00.000Z')).toBe('13:00')
+    expect(hourLabel('2026-11-15 13:00:00+00:00')).toBe('13:00')
+    expect(hourLabel('2026-11-15 07:00:00-05')).toBe('2026-11-15 07:00:00-05')
+    expect(hourLabel('2026-11-15T18:30:00+05:30')).toBe('2026-11-15T18:30:00+05:30')
+  })
+
   it('never reads the year as the hour, and leaves anything else as it is', () => {
     expect(hourLabel('2026-11-15T13:00:00Z')).not.toBe('2026:00')
     expect(hourLabel('7')).toBe('7')
@@ -43,6 +50,14 @@ describe('dashboard pages (source pins)', () => {
     const page = read('page.tsx')
     expect(page).toContain('Revenue Trend (Last 30 Days, UTC)')
     expect(page).toContain("toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })")
+  })
+
+  it('labels the analytics page by UTC date and hour', () => {
+    const page = read('analytics/page.tsx')
+    expect(page).toContain("toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })")
+    expect(page).toContain('date: hourLabel(r.hour),')
+    expect(page).not.toContain("toLocaleTimeString('en-US', { hour: 'numeric' })")
+    expect(page).toContain("'Invocations per hour, last 24 hours (UTC).'")
   })
 
   it('states the Settings revenue share as the range from the brackets, with the fee schedule as detail', () => {

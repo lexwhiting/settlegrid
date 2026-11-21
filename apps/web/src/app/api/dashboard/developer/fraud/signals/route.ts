@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
 
     // Get scanned today count (all invocations today)
     const todayStartDate = new Date()
-    todayStartDate.setHours(0, 0, 0, 0)
+    todayStartDate.setUTCHours(0, 0, 0, 0) // the UTC day, whatever the server's time zone
     let scannedTodayTotal = 0
     let flaggedThisWeekTotal = 0
     let lastFlaggedAt: Date | null = null
@@ -266,8 +266,7 @@ export async function GET(request: NextRequest) {
       scannedTodayTotal = scannedRow?.count ?? 0
 
       // Count flagged invocations this week
-      const weekAgoDate = new Date()
-      weekAgoDate.setDate(weekAgoDate.getDate() - 7)
+      const weekAgoDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       const [flaggedRow] = await db
         .select({
           count: sql<number>`count(*)::int`,
