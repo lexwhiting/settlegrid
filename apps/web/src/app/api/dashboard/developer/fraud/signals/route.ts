@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, inArray } from 'drizzle-orm'
+import { eq, sql, gte, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, invocations, developers } from '@/lib/db/schema'
+import { invocations, developers } from '@/lib/db/schema'
+import { developerHasTools, invocationsOfDeveloper } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -240,15 +241,6 @@ export async function GET(request: NextRequest) {
       redisHealthy = false
     }
 
-    // Get developer's tool IDs
-    const developerTools = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-
     // Get scanned today count (all invocations today)
     const todayStartDate = new Date()
     todayStartDate.setHours(0, 0, 0, 0)
@@ -256,7 +248,9 @@ export async function GET(request: NextRequest) {
     let flaggedThisWeekTotal = 0
     let lastFlaggedAt: Date | null = null
 
-    if (toolIds.length > 0) {
+    if (await developerHasTools(auth.id)) {
+      // Every tool the developer owns, deleted ones included, with no cap on how many
+      const ownInvocations = invocationsOfDeveloper(auth.id)
       // Count invocations today
       const [scannedRow] = await db
         .select({
@@ -266,7 +260,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             gte(invocations.createdAt, sql`${todayStartDate.toISOString()}::timestamptz`),
-            inArray(invocations.toolId, toolIds)
+            ownInvocations
           )
         )
       scannedTodayTotal = scannedRow?.count ?? 0
@@ -283,7 +277,7 @@ export async function GET(request: NextRequest) {
           and(
             gte(invocations.createdAt, sql`${weekAgoDate.toISOString()}::timestamptz`),
             eq(invocations.isFlagged, true),
-            inArray(invocations.toolId, toolIds)
+            ownInvocations
           )
         )
       flaggedThisWeekTotal = flaggedRow?.count ?? 0
@@ -297,7 +291,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             eq(invocations.isFlagged, true),
-            inArray(invocations.toolId, toolIds)
+            ownInvocations
           )
         )
         .orderBy(sql`${invocations.createdAt} DESC`)

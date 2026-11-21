@@ -98,10 +98,11 @@ describe('R11: Attribution (GET /api/dashboard/developer/stats/attribution)', ()
     expect(Array.isArray(data.topReferringAgents)).toBe(true)
   })
 
-  it('limits tool query to 500', async () => {
+  it('checks whether the developer has a tool with a one-row query, not a 500-row list of tool ids', async () => {
     mockDb.limit.mockResolvedValueOnce([])
     await GET(makeRequest('/api/dashboard/developer/stats/attribution'))
-    expect(mockDb.limit).toHaveBeenCalledWith(500)
+    expect(mockDb.limit).toHaveBeenCalledWith(1)
+    expect(mockDb.limit).not.toHaveBeenCalledWith(500)
   })
 
   it('uses developer ID for tool lookup', async () => {

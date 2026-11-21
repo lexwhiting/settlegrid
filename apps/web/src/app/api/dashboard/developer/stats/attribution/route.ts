@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, inArray } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, invocations } from '@/lib/db/schema'
+import { invocations } from '@/lib/db/schema'
+import { developerHasTools, invocationsOfDeveloper } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -24,26 +25,18 @@ export async function GET(request: NextRequest) {
     const userRl = await checkRateLimit(apiLimiter, `dev-attribution:uid:${auth.id}`)
     if (!userRl.success) return errorResponse('Too many requests.', 429, 'RATE_LIMIT_EXCEEDED')
 
-    // Get developer's tool IDs
-    const developerTools = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-
     const emptyResult = {
       byReferralSource: [],
       sessionPatterns: [],
       topReferringAgents: [],
     }
 
-    if (toolIds.length === 0) {
+    if (!(await developerHasTools(auth.id))) {
       return successResponse(emptyResult)
     }
 
-    const toolFilter = inArray(invocations.toolId, toolIds)
+    // Every tool the developer owns, deleted ones included, with no cap on how many
+    const toolFilter = invocationsOfDeveloper(auth.id)
 
     // Revenue breakdown by referral code
     const byReferralSource = await db
@@ -58,17 +51,18 @@ export async function GET(request: NextRequest) {
       .orderBy(sql`sum(${invocations.costCents}) desc`)
       .limit(50)
 
-    // Session patterns — unique sessions per day
+    // Session patterns — unique sessions per UTC day
+    const utcDay = sql`(${invocations.createdAt} at time zone 'UTC')::date`
     const sessionPatterns = await db
       .select({
-        date: sql<string>`to_char(${invocations.createdAt}::date, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${utcDay}, 'YYYY-MM-DD')`,
         uniqueSessions: sql<number>`count(distinct ${invocations.sessionId})::int`,
         totalInvocations: sql<number>`count(*)::int`,
       })
       .from(invocations)
       .where(sql`${toolFilter} AND ${invocations.sessionId} IS NOT NULL`)
-      .groupBy(sql`${invocations.createdAt}::date`)
-      .orderBy(sql`${invocations.createdAt}::date desc`)
+      .groupBy(utcDay)
+      .orderBy(sql`${utcDay} desc`)
       .limit(30)
 
     // Top referring agents (by consumer spend with referral codes)

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, sql, gte, and, desc, inArray } from 'drizzle-orm'
+import { eq, sql, gte, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { tools, invocations, developers } from '@/lib/db/schema'
+import { invocations, developers } from '@/lib/db/schema'
+import { developerHasTools, invocationsOfDeveloper, toolNamesOf } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -56,17 +57,7 @@ export async function GET(request: NextRequest) {
 
     const sinceDate = new Date()
     sinceDate.setDate(sinceDate.getDate() - days)
-    // Get developer's tool IDs
-    const developerTools = await db
-      .select({ id: tools.id, name: tools.name })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-    const toolNameMap = new Map(developerTools.map((t) => [t.id, t.name]))
-
-    if (toolIds.length === 0) {
+    if (!(await developerHasTools(auth.id))) {
       const csv = 'timestamp,tool,method,cost_cents,latency_ms,status\n'
       return new NextResponse(csv, {
         status: 200,
@@ -92,11 +83,14 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           gte(invocations.createdAt, sql`${sinceDate.toISOString()}::timestamptz`),
-          inArray(invocations.toolId, toolIds)
+          // Every tool the developer owns, deleted ones included, with no cap on how many
+          invocationsOfDeveloper(auth.id)
         )
       )
       .orderBy(desc(invocations.createdAt))
       .limit(2000)
+
+    const toolNameMap = await toolNamesOf(auth.id, rows.map((r) => r.toolId))
 
     // Build CSV with proper escaping
     const lines: string[] = ['timestamp,tool,method,cost_cents,latency_ms,status']

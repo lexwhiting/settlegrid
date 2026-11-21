@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { eq, sql, gte, and, inArray, lt } from 'drizzle-orm'
+import { eq, sql, gte, and, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { developers, tools, invocations, consumers } from '@/lib/db/schema'
+import { developers, invocations, consumers } from '@/lib/db/schema'
+import { developerHasTools, invocationsOfDeveloper } from '@/lib/developer-invocations'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -97,16 +98,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // ── Get developer's tools ──────────────────────────────────────────
-    const developerTools = await db
-      .select({ id: tools.id })
-      .from(tools)
-      .where(eq(tools.developerId, auth.id))
-      .limit(500)
-
-    const toolIds = developerTools.map((t) => t.id)
-
-    if (toolIds.length === 0) {
+    if (!(await developerHasTools(auth.id))) {
       return successResponse({
         topConsumers: [],
         churningConsumers: [],
@@ -116,6 +108,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Every tool the developer owns, deleted ones included, with no cap on how many
+    const ownInvocations = invocationsOfDeveloper(auth.id)
     const now = new Date()
     const period = request.nextUrl.searchParams.get('period') ?? '30'
     const periodDays = Math.min(Math.max(Number(period) || 30, 7), 90)
@@ -133,7 +127,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        ownInvocations,
         eq(invocations.isTest, false),
       ))
       .groupBy(invocations.consumerId)
@@ -163,7 +157,9 @@ export async function GET(request: NextRequest) {
     }))
 
     // ── Churning consumers ────────────────────────────────────────────
-    // Active in previous 30 days, inactive in last 14 days
+    // Active in the last 30 days but not in the last 14. The "not in the last 14"
+    // test runs in SQL, before the limit, so the list is the top spenders among
+    // the consumers who actually stopped.
     const churnActiveStart = new Date(now.getTime() - CHURN_ACTIVE_WINDOW_DAYS * 24 * 60 * 60 * 1000)
     const churnInactiveStart = new Date(now.getTime() - CHURN_INACTIVE_WINDOW_DAYS * 24 * 60 * 60 * 1000)
 
@@ -176,35 +172,17 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        ownInvocations,
         eq(invocations.isTest, false),
         gte(invocations.createdAt, sql`${churnActiveStart.toISOString()}::timestamptz`),
-        lt(invocations.createdAt, sql`${churnInactiveStart.toISOString()}::timestamptz`),
       ))
       .groupBy(invocations.consumerId)
-      .orderBy(sql`sum(${invocations.costCents}) desc`)
+      .having(sql`max(${invocations.createdAt}) < ${churnInactiveStart.toISOString()}::timestamptz`)
+      .orderBy(sql`sum(${invocations.costCents}) desc`, invocations.consumerId)
       .limit(TOP_CONSUMERS_LIMIT)
 
-    // Exclude consumers who have activity in the last 14 days
-    const recentActiveIds = churningRaw.length > 0
-      ? await db
-          .select({ consumerId: sql<string>`distinct ${invocations.consumerId}` })
-          .from(invocations)
-          .where(and(
-            inArray(invocations.toolId, toolIds),
-            eq(invocations.isTest, false),
-            gte(invocations.createdAt, sql`${churnInactiveStart.toISOString()}::timestamptz`),
-            inArray(invocations.consumerId, churningRaw.map((r) => r.consumerId)),
-          ))
-          .limit(1000)
-      : []
-
-    const recentActiveSet = new Set(recentActiveIds.map((r) => r.consumerId))
-
     // Resolve emails for churning consumers
-    const churnIds = churningRaw
-      .filter((r) => !recentActiveSet.has(r.consumerId))
-      .map((r) => r.consumerId)
+    const churnIds = churningRaw.map((r) => r.consumerId)
 
     const churnEmails = churnIds.length > 0
       ? await db
@@ -216,71 +194,46 @@ export async function GET(request: NextRequest) {
 
     const churnEmailMap = new Map(churnEmails.map((c) => [c.id, c.email]))
 
-    const churningConsumers: ChurningConsumer[] = churningRaw
-      .filter((r) => !recentActiveSet.has(r.consumerId))
-      .slice(0, TOP_CONSUMERS_LIMIT)
-      .map((r) => ({
-        consumerId: r.consumerId,
-        email: churnEmailMap.get(r.consumerId) ?? 'unknown',
-        previousSpendCents: r.previousSpendCents,
-        previousInvocations: r.previousInvocations,
-        lastSeenAt: r.lastSeenAt,
-      }))
+    const churningConsumers: ChurningConsumer[] = churningRaw.map((r) => ({
+      consumerId: r.consumerId,
+      email: churnEmailMap.get(r.consumerId) ?? 'unknown',
+      previousSpendCents: r.previousSpendCents,
+      previousInvocations: r.previousInvocations,
+      lastSeenAt: r.lastSeenAt,
+    }))
 
     // ── At-risk consumers: usage declining >30% week-over-week ────────
+    // Counted, filtered (at least 5 calls the week before, a fall of more than
+    // 30%) and ranked in SQL, so no consumer is lost to a row cap before the filter.
     const currentWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const previousWeekStart = new Date(now.getTime() - AT_RISK_WEEKS * 7 * 24 * 60 * 60 * 1000)
+    const currentWeekStartSql = sql`${currentWeekStart.toISOString()}::timestamptz`
+    const currentWeek = sql`count(*) filter (where ${invocations.createdAt} >= ${currentWeekStartSql})`
+    const previousWeek = sql`count(*) filter (where ${invocations.createdAt} < ${currentWeekStartSql})`
 
-    const currentWeekCounts = await db
+    const atRiskRows = await db
       .select({
         consumerId: invocations.consumerId,
-        count: sql<number>`count(*)::int`,
+        currentWeek: sql<number>`${currentWeek}::int`,
+        previousWeek: sql<number>`${previousWeek}::int`,
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
-        eq(invocations.isTest, false),
-        gte(invocations.createdAt, sql`${currentWeekStart.toISOString()}::timestamptz`),
-      ))
-      .groupBy(invocations.consumerId)
-      .limit(1000)
-
-    const previousWeekCounts = await db
-      .select({
-        consumerId: invocations.consumerId,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(invocations)
-      .where(and(
-        inArray(invocations.toolId, toolIds),
+        ownInvocations,
         eq(invocations.isTest, false),
         gte(invocations.createdAt, sql`${previousWeekStart.toISOString()}::timestamptz`),
-        lt(invocations.createdAt, sql`${currentWeekStart.toISOString()}::timestamptz`),
       ))
       .groupBy(invocations.consumerId)
-      .limit(1000)
+      .having(sql`${previousWeek} >= 5 and (${previousWeek} - ${currentWeek}) * 10 > ${previousWeek} * 3`)
+      .orderBy(sql`(${previousWeek} - ${currentWeek})::float / nullif(${previousWeek}, 0) desc`, invocations.consumerId)
+      .limit(TOP_CONSUMERS_LIMIT)
 
-    const currentMap = new Map(currentWeekCounts.map((r) => [r.consumerId, r.count]))
-    const previousMap = new Map(previousWeekCounts.map((r) => [r.consumerId, r.count]))
-
-    const atRiskRaw: Array<{ consumerId: string; currentWeek: number; previousWeek: number; decline: number }> = []
-    for (const [consumerId, prevCount] of previousMap) {
-      if (prevCount < 5) continue // skip very low-volume consumers
-      const currCount = currentMap.get(consumerId) ?? 0
-      const decline = (prevCount - currCount) / prevCount
-      if (decline > 0.3) {
-        atRiskRaw.push({
-          consumerId,
-          currentWeek: currCount,
-          previousWeek: prevCount,
-          decline: Math.round(decline * 10000) / 10000,
-        })
-      }
-    }
-
-    // Sort by decline severity and limit
-    atRiskRaw.sort((a, b) => b.decline - a.decline)
-    const atRiskSlice = atRiskRaw.slice(0, TOP_CONSUMERS_LIMIT)
+    const atRiskSlice = atRiskRows.map((r) => ({
+      consumerId: r.consumerId,
+      currentWeek: r.currentWeek,
+      previousWeek: r.previousWeek,
+      decline: Math.round(((r.previousWeek - r.currentWeek) / r.previousWeek) * 10000) / 10000,
+    }))
 
     const atRiskIds = atRiskSlice.map((r) => r.consumerId)
     const atRiskEmails = atRiskIds.length > 0
@@ -311,7 +264,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        ownInvocations,
         eq(invocations.isTest, false),
       ))
       .groupBy(invocations.consumerId)
@@ -349,7 +302,7 @@ export async function GET(request: NextRequest) {
       })
       .from(invocations)
       .where(and(
-        inArray(invocations.toolId, toolIds),
+        ownInvocations,
         eq(invocations.isTest, false),
       ))
       .groupBy(invocations.consumerId)
