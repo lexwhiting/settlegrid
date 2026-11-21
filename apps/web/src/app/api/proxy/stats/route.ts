@@ -6,6 +6,7 @@ import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { invocationsOfDeveloper } from '@/lib/developer-invocations'
 
 export const maxDuration = 60
 
@@ -38,21 +39,16 @@ export async function GET(request: NextRequest) {
       return errorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED', requestId)
     }
 
-    // Get all tool IDs belonging to this developer that have proxy endpoints
-    const developerTools = await db
+    // Every tool the developer owns (deleted ones included), counted in SQL with no cap
+    const [toolCounts] = await db
       .select({
-        id: tools.id,
-        name: tools.name,
-        slug: tools.slug,
-        proxyEndpoint: tools.proxyEndpoint,
+        totalTools: sql<number>`count(*)::int`,
+        proxyEnabledTools: sql<number>`(count(*) filter (where ${tools.proxyEndpoint} is not null and ${tools.proxyEndpoint} <> ''))::int`,
       })
       .from(tools)
       .where(eq(tools.developerId, auth.id))
-      .limit(500)
 
-    const toolIds = developerTools.map((t) => t.id)
-
-    if (toolIds.length === 0) {
+    if (!toolCounts || toolCounts.totalTools === 0) {
       return successResponse(
         {
           data: {
@@ -71,11 +67,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // The UTC day, week (from Sunday) and calendar month, whatever the server's time zone
     const now = new Date()
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startOfWeek = new Date(startOfDay)
-    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    const startOfWeek = new Date(startOfDay.getTime() - now.getUTCDay() * 24 * 60 * 60 * 1000)
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    // Invocations on every tool the developer owns, through a subquery (no cap)
+    const ownInvocations = invocationsOfDeveloper(auth.id)
 
     // Query proxy invocations for this month (covers today + week + month)
     // Proxy invocations are identified by method starting with 'proxy:'
@@ -90,7 +88,7 @@ export async function GET(request: NextRequest) {
       .from(invocations)
       .where(
         and(
-          inArray(invocations.toolId, toolIds),
+          ownInvocations,
           gte(invocations.createdAt, startOfMonth),
           sql`${invocations.method} like 'proxy:%'`
         )
@@ -106,7 +104,7 @@ export async function GET(request: NextRequest) {
       .from(invocations)
       .where(
         and(
-          inArray(invocations.toolId, toolIds),
+          ownInvocations,
           gte(invocations.createdAt, startOfWeek),
           sql`${invocations.method} like 'proxy:%'`
         )
@@ -122,7 +120,7 @@ export async function GET(request: NextRequest) {
       .from(invocations)
       .where(
         and(
-          inArray(invocations.toolId, toolIds),
+          ownInvocations,
           gte(invocations.createdAt, startOfDay),
           sql`${invocations.method} like 'proxy:%'`
         )
@@ -140,7 +138,7 @@ export async function GET(request: NextRequest) {
       .from(invocations)
       .where(
         and(
-          inArray(invocations.toolId, toolIds),
+          ownInvocations,
           gte(invocations.createdAt, startOfMonth),
           sql`${invocations.method} like 'proxy:%'`
         )
@@ -149,8 +147,16 @@ export async function GET(request: NextRequest) {
       .orderBy(sql`count(*) desc`)
       .limit(10)
 
-    // Build a lookup of tool info
-    const toolLookup = new Map(developerTools.map((t) => [t.id, t]))
+    // Names and slugs of the top tools, only those the developer owns
+    const topToolIds = topToolsRaw.map((row) => row.toolId)
+    const topToolInfo = topToolIds.length > 0
+      ? await db
+          .select({ id: tools.id, name: tools.name, slug: tools.slug })
+          .from(tools)
+          .where(and(eq(tools.developerId, auth.id), inArray(tools.id, topToolIds)))
+          .limit(topToolIds.length)
+      : []
+    const toolLookup = new Map(topToolInfo.map((t) => [t.id, t]))
 
     const topTools = topToolsRaw.map((row) => {
       const tool = toolLookup.get(row.toolId)
@@ -200,8 +206,8 @@ export async function GET(request: NextRequest) {
             ? Math.round((monthlyErrors / monthlyTotal) * 10000) / 100
             : 0,
           topTools,
-          proxyEnabledTools: developerTools.filter((t) => t.proxyEndpoint).length,
-          totalTools: developerTools.length,
+          proxyEnabledTools: toolCounts.proxyEnabledTools,
+          totalTools: toolCounts.totalTools,
         },
       },
       200,
