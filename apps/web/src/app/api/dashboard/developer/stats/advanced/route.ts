@@ -163,11 +163,10 @@ export async function GET(request: NextRequest) {
     const utcDay = sql`${createdAtUtc}::date`
     const utcIsoDow = sql`extract(isodow from ${createdAtUtc})`
     const utcHour = sql`extract(hour from ${createdAtUtc})`
+    // Rolling windows of exactly periodDays × 24 hours, whatever the server's time zone
     const now = new Date()
-    const periodStart = new Date(now)
-    periodStart.setDate(periodStart.getDate() - periodDays)
-    const previousPeriodStart = new Date(periodStart)
-    previousPeriodStart.setDate(previousPeriodStart.getDate() - periodDays)
+    const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000)
+    const previousPeriodStart = new Date(periodStart.getTime() - periodDays * 24 * 60 * 60 * 1000)
 
     const periodStartSql = sql`${periodStart.toISOString()}::timestamptz`
     const previousPeriodStartSql = sql`${previousPeriodStart.toISOString()}::timestamptz`

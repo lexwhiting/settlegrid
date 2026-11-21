@@ -469,7 +469,7 @@ export default function AnalyticsPage() {
         <StatCard
           title="Consumer Retention"
           value={`${advanced?.cohortMetrics.retentionRate ?? 0}%`}
-          subtitle={`${advanced?.cohortMetrics.returningConsumers ?? 0} returning of ${advanced?.cohortMetrics.totalConsumers ?? 0}`}
+          subtitle={`${advanced?.cohortMetrics.returningConsumers ?? 0} of last period's consumers came back`}
         />
         <StatCard
           title="Avg Revenue / Consumer"

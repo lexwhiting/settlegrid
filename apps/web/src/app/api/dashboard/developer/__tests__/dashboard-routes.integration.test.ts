@@ -112,7 +112,7 @@ async function json(handler: (req: NextRequest) => Promise<Response>, developerI
   return res.json()
 }
 
-const DEV = { big: '', churn: '', atRisk: '', utc: '', daily: '', cohort: '', trend: '' }
+const DEV = { big: '', churn: '', atRisk: '', utc: '', daily: '', cohort: '', trend: '', other: '', edge: '' }
 const C = { big: '', stopped1: '', stopped2: '', decliner: '', faller: '', edge: '' }
 
 beforeAll(async () => {
@@ -180,9 +180,10 @@ beforeAll(async () => {
   const utcTool = await tool(DEV.utc, 'UTC tool')
   await calls(utcTool, uid('c2000000'), 2, 5, '2026-11-15T00:30:00.000Z', { sessionId: 's-utc' })
 
-  // BIG's 501st tool also has an active key with no IP allowlist, created 100 days ago, and a
-  // consumer balance with a spending limit.
+  // BIG's 501st tool also has two active keys (one created 100 days ago without an IP allowlist,
+  // one yesterday with one) and a consumer balance with a spending limit.
   await pg.query('INSERT INTO api_keys (consumer_id, tool_id, created_at) VALUES ($1, $2, $3)', [C.big, tool501, at(100 * DAY)])
+  await pg.query(`INSERT INTO api_keys (consumer_id, tool_id, ip_allowlist, created_at) VALUES ($1, $2, '["10.0.0.0/8"]', $3)`, [C.big, tool501, at(DAY)])
   await pg.query('INSERT INTO consumer_tool_balances (consumer_id, tool_id, spending_limit_cents) VALUES ($1, $2, 500)', [C.big, tool501])
 
   // COHORT (7-day period): 25 consumers called in both the current and the previous period;
@@ -195,6 +196,21 @@ beforeAll(async () => {
     await calls(cohortTool, c, 1, 1, at(9 * DAY))
   }
   for (let i = 0; i < 3; i++) await calls(cohortTool, uid('c5000000'), 1, 1, at(9 * DAY))
+
+  // OTHER: another developer, whose rows must never count for anyone else. Its tool has an
+  // active key with an IP allowlist created 200 days ago, a balance with a spending limit, and a
+  // call last period by a consumer who calls COHORT's tool only in the current period.
+  DEV.other = await developer()
+  const otherTool = await tool(DEV.other, 'Other tool')
+  const crossConsumer = uid('c7000000')
+  await pg.query(`INSERT INTO api_keys (consumer_id, tool_id, ip_allowlist, created_at) VALUES ($1, $2, '["1.2.3.4"]', $3)`, [crossConsumer, otherTool, at(200 * DAY)])
+  await pg.query('INSERT INTO consumer_tool_balances (consumer_id, tool_id, spending_limit_cents) VALUES ($1, $2, 900)', [crossConsumer, otherTool])
+  await calls(otherTool, crossConsumer, 1, 1, at(9 * DAY))
+  await calls(cohortTool, crossConsumer, 1, 1, at(2 * DAY))
+
+  // EDGE (7-day period): one call at exactly the start of the current period.
+  DEV.edge = await developer()
+  await calls(await tool(DEV.edge, 'Edge tool'), uid('c8000000'), 1, 3, at(7 * DAY))
 
   // TREND (7-day period): this period has calls on Nov 12 and Nov 14; the previous one on
   // Nov 2, Nov 5 and Nov 7. Nov 12 compares with Nov 5, and Nov 14 with Nov 7.
@@ -287,25 +303,43 @@ describe('advanced analytics: daily series (pglite)', () => {
 })
 
 describe('security checklist: no tool cap (pglite)', () => {
-  it('counts the keys and balances on the 501st tool', async () => {
-    const res = await json(getSecurityStatus, DEV.big, 'security-status')
-    const item = (id: string) => (res.items as Array<{ id: string; completed: boolean; statusDetail: string }>).find((i) => i.id === id)
-    expect(item('key-rotation')).toMatchObject({ completed: false, statusDetail: '1 key older than 90 days' })
-    expect(item('budget-controls')).toMatchObject({ completed: true, statusDetail: 'Active' })
-    expect(item('ip-allowlist')?.completed).toBe(false) // one active key, no allowlist
+  it('counts the keys and balances on the 501st tool, and no other developer\'s', async () => {
+    const items = async (developerId: string) => {
+      const res = await json(getSecurityStatus, developerId, 'security-status')
+      return (id: string) => (res.items as Array<{ id: string; completed: boolean; statusDetail: string }>).find((i) => i.id === id)
+    }
+    const big = await items(DEV.big)
+    expect(big('key-rotation')).toMatchObject({ completed: false, statusDetail: '1 key older than 90 days' }) // not 2: OTHER's old key
+    expect(big('ip-allowlist')).toMatchObject({ completed: true, statusDetail: 'Enabled — 1 key without IP restrictions' })
+    expect(big('budget-controls')).toMatchObject({ completed: true, statusDetail: 'Active' })
+    // TREND has tools but no keys or balances: OTHER's old key and spending limit don't count for it.
+    const trend = await items(DEV.trend)
+    expect(trend('key-rotation')).toMatchObject({ completed: true, statusDetail: 'All keys are recent' })
+    expect(trend('budget-controls')).toMatchObject({ completed: false, statusDetail: 'Not started' })
+    expect(trend('ip-allowlist')).toMatchObject({ completed: false, statusDetail: 'Not started' })
   }, 20_000)
 })
 
 describe('advanced analytics: cohort and period comparison (pglite)', () => {
-  it('counts returning consumers over all consumers, not the top 20', async () => {
+  it('counts returning consumers over all consumers, not the top 20, and only on the developer\'s own tools', async () => {
     const advanced = await json(getAdvanced, DEV.cohort, 'stats/advanced?period=7')
+    // 26 consumers this period: 25 also called last period; one called only OTHER's tool last
+    // period, so for this developer it is new.
     expect(advanced.cohortMetrics).toMatchObject({
-      totalConsumers: 25,
+      totalConsumers: 26,
       returningConsumers: 25,
-      newConsumers: 0,
+      newConsumers: 1,
       retentionRate: 89.29, // 25 of the previous period's 28
     })
     expect(advanced.topConsumers).toHaveLength(20)
+  }, 20_000)
+
+  it('a call at exactly the start of the period counts in the current period only', async () => {
+    const advanced = await json(getAdvanced, DEV.edge, 'stats/advanced?period=7')
+    expect(advanced.cohortMetrics).toMatchObject({ totalConsumers: 1, returningConsumers: 0, newConsumers: 1, retentionRate: 0 })
+    expect(advanced.revenueTrend).toEqual([
+      { date: '2026-11-08', revenueCents: 3, invocations: 1, previousRevenueCents: 0, previousInvocations: 0 },
+    ])
   }, 20_000)
 
   it('compares each day with the same day one period earlier', async () => {

@@ -112,8 +112,7 @@ export async function GET(request: NextRequest) {
     let staleKeyCount = 0
 
     if (hasTools) {
-      const ninetyDaysAgoDate = new Date()
-      ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90)
+      const ninetyDaysAgoDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
       const [staleRow] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(apiKeys)

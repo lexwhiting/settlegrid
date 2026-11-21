@@ -266,8 +266,7 @@ export async function GET(request: NextRequest) {
       scannedTodayTotal = scannedRow?.count ?? 0
 
       // Count flagged invocations this week
-      const weekAgoDate = new Date()
-      weekAgoDate.setDate(weekAgoDate.getDate() - 7)
+      const weekAgoDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       const [flaggedRow] = await db
         .select({
           count: sql<number>`count(*)::int`,
