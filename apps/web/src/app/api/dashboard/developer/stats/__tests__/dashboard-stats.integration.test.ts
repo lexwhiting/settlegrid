@@ -1,10 +1,9 @@
 /**
  * The dashboard stats, forecast and analytics routes against real SQL (pglite).
  *
- * Every stats and forecast figure covers all of the developer's tools, deleted
- * ones included, and never another developer's. "Active Tools" counts status
- * 'active'. No stats or forecast figure is capped by the number of tools (the
- * analytics route still reads at most 500 tool ids; a separate follow-up). The forecast reads the last 30 complete UTC
+ * Every figure covers all of the developer's tools, deleted ones included, and
+ * never another developer's. "Active Tools" counts status 'active'. No figure
+ * is capped by the number of tools. The forecast reads the last 30 complete UTC
  * days and needs 7 of them with revenue; days without revenue count as 0. The
  * analytics revenue trend covers every one of the 30 UTC days ending today.
  * Hours and days are UTC whatever the session time zone.
@@ -207,6 +206,22 @@ describe('dashboard stats and forecast (pglite)', () => {
     expect(b.body.monthRevenueCents).toBe(50)
   }, 20_000)
 
+  it('analytics: covers only the developer\'s own tools, deleted ones included, never another developer\'s', async () => {
+    // A: 8 calls (live, draft and deleted tools; one error), 50 cents in all. B: one 50-cent call on its own tool.
+    const a = (await call(getAnalytics, DEV.a)).body
+    const aCalls = (a.methodBreakdown as Array<{ count: number }>).reduce((s, m) => s + m.count, 0)
+    expect(aCalls).toBe(8) // not 9: B's call is left out
+    expect((a.revenueTrend as Array<{ revenueCents: number }>).reduce((s, d) => s + d.revenueCents, 0)).toBe(50) // not 100
+    expect(a.errorRate).toBe(12.5) // 1 error in A's 8 calls
+    const b = (await call(getAnalytics, DEV.b)).body
+    expect((b.methodBreakdown as Array<{ count: number }>).reduce((s, m) => s + m.count, 0)).toBe(1)
+    expect((b.revenueTrend as Array<{ revenueCents: number }>).reduce((s, d) => s + d.revenueCents, 0)).toBe(50)
+    expect(b.errorRate).toBe(0)
+    // A developer with no tools gets the empty response, not anyone else's data.
+    const none = (await call(getAnalytics, DEV.none)).body
+    expect(none).toMatchObject({ methodBreakdown: [], topConsumers: [], revenueTrend: [], errorRate: 0 })
+  }, 20_000)
+
   it('stats: the last 24 hours cover every tool the developer owns', async () => {
     const { body } = await call(getStats, DEV.a)
     const rows = body.recentInvocations as Array<{ count: number; revenueCents: number }>
@@ -225,7 +240,7 @@ describe('dashboard stats and forecast (pglite)', () => {
     expect(none.body).toMatchObject({ toolCount: 0, toolsCreated: 0, totalInvocations: 0, hasInvocations: false, monthRevenueCents: 0 })
   }, 20_000)
 
-  it('stats and forecast count all 521 tools of one developer in every query', async () => {
+  it('stats, forecast and analytics count all 521 tools of one developer in every query', async () => {
     const stats = await call(getStats, DEV.many)
     expect(stats.body).toMatchObject({ toolCount: 1, toolsCreated: 521, totalInvocations: 521, totalRevenueCents: 521 })
     expect(stats.body.monthRevenueCents).toBe(14 * 521) // Nov 1 to Nov 14
@@ -233,6 +248,10 @@ describe('dashboard stats and forecast (pglite)', () => {
     expect(rows.reduce((s, r) => s + r.revenueCents, 0)).toBe(521) // yesterday at 12:31
     const forecast = await call(getForecast, DEV.many)
     expect(forecast.body).toMatchObject({ dailyDataPoints: 30, projectedNextMonthCents: 30 * 521, currentMonthRevenueCents: 14 * 521 })
+    const analytics = (await call(getAnalytics, DEV.many)).body
+    const trend = analytics.revenueTrend as Array<{ revenueCents: number }>
+    expect(trend.reduce((sum, d) => sum + d.revenueCents, 0)).toBe(29 * 521) // the 29 window days before today
+    expect(analytics.methodBreakdown).toEqual([expect.objectContaining({ count: 30 * 521, totalRevenueCents: 30 * 521 })])
   }, 30_000)
 
   it('stats: the last 24 hours keep all 25 clock hours, the current one included, and nothing older', async () => {
