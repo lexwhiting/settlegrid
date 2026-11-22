@@ -5,6 +5,7 @@ import { invocations, tools, apiKeys, consumerToolBalances } from '@/lib/db/sche
 import { requireConsumer } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { utcDayStart, utcMonthStart, daysBefore, hoursBefore } from '@/lib/utc-periods'
 
 export const maxDuration = 60
 
@@ -22,20 +23,13 @@ const BUDGET_WARNING_PCT = 80
 function getPeriodCutoff(period: string): Date {
   const now = new Date()
   switch (period) {
-    case 'today': {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      return start
-    }
-    case 'week': {
-      const start = new Date(now)
-      start.setDate(start.getDate() - 7)
-      return start
-    }
+    case 'today':
+      return utcDayStart(now)
+    case 'week':
+      return daysBefore(now, 7)
     case 'month':
-    default: {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1)
-      return start
-    }
+    default:
+      return utcMonthStart(now)
   }
 }
 
@@ -134,10 +128,9 @@ export async function GET(request: NextRequest) {
 
     // ── Compute header stats ────────────────────────────────────────────────
     const now = new Date()
-    const todayCutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const weekCutoff = new Date(now)
-    weekCutoff.setDate(weekCutoff.getDate() - 7)
-    const monthCutoff = new Date(now.getFullYear(), now.getMonth(), 1)
+    const todayCutoff = utcDayStart(now)
+    const weekCutoff = daysBefore(now, 7)
+    const monthCutoff = utcMonthStart(now)
 
     let spentToday = 0, spentWeek = 0, spentMonth = 0
     let callsToday = 0, callsWeek = 0, callsMonth = 0
@@ -312,10 +305,8 @@ export async function GET(request: NextRequest) {
     const anomalies: Anomaly[] = []
 
     // Fetch 7-day lookback data for baseline
-    const lookbackCutoff = new Date()
-    lookbackCutoff.setDate(lookbackCutoff.getDate() - ANOMALY_LOOKBACK_DAYS)
-    const hourAgo = new Date()
-    hourAgo.setHours(hourAgo.getHours() - 1)
+    const lookbackCutoff = daysBefore(new Date(), ANOMALY_LOOKBACK_DAYS)
+    const hourAgo = hoursBefore(new Date(), 1)
 
     const lookbackData = await db
       .select({

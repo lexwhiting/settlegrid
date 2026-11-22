@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       getToolsWithOrganicInvocations(7),
       getConsumerAccountsWithActivity(),
       getReferralStats(),
-      getSignupsByDay(30),
+      getSignupsByDay(29), // today and the 29 whole UTC days before it: 30 dates, the chart's "Last 30 Days"
     ])
 
     logger.info('admin.metrics_accessed', { email: auth.email })

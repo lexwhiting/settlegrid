@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
+import { desc, eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { apiKeys, tools, consumerToolBalances, consumers } from '@/lib/db/schema'
 import { requireConsumer } from '@/lib/middleware/auth'
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
       })
       .from(apiKeys)
       .where(eq(apiKeys.consumerId, auth.id))
+      .orderBy(desc(apiKeys.createdAt), desc(apiKeys.id)) // newest first, so the cap never hides a new key
       .limit(500)
 
     return successResponse({ keys })

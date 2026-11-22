@@ -232,7 +232,7 @@ export default function ConsumerDashboardPage() {
       }
       // Store the full key (shown once) and add the new key metadata to the list
       setNewlyCreatedKeys((prev) => ({ ...prev, [toolId]: data.key }))
-      setKeys((prev) => [...prev, data.apiKey])
+      setKeys((prev) => [data.apiKey, ...prev]) // newest first, as the keys API returns them
       return true
     } catch {
       setError('Network error')
