@@ -28,13 +28,47 @@ const NO_TRAFFIC_DAYS = 7
 const MIN_INVOCATIONS_FOR_CHECK = 10 // minimum invocations in the hour to trigger alerts
 
 /**
+ * At most this many alert emails per run. Alerts over the cap are not sent and
+ * get no cooldown, so a later run (every 15 minutes) sends them if they still apply.
+ */
+const MAX_ALERT_EMAILS_PER_RUN = 50
+
+const COOLDOWN_LOOKUP_CHUNK = 100
+
+type AlertKind = 'slowResponse' | 'highErrorRate' | 'noTraffic'
+
+interface ActiveTool {
+  toolId: string
+  toolName: string
+  developerId: string
+  devEmail: string
+  devName: string | null
+}
+
+interface Candidate {
+  kind: AlertKind
+  tool: ActiveTool
+  cooldownKey: string
+  cooldownSecs: number
+  avgLatency?: number
+  invCount?: number
+  errorRate?: number
+  totalCount?: number
+  errorCount?: number
+}
+
+/**
  * Vercel Cron handler: checks tool quality metrics and sends coaching emails.
  * Runs every 15 minutes.
  *
- * Checks for each active tool:
+ * Checks every active tool, with grouped queries (no per-tool loop and no cap
+ * on how many tools):
  *   1. Average response time >2000ms in the last hour
  *   2. Error rate >10% in the last hour
  *   3. Zero invocations for 7+ days (for previously active tools)
+ *
+ * Alerts are sent in that order (the last-hour checks first), oldest tool first
+ * within each check, up to MAX_ALERT_EMAILS_PER_RUN per run.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -57,174 +91,147 @@ export async function GET(request: NextRequest) {
 
     const redis = getRedis()
 
-    // Fetch active tools with their developer info
-    const activeTools = await db
+    // Every active tool with its developer (no row cap), oldest first
+    const activeTools: ActiveTool[] = await db
       .select({
         toolId: tools.id,
         toolName: tools.name,
         developerId: tools.developerId,
-        totalInvocations: tools.totalInvocations,
         devEmail: developers.email,
         devName: developers.name,
       })
       .from(tools)
       .innerJoin(developers, eq(tools.developerId, developers.id))
       .where(eq(tools.status, 'active'))
-      .limit(500)
+      .orderBy(tools.createdAt, tools.id)
+    const toolById = new Map(activeTools.map((t) => [t.toolId, t]))
+    const activeToolIds = sql`(select ${tools.id} from ${tools} where ${tools.status} = 'active')`
 
+    // ─── Checks 1 and 2: the last hour, per active tool, in one query ──────
+    const lastHour = await db
+      .select({
+        toolId: invocations.toolId,
+        avgLatency: sql<number>`coalesce(avg(${invocations.latencyMs}) filter (where ${invocations.latencyMs} is not null), 0)::float`,
+        latencyCount: sql<number>`(count(*) filter (where ${invocations.latencyMs} is not null))::int`,
+        totalCount: sql<number>`count(*)::int`,
+        errorCount: sql<number>`(count(*) filter (where ${invocations.status} != 'success'))::int`,
+      })
+      .from(invocations)
+      .where(and(
+        sql`${invocations.toolId} in ${activeToolIds}`,
+        sql`${invocations.createdAt} >= ${oneHourAgo.toISOString()}::timestamptz`,
+      ))
+      .groupBy(invocations.toolId)
+
+    // ─── Check 3: previously active tools with no call in 7 days ───────────
+    const idle = await db
+      .select({ toolId: tools.id })
+      .from(tools)
+      .where(and(
+        eq(tools.status, 'active'),
+        sql`${tools.totalInvocations} > 0`,
+        sql`not exists (select 1 from ${invocations} where ${invocations.toolId} = ${tools.id} and ${invocations.createdAt} >= ${sevenDaysAgo.toISOString()}::timestamptz)`,
+      ))
+      .orderBy(tools.createdAt, tools.id)
+
+    // ─── Candidates, in sending order ──────────────────────────────────────
+    const order = new Map(activeTools.map((t, i) => [t.toolId, i]))
+    const byToolAge = <T extends { toolId: string }>(rows: T[]) =>
+      rows.filter((r) => toolById.has(r.toolId)).sort((a, b) => (order.get(a.toolId) ?? 0) - (order.get(b.toolId) ?? 0))
+
+    const candidates: Candidate[] = []
+    const hourRows = byToolAge(lastHour)
+    for (const row of hourRows) {
+      const avgLatency = Math.round(row.avgLatency)
+      if (avgLatency > SLOW_RESPONSE_MS && row.latencyCount >= MIN_INVOCATIONS_FOR_CHECK) {
+        candidates.push({
+          kind: 'slowResponse', tool: toolById.get(row.toolId)!, cooldownKey: `quality:slow:${row.toolId}`,
+          cooldownSecs: SLOW_RESPONSE_COOLDOWN_SECS, avgLatency, invCount: row.latencyCount,
+        })
+      }
+    }
+    for (const row of hourRows) {
+      if (row.totalCount >= MIN_INVOCATIONS_FOR_CHECK && row.errorCount > 0) {
+        const errorRate = (row.errorCount / row.totalCount) * 100
+        if (errorRate > HIGH_ERROR_RATE_PCT) {
+          candidates.push({
+            kind: 'highErrorRate', tool: toolById.get(row.toolId)!, cooldownKey: `quality:error:${row.toolId}`,
+            cooldownSecs: ERROR_RATE_COOLDOWN_SECS, errorRate, totalCount: row.totalCount, errorCount: row.errorCount,
+          })
+        }
+      }
+    }
+    for (const row of byToolAge(idle)) {
+      candidates.push({
+        kind: 'noTraffic', tool: toolById.get(row.toolId)!, cooldownKey: `quality:notraffic:${row.toolId}`,
+        cooldownSecs: NO_TRAFFIC_COOLDOWN_SECS,
+      })
+    }
+
+    // Cooldowns, looked up in chunks
+    const onCooldown = new Set<string>()
+    for (let i = 0; i < candidates.length; i += COOLDOWN_LOOKUP_CHUNK) {
+      const keys = candidates.slice(i, i + COOLDOWN_LOOKUP_CHUNK).map((c) => c.cooldownKey)
+      const values = await redis.mget<(string | null)[]>(...keys)
+      keys.forEach((key, j) => { if (values[j]) onCooldown.add(key) })
+    }
+
+    // ─── Send, up to the cap ───────────────────────────────────────────────
     const alerts = { slowResponse: 0, highErrorRate: 0, noTraffic: 0 }
+    let deferred = 0
+    let sent = 0
 
-    for (const tool of activeTools) {
+    for (const c of candidates) {
+      if (onCooldown.has(c.cooldownKey)) continue
+      if (sent >= MAX_ALERT_EMAILS_PER_RUN) {
+        deferred++
+        continue
+      }
       try {
-        const devName = tool.devName ?? 'Developer'
-
-        // ─── Check 1: Slow response time ──────────────────────────────
-        const [latencyResult] = await db
-          .select({
-            avgLatency: sql<number>`COALESCE(AVG(${invocations.latencyMs}), 0)`,
-            invCount: sql<number>`COUNT(*)`,
-          })
-          .from(invocations)
-          .where(
-            and(
-              eq(invocations.toolId, tool.toolId),
-              sql`${invocations.createdAt} >= ${oneHourAgo.toISOString()}::timestamptz`,
-              sql`${invocations.latencyMs} IS NOT NULL`
-            )
-          )
-          .limit(1)
-
-        const avgLatency = Math.round(latencyResult?.avgLatency ?? 0)
-        const latencyInvCount = latencyResult?.invCount ?? 0
-
-        if (avgLatency > SLOW_RESPONSE_MS && latencyInvCount >= MIN_INVOCATIONS_FOR_CHECK) {
-          const cooldownKey = `quality:slow:${tool.toolId}`
-          const alreadySent = await redis.get<string>(cooldownKey)
-
-          if (!alreadySent) {
-            const tpl = toolSlowResponseEmail(devName, tool.toolName, avgLatency)
-            await sendNotificationEmail({
-              developerId: tool.developerId,
-              eventKey: 'quality_alert',
-              email: tool.devEmail,
-              subject: tpl.subject,
-              html: tpl.html,
-            })
-            await redis.set(cooldownKey, '1', { ex: SLOW_RESPONSE_COOLDOWN_SECS })
-            alerts.slowResponse++
-
-            logger.info('cron.quality_check.slow_response', {
-              toolId: tool.toolId,
-              avgLatency,
-              invCount: latencyInvCount,
-            })
-          }
-        }
-
-        // ─── Check 2: High error rate ─────────────────────────────────
-        const [errorResult] = await db
-          .select({
-            totalCount: sql<number>`COUNT(*)`,
-            errorCount: sql<number>`COUNT(*) FILTER (WHERE ${invocations.status} != 'success')`,
-          })
-          .from(invocations)
-          .where(
-            and(
-              eq(invocations.toolId, tool.toolId),
-              sql`${invocations.createdAt} >= ${oneHourAgo.toISOString()}::timestamptz`
-            )
-          )
-          .limit(1)
-
-        const totalCount = errorResult?.totalCount ?? 0
-        const errorCount = errorResult?.errorCount ?? 0
-
-        if (totalCount >= MIN_INVOCATIONS_FOR_CHECK && errorCount > 0) {
-          const errorRate = (errorCount / totalCount) * 100
-
-          if (errorRate > HIGH_ERROR_RATE_PCT) {
-            const cooldownKey = `quality:error:${tool.toolId}`
-            const alreadySent = await redis.get<string>(cooldownKey)
-
-            if (!alreadySent) {
-              const tpl = toolHighErrorRateEmail(devName, tool.toolName, errorRate)
-              await sendNotificationEmail({
-                developerId: tool.developerId,
-                eventKey: 'quality_alert',
-                email: tool.devEmail,
-                subject: tpl.subject,
-                html: tpl.html,
-              })
-              await redis.set(cooldownKey, '1', { ex: ERROR_RATE_COOLDOWN_SECS })
-              alerts.highErrorRate++
-
-              logger.info('cron.quality_check.high_error_rate', {
-                toolId: tool.toolId,
-                errorRate: Math.round(errorRate * 10) / 10,
-                totalCount,
-                errorCount,
-              })
-            }
-          }
-        }
-
-        // ─── Check 3: No traffic for 7 days (previously active) ──────
-        // Only check tools that have had at least 1 invocation historically
-        if (tool.totalInvocations > 0) {
-          const [recentResult] = await db
-            .select({ count: sql<number>`COUNT(*)` })
+        const devName = c.tool.devName ?? 'Developer'
+        let tpl: { subject: string; html: string }
+        if (c.kind === 'slowResponse') {
+          tpl = toolSlowResponseEmail(devName, c.tool.toolName, c.avgLatency!)
+        } else if (c.kind === 'highErrorRate') {
+          tpl = toolHighErrorRateEmail(devName, c.tool.toolName, c.errorRate!)
+        } else {
+          // The last invocation date for the email
+          const [lastInv] = await db
+            .select({ lastAt: sql<string>`max(${invocations.createdAt})` })
             .from(invocations)
-            .where(
-              and(
-                eq(invocations.toolId, tool.toolId),
-                sql`${invocations.createdAt} >= ${sevenDaysAgo.toISOString()}::timestamptz`
-              )
-            )
+            .where(eq(invocations.toolId, c.tool.toolId))
             .limit(1)
-
-          const recentCount = recentResult?.count ?? 0
-
-          if (recentCount === 0) {
-            const cooldownKey = `quality:notraffic:${tool.toolId}`
-            const alreadySent = await redis.get<string>(cooldownKey)
-
-            if (!alreadySent) {
-              // Get the last invocation date for the email
-              const [lastInv] = await db
-                .select({ lastAt: sql<string>`MAX(${invocations.createdAt})` })
-                .from(invocations)
-                .where(eq(invocations.toolId, tool.toolId))
-                .limit(1)
-
-              const lastDate = lastInv?.lastAt
-                ? new Date(lastInv.lastAt).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })
-                : 'unknown'
-
-              const tpl = toolNoTrafficEmail(devName, tool.toolName, lastDate)
-              await sendNotificationEmail({
-                developerId: tool.developerId,
-                eventKey: 'quality_alert',
-                email: tool.devEmail,
-                subject: tpl.subject,
-                html: tpl.html,
+          const lastDate = lastInv?.lastAt
+            ? new Date(lastInv.lastAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                timeZone: 'UTC',
               })
-              await redis.set(cooldownKey, '1', { ex: NO_TRAFFIC_COOLDOWN_SECS })
-              alerts.noTraffic++
-
-              logger.info('cron.quality_check.no_traffic', {
-                toolId: tool.toolId,
-                lastInvocation: lastDate,
-              })
-            }
-          }
+            : 'unknown'
+          tpl = toolNoTrafficEmail(devName, c.tool.toolName, lastDate)
         }
+        sent++
+        await sendNotificationEmail({
+          developerId: c.tool.developerId,
+          eventKey: 'quality_alert',
+          email: c.tool.devEmail,
+          subject: tpl.subject,
+          html: tpl.html,
+        })
+        await redis.set(c.cooldownKey, '1', { ex: c.cooldownSecs })
+        alerts[c.kind]++
+
+        logger.info(`cron.quality_check.${c.kind === 'slowResponse' ? 'slow_response' : c.kind === 'highErrorRate' ? 'high_error_rate' : 'no_traffic'}`, {
+          toolId: c.tool.toolId,
+          ...(c.kind === 'slowResponse' ? { avgLatency: c.avgLatency, invCount: c.invCount } : {}),
+          ...(c.kind === 'highErrorRate'
+            ? { errorRate: Math.round(c.errorRate! * 10) / 10, totalCount: c.totalCount, errorCount: c.errorCount }
+            : {}),
+        })
       } catch (toolErr) {
         // Don't let one tool failure stop the batch
-        logger.error('cron.quality_check.tool_failed', { toolId: tool.toolId }, toolErr)
+        logger.error('cron.quality_check.tool_failed', { toolId: c.tool.toolId }, toolErr)
       }
     }
 
@@ -233,6 +240,7 @@ export async function GET(request: NextRequest) {
     logger.info('cron.quality_check.completed', {
       toolsChecked: activeTools.length,
       totalAlerts,
+      deferred,
       ...alerts,
     })
 
@@ -240,6 +248,7 @@ export async function GET(request: NextRequest) {
       toolsChecked: activeTools.length,
       totalAlerts,
       alerts,
+      deferred,
     })
   } catch (error) {
     logger.error('cron.quality_check.failed', {}, error)
