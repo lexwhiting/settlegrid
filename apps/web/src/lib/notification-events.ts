@@ -29,7 +29,7 @@ export const NOTIFICATION_EVENTS = [
   { key: 'tool_published', label: 'Tool published', category: 'tools', critical: false, inSettings: true },
   { key: 'tool_health_down', label: 'Tool health check failed', category: 'tools', critical: true, inSettings: true },
   { key: 'usage_spike', label: 'Unusual traffic detected (spike or drop)', category: 'tools', critical: false, inSettings: true },
-  { key: 'quality_alert', label: 'Tool quality alerts (slow responses, errors, tools that went quiet)', category: 'tools', critical: false, inSettings: true },
+  { key: 'quality_alert', label: 'Tool quality alerts (slow response, errors)', category: 'tools', critical: false, inSettings: true },
   { key: 'onboarding_tips', label: 'Onboarding tips & best practices', category: 'tools', critical: false, inSettings: true },
   { key: 'api_key_created', label: 'API key created', category: 'security', critical: false, inSettings: true },
   { key: 'api_key_revoked', label: 'API key revoked', category: 'security', critical: true, inSettings: true },

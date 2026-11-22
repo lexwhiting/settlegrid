@@ -4,10 +4,10 @@
  *
  * - 'sent' when sendEmail succeeds; 'failed' when it returns false or throws.
  * - 'opted_out' when the developer turned the event off.
- * - 'suppressed' when the address has an 'all' suppression (hard bounce or complaint,
- *   matched case-insensitively); a stream-specific unsubscribe (e.g. the newsletter)
- *   does not block an account notice.
- * - Critical notices are sent regardless of preferences and suppressions.
+ * - Account notices never consult the bulk-mail suppression table (its documented
+ *   invariant): an address with an 'all' suppression still gets them; Resend's own
+ *   suppression list handles delivery to bounced or complained addresses.
+ * - Critical notices are sent regardless of preferences.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -68,15 +68,11 @@ describe('sendNotificationEmail outcomes (pglite)', () => {
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
-  it("returns 'suppressed' for a hard-bounced or complained address, whatever its case", async () => {
-    expect(await notify(DEV, 'Bounced@Example.com')).toBe('suppressed')
-    expect(await notify(DEV, 'complained@example.com')).toBe('suppressed')
-    expect(sendEmail).not.toHaveBeenCalled()
-  })
-
-  it('still sends an account notice to an address that only unsubscribed from the newsletter', async () => {
+  it('does not consult the bulk-mail suppression table for an account notice', async () => {
+    expect(await notify(DEV, 'bounced@example.com')).toBe('sent')
+    expect(await notify(DEV, 'complained@example.com')).toBe('sent')
     expect(await notify(DEV, 'reader@example.com')).toBe('sent')
-    expect(sendEmail).toHaveBeenCalledTimes(1)
+    expect(sendEmail).toHaveBeenCalledTimes(3)
   })
 
   it("returns 'failed' when Resend refuses the email or the call throws", async () => {
@@ -86,8 +82,8 @@ describe('sendNotificationEmail outcomes (pglite)', () => {
     expect(await notify(DEV, 'dev@example.com')).toBe('failed')
   })
 
-  it('sends a critical notice regardless of preferences and suppressions', async () => {
-    expect(await notify(OPTED_OUT, 'bounced@example.com', true)).toBe('sent')
+  it('sends a critical notice regardless of preferences', async () => {
+    expect(await notify(OPTED_OUT, 'dev@example.com', true)).toBe('sent')
     expect(sendEmail).toHaveBeenCalledTimes(1)
   })
 })

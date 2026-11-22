@@ -9,10 +9,10 @@
  * - Thresholds: average latency strictly over 2000 ms across at least 10 calls with a
  *   latency; error rate strictly over 10% across at least 10 calls, any status other
  *   than 'success' counting as an error.
- * - Went quiet: one digest per developer for tools whose last call was 7 to 14 days
- *   ago (14 days included, exactly 7 not); tools quiet for longer get nothing.
- * - A failed send gets no cooldown and is retried on the next run.
+ * - The no-traffic alert is switched off: idle tools get no email.
  * - Cooldowns are respected; inactive tools are not checked.
+ * - A failed send gets no cooldown and is tried again after an hour; an opted-out
+ *   developer's alert gets its cooldown but is not counted as sent.
  *
  * Redis is an in-memory fake; emails are captured, not sent. The schema is a
  * test-only CREATE TABLE bootstrap of the columns the route reads (no drizzle-kit,
@@ -61,8 +61,9 @@ const BOOTSTRAP_SQL = `
 const NOW = new Date('2026-11-22T12:00:00.000Z')
 const IN_LAST_HOUR = '2026-11-22T11:30:00Z'
 let pg: PGlite
+let slowTool: (email: string, name: string) => Promise<string>
 
-type Sent = { email: string; subject: string; html: string; developerId: string }
+type Sent = { email: string; subject: string; developerId: string }
 const sentEmails = () => (sendNotificationEmail.mock.calls as unknown as Array<[Sent]>).map(([p]) => p)
 const toolId = async (name: string) => (await pg.query<{ id: string }>('SELECT id FROM tools WHERE name = $1', [name])).rows[0].id
 
@@ -121,17 +122,16 @@ beforeAll(async () => {
   await calls(tenPct, 9, 100, 'success')
   await calls(tenPct, 1, 100, 'error')
 
-  // Went quiet: five tools last called 10 days ago (one digest), and a busy tool of the same
-  // developer called 2 days ago (not in it).
+  // Idle tools (used before, no call for 10 days): the no-traffic alert is off.
   const idleDev = await dev('idle@example.com')
   for (let i = 0; i < 5; i++) await calls(await tool(idleDev, `Idle ${i}`, { total: 1 }), 1, 100, 'success', '2026-11-12T12:00:00Z')
-  await calls(await tool(idleDev, 'Busy tool', { total: 1 }), 1, 100, 'success', '2026-11-20T12:00:00Z')
-  // One quiet tool for another developer (13 days ago); one dead for 52 days (nothing).
-  await calls(await tool(await dev('solo@example.com'), 'Solo tool', { total: 1 }), 1, 100, 'success', '2026-11-09T12:00:00Z')
-  await calls(await tool(await dev('dead@example.com'), 'Dead tool', { total: 1 }), 1, 100, 'success', '2026-10-01T12:00:00Z')
-  // Edges: last call exactly 14 days ago (quiet), exactly 7 days ago (not yet).
-  await calls(await tool(edgeDev, 'Edge 14d', { total: 1 }), 1, 100, 'success', '2026-11-08T12:00:00Z')
-  await calls(await tool(edgeDev, 'Edge 7d', { total: 1 }), 1, 100, 'success', '2026-11-15T12:00:00Z')
+
+  // For the later cases: a new developer with one slow tool, created on demand.
+  slowTool = async (email: string, name: string) => {
+    const id = await tool(await dev(email), name)
+    await calls(id, 10, 4000, 'success')
+    return id
+  }
 
   // An inactive tool that would otherwise be slow.
   await calls(await tool(slowDev, 'Draft tool', { status: 'draft' }), 10, 5000, 'success')
@@ -159,12 +159,11 @@ describe('cron quality-check (pglite)', () => {
     fakeRedis.store.set(`quality:slow:${await toolId('Slow extra 55')}`, '1') // already on cooldown
 
     const body = await run()
-    // 500 quiet + 58 slow + 2 near-miss latency + 2 error tools + 6 of idle@ + solo + dead + 2 edges; not the draft
-    expect(body.toolsChecked).toBe(572)
-    expect(body.alerts).toEqual({ slowResponse: 50, highErrorRate: 0, wentQuiet: 0 })
+    // 500 quiet + 58 slow + 2 near-miss latency + 2 error tools + 5 idle; not the draft
+    expect(body.toolsChecked).toBe(567)
+    expect(body.alerts).toEqual({ slowResponse: 50, highErrorRate: 0, noTraffic: 0 })
     expect(body.totalAlerts).toBe(50)
-    expect(body.deferred).toBe(11) // 7 slow + the failing tool + 3 went-quiet digests
-    expect(body.failed).toBe(0)
+    expect(body.deferred).toBe(8) // 57 slow off cooldown − 50 sent = 7, plus the failing tool
 
     const sent = sentEmails()
     expect(sent).toHaveLength(50)
@@ -174,50 +173,66 @@ describe('cron quality-check (pglite)', () => {
     expect(fakeRedis.store.has(`quality:slow:${await toolId('Slow 501')}`)).toBe(true)
   }, 30_000)
 
-  it('sends the deferred alerts next run (errors, then one went-quiet digest per developer); a failed send is retried', async () => {
-    sendNotificationEmail.mockImplementationOnce(async () => 'failed') // the first send of this run fails
+  it('sends the deferred alerts on the next run, and nothing again while cooldowns last', async () => {
     const second = await run()
-    expect(second.alerts).toEqual({ slowResponse: 6, highErrorRate: 1, wentQuiet: 3 })
-    expect(second).toMatchObject({ deferred: 0, failed: 1 })
+    expect(second.alerts).toEqual({ slowResponse: 7, highErrorRate: 1, noTraffic: 0 })
+    expect(second.deferred).toBe(0)
     const sent = sentEmails()
-    expect(sent).toHaveLength(11) // including the failed attempt
-    const quiet = sent.slice(-3)
-    expect(quiet.map((e) => e.email).sort()).toEqual(['edge@example.com', 'idle@example.com', 'solo@example.com'])
-    const idle = quiet.find((e) => e.email === 'idle@example.com')!
-    expect(idle.subject).toBe('5 of your tools had no calls for 7 days')
-    for (let i = 0; i < 5; i++) expect(idle.html).toContain(`Idle ${i}`)
-    expect(idle.html).not.toContain('Busy tool')
-    expect(idle.html).toContain('November 12, 2026')
-    expect(quiet.find((e) => e.email === 'solo@example.com')!.subject).toBe('No calls to Solo tool for 7 days')
-    expect(quiet.find((e) => e.email === 'edge@example.com')!.subject).toBe('No calls to Edge 14d for 7 days') // not "Edge 7d"
-    expect(sent[sent.length - 4]).toMatchObject({ email: 'errors@example.com' }) // errors after slow responses, before digests
+    expect(sent.map((e) => e.subject)).toContain('Slow responses detected on Just slow')
+    expect(sent.at(-1)).toMatchObject({ email: 'errors@example.com' }) // errors after slow responses
+    expect(sent.at(-1)?.subject).toMatch(/^High error rate on Failing tool/)
 
     sendNotificationEmail.mockClear()
-    const third = await run() // the failed alert, retried
-    expect(third.alerts).toEqual({ slowResponse: 1, highErrorRate: 0, wentQuiet: 0 })
-    expect(third).toMatchObject({ deferred: 0, failed: 0 })
-
-    sendNotificationEmail.mockClear()
-    const fourth = await run()
-    expect(fourth).toMatchObject({ totalAlerts: 0, deferred: 0, failed: 0 })
+    const third = await run()
+    expect(third).toMatchObject({ totalAlerts: 0, deferred: 0 })
     expect(sentEmails()).toHaveLength(0)
   }, 30_000)
 
-  it('never alerts on the near misses, long-dead tools or inactive tools', async () => {
-    // Every alert sent sets a cooldown, so the cooldown store records who was alerted across the runs.
+  it('never alerts on the near misses, idle tools or inactive tools', async () => {
+    // Every alert sent sets a cooldown, so the cooldown store records who was alerted across both runs.
     for (const name of ['Exactly 2000', 'Nine timed', 'Ten percent', 'Draft tool']) {
       const id = await toolId(name)
       expect(fakeRedis.store.has(`quality:slow:${id}`)).toBe(false)
       expect(fakeRedis.store.has(`quality:error:${id}`)).toBe(false)
     }
+    for (let i = 0; i < 5; i++) expect(fakeRedis.store.has(`quality:notraffic:${await toolId(`Idle ${i}`)}`)).toBe(false)
     const keys = [...fakeRedis.store.keys()]
     expect(keys.filter((k) => k.startsWith('quality:slow:'))).toHaveLength(58) // 57 sent + 1 pre-set
     expect(keys.filter((k) => k.startsWith('quality:error:'))).toHaveLength(1)
-    expect(keys.filter((k) => k.startsWith('quality:quiet:'))).toHaveLength(3) // idle@, solo@, edge@; not dead@
-    const devId = async (email: string) => (await pg.query<{ id: string }>('SELECT id FROM developers WHERE email = $1', [email])).rows[0].id
-    for (const email of ['idle@example.com', 'solo@example.com', 'edge@example.com']) {
-      expect(fakeRedis.store.has(`quality:quiet:${await devId(email)}`)).toBe(true) // one cooldown per developer
-    }
-    expect(fakeRedis.store.has(`quality:quiet:${await devId('dead@example.com')}`)).toBe(false)
+    expect(keys.filter((k) => k.startsWith('quality:notraffic:'))).toHaveLength(0)
   }, 20_000)
+
+  it('a failed send gets no cooldown and is tried again after an hour', async () => {
+    const flaky = await slowTool('flaky@example.com', 'Flaky tool')
+    sendNotificationEmail.mockImplementationOnce(async () => 'failed')
+    const first = await run()
+    expect(first).toMatchObject({ totalAlerts: 0, failed: 1, skipped: 0, deferred: 0 })
+    expect(fakeRedis.store.has(`quality:slow:${flaky}`)).toBe(false)
+    expect(fakeRedis.store.has(`quality:slow:${flaky}:retry`)).toBe(true)
+
+    sendNotificationEmail.mockClear()
+    const waiting = await run() // within the hour: not retried, not deferred
+    expect(waiting).toMatchObject({ totalAlerts: 0, failed: 0, deferred: 0 })
+    expect(sentEmails()).toHaveLength(0)
+
+    fakeRedis.store.delete(`quality:slow:${flaky}:retry`) // the hour has passed
+    const retried = await run()
+    expect(retried.alerts).toEqual({ slowResponse: 1, highErrorRate: 0, noTraffic: 0 })
+    expect(sentEmails()).toEqual([expect.objectContaining({ email: 'flaky@example.com' })])
+    expect(fakeRedis.store.has(`quality:slow:${flaky}`)).toBe(true)
+  }, 30_000)
+
+  it("an opted-out developer's alert gets its cooldown but is not counted as sent", async () => {
+    const muted = await slowTool('muted@example.com', 'Muted tool')
+    sendNotificationEmail.mockImplementationOnce(async () => 'opted_out')
+    const first = await run()
+    expect(first).toMatchObject({ totalAlerts: 0, skipped: 1, failed: 0 })
+    expect(first.alerts).toEqual({ slowResponse: 0, highErrorRate: 0, noTraffic: 0 })
+    expect(fakeRedis.store.has(`quality:slow:${muted}`)).toBe(true)
+
+    sendNotificationEmail.mockClear()
+    const next = await run()
+    expect(next).toMatchObject({ totalAlerts: 0, skipped: 0 })
+    expect(sentEmails()).toHaveLength(0)
+  }, 30_000)
 })
