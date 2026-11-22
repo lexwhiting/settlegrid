@@ -6,7 +6,7 @@
 import { db } from '@/lib/db'
 import { developers, tools, invocations, consumers, signupInvites } from '@/lib/db/schema'
 import { sql, eq, and, count } from 'drizzle-orm'
-import { daysBefore, utcMonthStart } from '@/lib/utc-periods'
+import { daysBefore, utcDayStart, utcMonthStart } from '@/lib/utc-periods'
 
 // ── Tier pricing for MRR calculation ────────────────────────────────────────
 
@@ -58,11 +58,12 @@ export async function getConsumerAccountsWithActivity(): Promise<number> {
 }
 
 /**
- * Daily signups for the last N days (developers table), by UTC day.
- * Returns oldest first; the window touches N + 1 UTC dates, today included.
+ * Daily signups by UTC day: today and the N whole UTC days before it (N + 1 dates).
+ * Returns oldest first. The window starts at 00:00 UTC on the oldest date, so that
+ * date counts all of its signups, not only those after the current time of day.
  */
 export async function getSignupsByDay(days: number): Promise<{ date: string; count: number }[]> {
-  const cutoff = daysBefore(new Date(), days)
+  const cutoff = utcDayStart(daysBefore(new Date(), days))
   const signupUtcDay = sql`(${developers.createdAt} at time zone 'UTC')::date`
 
   const rows = await db

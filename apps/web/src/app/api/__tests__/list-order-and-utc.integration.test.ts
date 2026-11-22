@@ -93,7 +93,9 @@ beforeAll(async () => {
 
   // Signups: one at 03:00 UTC today (Oct 31 in New York and Los Angeles), one on each of the
   // three days before, at noon UTC. Invocations: one at 01:00 UTC today, one at noon on Oct 31.
-  for (const at of ['2026-11-01T03:00:00Z', '2026-10-31T12:00:00Z', '2026-10-30T12:00:00Z', '2026-10-29T12:00:00Z']) {
+  // Plus, at the edges of a 3-day window (Oct 29 to Nov 1): 01:00 UTC on Oct 29, before the
+  // current time of day, which counts; 23:59 UTC on Oct 28, the day before, which doesn't.
+  for (const at of ['2026-11-01T03:00:00Z', '2026-10-31T12:00:00Z', '2026-10-30T12:00:00Z', '2026-10-29T12:00:00Z', '2026-10-29T01:00:00Z', '2026-10-28T23:59:00Z']) {
     await pg.query('INSERT INTO developers (created_at) VALUES ($1)', [at])
   }
   // The two invocations are CONSUMER's calls on the newest tool, so the explorer reads them too.
@@ -136,12 +138,12 @@ describe('list caps keep the newest rows (pglite)', () => {
 })
 
 describe('analytics: UTC days and months (pglite)', () => {
-  it('signups by day group by UTC day, today included, oldest first, under a New York session', async () => {
+  it('signups by day cover whole UTC days, the oldest date from 00:00 and today included, under a New York session', async () => {
     await pg.exec("SET TIME ZONE 'America/New_York'")
     try {
-      const days = await getSignupsByDay(3) // 3 days back touches 4 UTC dates
+      const days = await getSignupsByDay(3) // today and the 3 whole UTC days before it
       expect(days).toEqual([
-        { date: '2026-10-29', count: 1 },
+        { date: '2026-10-29', count: 2 }, // 01:00 and 12:00 UTC; the whole oldest date, not from 04:30
         { date: '2026-10-30', count: 1 },
         { date: '2026-10-31', count: 1 },
         { date: '2026-11-01', count: 1 }, // 03:00 UTC: Oct 31 in New York
