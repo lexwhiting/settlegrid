@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { costAllocations, organizationMembers, invocations, organizations, developers, tools } from '@/lib/db/schema'
-import { sql, eq } from 'drizzle-orm'
+import { sql, eq, and, isNull } from 'drizzle-orm'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
@@ -59,48 +59,43 @@ export async function GET(request: NextRequest) {
     let aggregatedCount = 0
 
     for (const org of orgs) {
-      // Get members with department info
-      const members = await db
+      // One row per org and period: the sum over its members' invocations. It is
+      // recomputed and replaced on every run, so the daily cron never adds a second
+      // row for the same period (cost_allocations has no unique key to upsert on).
+      const memberIds = sql`(select ${organizationMembers.userId} from ${organizationMembers} where ${organizationMembers.orgId} = ${org.id})`
+      const [agg] = await db
         .select({
-          userId: organizationMembers.userId,
-          role: organizationMembers.role,
+          totalCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
+          opCount: sql<number>`count(*)::int`,
         })
-        .from(organizationMembers)
-        .where(eq(organizationMembers.orgId, org.id))
-        .limit(1000)
+        .from(invocations)
+        .where(
+          sql`${invocations.consumerId}::text in ${memberIds} and ${invocations.createdAt} >= ${periodStart} and ${invocations.createdAt} < ${periodEnd}`
+        )
 
-      if (members.length === 0) continue
-
-      // For each member, sum their invocation costs in this period
-      for (const member of members) {
-        const [aggResult] = await db
-          .select({
-            totalCents: sql<number>`COALESCE(SUM(${invocations.costCents}), 0)`,
-            opCount: sql<number>`COUNT(*)`,
+      const opCount = agg?.opCount ?? 0
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(costAllocations)
+          .where(and(
+            eq(costAllocations.orgId, org.id),
+            eq(costAllocations.departmentTag, 'default'),
+            isNull(costAllocations.serviceId),
+            eq(costAllocations.periodStart, periodStart),
+          ))
+        if (opCount > 0) {
+          await tx.insert(costAllocations).values({
+            orgId: org.id,
+            departmentTag: 'default',
+            serviceId: null,
+            periodStart,
+            periodEnd,
+            totalCents: agg.totalCents,
+            operationCount: opCount,
           })
-          .from(invocations)
-          .where(
-            sql`${invocations.consumerId}::text = ${member.userId} AND ${invocations.createdAt} >= ${periodStart} AND ${invocations.createdAt} < ${periodEnd}`
-          )
-          .limit(1)
-
-        if (aggResult && aggResult.opCount > 0) {
-          await db
-            .insert(costAllocations)
-            .values({
-              orgId: org.id,
-              departmentTag: 'default',
-              serviceId: null,
-              periodStart,
-              periodEnd,
-              totalCents: aggResult.totalCents,
-              operationCount: aggResult.opCount,
-            })
-            .onConflictDoNothing()
-
-          aggregatedCount++
         }
-      }
+      })
+      if (opCount > 0) aggregatedCount++
     }
 
     // ─── Phase 2: Developer usage tier alerts ─────────────────────────

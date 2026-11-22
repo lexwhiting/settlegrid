@@ -54,6 +54,7 @@ describe('routes use UTC periods (source guard)', () => {
     'app/api/dashboard/developer/fraud/signals/route.ts',
     'app/api/dashboard/developer/stats/advanced/route.ts',
     'app/api/proxy/stats/route.ts',
+    'app/api/orgs/[id]/allocations/route.ts',
   ]
   const LOCAL = /new Date\(\s*\w+\.getFullYear\(\)|\.set(?:Hours|Date|Month|FullYear)\(|\.get(?:Month|Date|Day|Hours)\(\)|toDateString\(|toLocaleDateString\(|startOf(?:Day|Month|Week)\(/
 

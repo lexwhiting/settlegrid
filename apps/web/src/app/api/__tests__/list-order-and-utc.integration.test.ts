@@ -166,6 +166,9 @@ describe('analytics: UTC days and months (pglite)', () => {
       const today = await call('today')
       expect(today.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5]) // 01:00 UTC; not Oct 31
       expect(today.stats).toMatchObject({ callsToday: 1, spentToday: 5 })
+      // The header's week and month cover their own windows whatever period is selected:
+      // with "today" selected, the rolling week still holds both calls and the month the November one.
+      expect(today.stats).toMatchObject({ callsWeek: 2, spentWeek: 12, callsMonth: 1, spentMonth: 5, avgCostCents: 5 })
       const month = await call('month')
       expect(month.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5]) // November only
       expect(month.stats).toMatchObject({ callsMonth: 1, spentMonth: 5 })

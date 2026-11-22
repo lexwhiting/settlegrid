@@ -5,6 +5,7 @@ import { getOrganization, getCostAllocations } from '@/lib/settlement/organizati
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { checkPermission } from '@/lib/settlement/rbac'
 import { getOrCreateRequestId } from '@/lib/request-id'
+import { utcMonthStart, utcNextMonthStart } from '@/lib/utc-periods'
 
 export const maxDuration = 10
 
@@ -47,13 +48,13 @@ export async function GET(
 
     if (period && /^\d{4}-\d{2}$/.test(period)) {
       const [year, month] = period.split('-').map(Number)
-      periodStart = new Date(year, month - 1, 1)
-      periodEnd = new Date(year, month, 1)
+      periodStart = new Date(Date.UTC(year, month - 1, 1))
+      periodEnd = new Date(Date.UTC(year, month, 1))
     } else {
-      // Default to current month
+      // Default to the current UTC month (the month the usage job writes)
       const now = new Date()
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      periodStart = utcMonthStart(now)
+      periodEnd = utcNextMonthStart(now)
     }
 
     const allocations = await getCostAllocations(id, periodStart, periodEnd)
