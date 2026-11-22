@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       .where(
         sql`${consumers.id} IN (
           SELECT DISTINCT consumer_id FROM invocations
-          WHERE created_at >= ${oneWeekAgo}
+          WHERE created_at >= ${oneWeekAgo.toISOString()}::timestamptz
           AND is_test = false
         ) AND ${isNotNull(consumers.supabaseUserId)}`
       )
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
           .innerJoin(tools, sql`${invocations.toolId} = ${tools.id}`)
           .where(
             sql`${invocations.consumerId} = ${consumer.consumerId}
-              AND ${invocations.createdAt} >= ${oneWeekAgo}
+              AND ${invocations.createdAt} >= ${oneWeekAgo.toISOString()}::timestamptz
               AND ${invocations.isTest} = false`
           )
           .groupBy(invocations.toolId, tools.name, tools.slug)
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
           .innerJoin(tools, sql`${invocations.toolId} = ${tools.id}`)
           .where(
             sql`${invocations.consumerId} = ${consumer.consumerId}
-              AND ${invocations.createdAt} >= ${oneWeekAgo}
+              AND ${invocations.createdAt} >= ${oneWeekAgo.toISOString()}::timestamptz
               AND ${tools.category} IS NOT NULL`
           )
           .groupBy(tools.category)

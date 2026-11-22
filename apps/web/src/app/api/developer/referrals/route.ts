@@ -7,6 +7,7 @@ import { referrals, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { parseBody, successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { utcMonthStart } from '@/lib/utc-periods'
 
 export const maxDuration = 60
 
@@ -50,9 +51,8 @@ export async function GET(request: NextRequest) {
 
     // This month's commission per referral (same basis as
     // /api/developer/referrals/[id]/earnings): attributed invocation cost × commissionPct
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
+    // The UTC calendar month (as the rest of the dashboard)
+    const startOfMonth = utcMonthStart(new Date())
 
     const monthCostByCode = new Map<string, number>()
     const codes = devReferrals.map((r) => r.referralCode)
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             inArray(invocations.referralCode, codes),
-            sql`${invocations.createdAt} >= ${startOfMonth}`
+            sql`${invocations.createdAt} >= ${startOfMonth.toISOString()}::timestamptz`
           )
         )
         .groupBy(invocations.referralCode)

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { costAllocations, organizationMembers, invocations, organizations, developers, tools } from '@/lib/db/schema'
-import { sql, eq, and, isNull } from 'drizzle-orm'
+import { invocations, developers, tools } from '@/lib/db/schema'
+import { sql, eq, and, gte, lt, inArray } from 'drizzle-orm'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
@@ -10,6 +10,7 @@ import { getRedis } from '@/lib/redis'
 import { usageWarning80Email, usageWarning90Email, usageExceededEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { utcMonthStart, utcNextMonthStart, utcMonthKey } from '@/lib/utc-periods'
+import { getEffectiveTier } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
@@ -22,10 +23,10 @@ const TIER_OPS_LIMITS: Record<string, number> = {
 }
 
 /**
- * Vercel Cron handler: aggregates cost allocations by org + department
- * for the current billing period, then checks developer usage against
- * tier limits and sends warning emails at 80%, 90%, and 100% thresholds.
- * Schedule: daily at 2 AM UTC
+ * Vercel Cron handler: checks each developer's ops this UTC month against their
+ * tier limit and sends one warning email per level and month at 80%, 90% and 100%.
+ * Org cost allocations are paused (see below).
+ * Schedule: daily at 00:00 UTC (vercel.json)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -50,87 +51,52 @@ export async function GET(request: NextRequest) {
     const periodEnd = utcNextMonthStart(now)
     const monthKey = utcMonthKey(now)
 
-    // ─── Phase 1: Aggregate cost allocations ──────────────────────────
-    const orgs = await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .limit(10000)
+    // Org cost allocations are paused (founder decision 2026-11-22). The earlier phase
+    // matched organization members (developer ids) against invocation consumer ids,
+    // added a duplicate row per member on every run and had no reader in the
+    // dashboard. Existing cost_allocations rows are left as they are.
 
-    let aggregatedCount = 0
+    // ─── Developer usage tier alerts ──────────────────────────────────
+    // Ops this UTC month per developer, counted as the usage page counts them (every
+    // invocation of the developer's tools). Timestamps go to SQL as ISO strings: the
+    // postgres-js driver cannot serialize a JS Date inside a sql template.
+    const usage = await db
+      .select({ developerId: tools.developerId, opCount: sql<number>`count(*)::int` })
+      .from(invocations)
+      .innerJoin(tools, eq(invocations.toolId, tools.id))
+      .where(and(
+        gte(invocations.createdAt, sql`${periodStart.toISOString()}::timestamptz`),
+        lt(invocations.createdAt, sql`${periodEnd.toISOString()}::timestamptz`),
+      ))
+      .groupBy(tools.developerId)
 
-    for (const org of orgs) {
-      // One row per org and period: the sum over its members' invocations. It is
-      // recomputed and replaced on every run, so the daily cron never adds a second
-      // row for the same period (cost_allocations has no unique key to upsert on).
-      const memberIds = sql`(select ${organizationMembers.userId} from ${organizationMembers} where ${organizationMembers.orgId} = ${org.id})`
-      const [agg] = await db
-        .select({
-          totalCents: sql<number>`coalesce(sum(${invocations.costCents}), 0)::int`,
-          opCount: sql<number>`count(*)::int`,
-        })
-        .from(invocations)
-        .where(
-          sql`${invocations.consumerId}::text in ${memberIds} and ${invocations.createdAt} >= ${periodStart} and ${invocations.createdAt} < ${periodEnd}`
-        )
-
-      const opCount = agg?.opCount ?? 0
-      await db.transaction(async (tx) => {
-        await tx
-          .delete(costAllocations)
-          .where(and(
-            eq(costAllocations.orgId, org.id),
-            eq(costAllocations.departmentTag, 'default'),
-            isNull(costAllocations.serviceId),
-            eq(costAllocations.periodStart, periodStart),
-          ))
-        if (opCount > 0) {
-          await tx.insert(costAllocations).values({
-            orgId: org.id,
-            departmentTag: 'default',
-            serviceId: null,
-            periodStart,
-            periodEnd,
-            totalCents: agg.totalCents,
-            operationCount: opCount,
-          })
-        }
-      })
-      if (opCount > 0) aggregatedCount++
-    }
-
-    // ─── Phase 2: Developer usage tier alerts ─────────────────────────
-    let alertsSent = 0
-
-    const allDevs = await db
+    // No tier warns below 80% of the smallest limit.
+    const minLimit = Math.min(...Object.values(TIER_OPS_LIMITS))
+    const opsByDev = new Map(
+      usage.filter((u) => u.opCount >= minLimit * 0.8).map((u) => [u.developerId, u.opCount])
+    )
+    const candidates = opsByDev.size === 0 ? [] : await db
       .select({
         id: developers.id,
         email: developers.email,
         name: developers.name,
         tier: developers.tier,
+        isFoundingMember: developers.isFoundingMember,
       })
       .from(developers)
-      .limit(10000)
+      .where(inArray(developers.id, [...opsByDev.keys()]))
 
+    let alertsSent = 0
     const redis = getRedis()
 
-    for (const dev of allDevs) {
+    for (const dev of candidates) {
       try {
-        const limit = TIER_OPS_LIMITS[dev.tier] ?? TIER_OPS_LIMITS.standard
+        // The tier the usage page shows (founding members get Scale)
+        const tier = getEffectiveTier(dev.tier, dev.isFoundingMember)
+        const limit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard
         if (limit === Infinity) continue // Enterprise has no cap
 
-        // Count this developer's tool invocations this month
-        const [result] = await db
-          .select({ opCount: sql<number>`COUNT(*)` })
-          .from(invocations)
-          .innerJoin(tools, eq(invocations.toolId, tools.id))
-          .where(
-            sql`${tools.developerId} = ${dev.id} AND ${invocations.createdAt} >= ${periodStart} AND ${invocations.createdAt} < ${periodEnd}`
-          )
-          .limit(1)
-
-        const currentOps = result?.opCount ?? 0
-        if (currentOps === 0) continue
-
+        const currentOps = opsByDev.get(dev.id) ?? 0
         const usagePct = (currentOps / limit) * 100
         const devName = dev.name ?? 'Developer'
 
@@ -146,20 +112,21 @@ export async function GET(request: NextRequest) {
 
         if (!level) continue
 
-        // Check Redis dedup key to avoid duplicate sends
-        const dedupKey = `usage-alert:${dev.id}:${monthKey}:${level}`
-        const alreadySent = await redis.get<string>(dedupKey)
-        if (alreadySent) continue
-
         // Build and send the appropriate email
         let email: { subject: string; html: string }
         if (level === '100') {
-          email = usageExceededEmail(devName, currentOps, limit, dev.tier)
+          email = usageExceededEmail(devName, currentOps, limit, tier)
         } else if (level === '90') {
-          email = usageWarning90Email(devName, currentOps, limit, dev.tier)
+          email = usageWarning90Email(devName, currentOps, limit, tier)
         } else {
-          email = usageWarning80Email(devName, currentOps, limit, dev.tier)
+          email = usageWarning80Email(devName, currentOps, limit, tier)
         }
+
+        // Claim this level for the month before sending (SET NX): a level already
+        // sent, or being sent by an overlapping run, is skipped. Expires after 31 days.
+        const dedupKey = `usage-alert:${dev.id}:${monthKey}:${level}`
+        const claimed = await redis.set(dedupKey, '1', { nx: true, ex: 31 * 24 * 60 * 60 })
+        if (claimed === null) continue
 
         await sendNotificationEmail({
           developerId: dev.id,
@@ -169,8 +136,6 @@ export async function GET(request: NextRequest) {
           html: email.html,
         })
 
-        // Mark as sent — expires at end of month (max 31 days)
-        await redis.set(dedupKey, '1', { ex: 31 * 24 * 60 * 60 })
         alertsSent++
 
         logger.info('cron.aggregate_usage.alert_sent', {
@@ -188,15 +153,13 @@ export async function GET(request: NextRequest) {
 
     logger.info('cron.aggregate_usage.completed', {
       period: periodStart.toISOString(),
-      orgsProcessed: orgs.length,
-      allocationsCreated: aggregatedCount,
+      developersWithUsage: usage.length,
       alertsSent,
     })
 
     return successResponse({
       period: periodStart.toISOString(),
-      orgsProcessed: orgs.length,
-      allocationsCreated: aggregatedCount,
+      developersWithUsage: usage.length,
       alertsSent,
     })
   } catch (error) {

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { developers, tools, invocations } from '@/lib/db/schema'
-import { eq, sql, and } from 'drizzle-orm'
+import { eq, sql, and, gte, lt, inArray } from 'drizzle-orm'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
@@ -9,15 +9,21 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
 import type { MonthlySummaryData } from '@/lib/email'
+import { getRedis } from '@/lib/redis'
+import { utcMonthStart, utcMonthKey } from '@/lib/utc-periods'
 
 export const maxDuration = 60
+
+/** Stop starting new sends after this long (maxDuration is 60 s). */
+const SEND_BUDGET_MS = 45_000
 
 /**
  * Vercel Cron handler: sends monthly developer summary emails.
  * Runs on the 1st of each month at 9 AM UTC.
  *
- * For each developer with at least 1 active tool:
- *   - Total revenue this month
+ * For each developer with at least 1 active tool and calls last UTC month (one
+ * email per developer and month; sandbox calls don't count):
+ *   - Total revenue last month
  *   - Total invocations
  *   - Top tool by revenue
  *   - Month-over-month trend (up/down %)
@@ -37,118 +43,117 @@ export async function GET(request: NextRequest) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
+    const startedAt = Date.now()
     const now = new Date()
 
-    // Calculate periods: last month (the month we're reporting on) and the month before
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1) // 1st of current month = end of last month
-    const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth() - 1, 1)
-    const prevMonthStart = new Date(lastMonthStart.getFullYear(), lastMonthStart.getMonth() - 1, 1)
+    // UTC calendar months: the month reported on and the month before it (for the trend)
+    const lastMonthEnd = utcMonthStart(now) // 1st of this month = end of last month
+    const lastMonthStart = new Date(Date.UTC(lastMonthEnd.getUTCFullYear(), lastMonthEnd.getUTCMonth() - 1, 1))
+    const prevMonthStart = new Date(Date.UTC(lastMonthEnd.getUTCFullYear(), lastMonthEnd.getUTCMonth() - 2, 1))
+    const monthKey = utcMonthKey(lastMonthStart)
 
     const monthName = lastMonthStart.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
+      timeZone: 'UTC',
     })
 
-    // Get all developers with at least 1 active tool
-    const devsWithTools = await db
+    // Per developer and tool name: last month's and the month before's revenue and
+    // calls, in one query. Sandbox (test) calls don't count, as in the weekly report.
+    // Timestamps go to SQL as ISO strings: the postgres-js driver cannot serialize a
+    // JS Date inside a sql template.
+    const ts = (d: Date) => sql`${d.toISOString()}::timestamptz`
+    const inLast = sql`${invocations.createdAt} >= ${ts(lastMonthStart)}`
+    const rows = await db
+      .select({
+        developerId: tools.developerId,
+        toolName: tools.name,
+        revenue: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${inLast}), 0))::int`,
+        calls: sql<number>`(count(*) filter (where ${inLast}))::int`,
+        prevRevenue: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where not ${inLast}), 0))::int`,
+        prevCalls: sql<number>`(count(*) filter (where not ${inLast}))::int`,
+      })
+      .from(invocations)
+      .innerJoin(tools, eq(invocations.toolId, tools.id))
+      .where(and(
+        eq(invocations.isTest, false),
+        gte(invocations.createdAt, ts(prevMonthStart)),
+        lt(invocations.createdAt, ts(lastMonthEnd)),
+      ))
+      .groupBy(tools.developerId, tools.name)
+
+    type Totals = { revenue: number; calls: number; prevRevenue: number; prevCalls: number; topTool: string | null; topToolRevenue: number }
+    const totalsByDev = new Map<string, Totals>()
+    for (const r of rows) {
+      const t = totalsByDev.get(r.developerId) ?? { revenue: 0, calls: 0, prevRevenue: 0, prevCalls: 0, topTool: null, topToolRevenue: 0 }
+      t.revenue += r.revenue
+      t.calls += r.calls
+      t.prevRevenue += r.prevRevenue
+      t.prevCalls += r.prevCalls
+      // Top tool: most revenue last month; ties go to the name that sorts first
+      if (r.calls > 0 && (t.topTool === null || r.revenue > t.topToolRevenue || (r.revenue === t.topToolRevenue && r.toolName < t.topTool))) {
+        t.topTool = r.toolName
+        t.topToolRevenue = r.revenue
+      }
+      totalsByDev.set(r.developerId, t)
+    }
+
+    // Developers with at least 1 active tool and calls last month (no email for a
+    // month without activity)
+    const activeIds = [...totalsByDev].filter(([, t]) => t.calls > 0).map(([id]) => id)
+    const devsWithTools = activeIds.length === 0 ? [] : await db
       .select({
         id: developers.id,
         email: developers.email,
         name: developers.name,
       })
       .from(developers)
-      .where(
-        sql`EXISTS (SELECT 1 FROM ${tools} WHERE ${tools.developerId} = ${developers.id} AND ${tools.status} = 'active')`
-      )
-      .limit(10000)
+      .where(and(
+        inArray(developers.id, activeIds),
+        sql`EXISTS (SELECT 1 FROM ${tools} WHERE ${tools.developerId} = ${developers.id} AND ${tools.status} = 'active')`,
+      ))
+      .orderBy(developers.id)
 
+    const redis = getRedis()
     let emailsSent = 0
+    let remaining = 0
 
     for (const dev of devsWithTools) {
+      // Stop starting sends well before the 60 s limit. Running the job again sends
+      // the rest: developers already sent this month's summary are skipped.
+      if (Date.now() - startedAt > SEND_BUDGET_MS) {
+        remaining++
+        continue
+      }
       try {
+        const t = totalsByDev.get(dev.id)!
         const devName = dev.name ?? 'Developer'
 
-        // ─── Last month stats ─────────────────────────────────────────
-        const [lastMonthStats] = await db
-          .select({
-            totalRevenue: sql<number>`COALESCE(SUM(${invocations.costCents}), 0)`,
-            totalInvocations: sql<number>`COUNT(*)`,
-          })
-          .from(invocations)
-          .innerJoin(tools, eq(invocations.toolId, tools.id))
-          .where(
-            and(
-              eq(tools.developerId, dev.id),
-              sql`${invocations.createdAt} >= ${lastMonthStart}`,
-              sql`${invocations.createdAt} < ${lastMonthEnd}`
-            )
-          )
-          .limit(1)
-
-        const totalRevenue = lastMonthStats?.totalRevenue ?? 0
-        const totalInvocations = lastMonthStats?.totalInvocations ?? 0
-
-        // Skip if zero activity
-        if (totalInvocations === 0) continue
-
-        // ─── Top tool by revenue ──────────────────────────────────────
-        const [topTool] = await db
-          .select({
-            toolName: tools.name,
-            revenue: sql<number>`COALESCE(SUM(${invocations.costCents}), 0)`,
-          })
-          .from(invocations)
-          .innerJoin(tools, eq(invocations.toolId, tools.id))
-          .where(
-            and(
-              eq(tools.developerId, dev.id),
-              sql`${invocations.createdAt} >= ${lastMonthStart}`,
-              sql`${invocations.createdAt} < ${lastMonthEnd}`
-            )
-          )
-          .groupBy(tools.name)
-          .orderBy(sql`SUM(${invocations.costCents}) DESC`)
-          .limit(1)
-
-        // ─── Previous month stats (for MoM trend) ────────────────────
-        const [prevMonthStats] = await db
-          .select({
-            totalRevenue: sql<number>`COALESCE(SUM(${invocations.costCents}), 0)`,
-            totalInvocations: sql<number>`COUNT(*)`,
-          })
-          .from(invocations)
-          .innerJoin(tools, eq(invocations.toolId, tools.id))
-          .where(
-            and(
-              eq(tools.developerId, dev.id),
-              sql`${invocations.createdAt} >= ${prevMonthStart}`,
-              sql`${invocations.createdAt} < ${lastMonthStart}`
-            )
-          )
-          .limit(1)
-
-        const prevRevenue = prevMonthStats?.totalRevenue ?? 0
-        const prevInvocations = prevMonthStats?.totalInvocations ?? 0
-
         // Calculate MoM trends
-        const momRevenuePct = prevRevenue > 0
-          ? ((totalRevenue - prevRevenue) / prevRevenue) * 100
+        const momRevenuePct = t.prevRevenue > 0
+          ? ((t.revenue - t.prevRevenue) / t.prevRevenue) * 100
           : null
 
-        const momInvocationPct = prevInvocations > 0
-          ? ((totalInvocations - prevInvocations) / prevInvocations) * 100
+        const momInvocationPct = t.prevCalls > 0
+          ? ((t.calls - t.prevCalls) / t.prevCalls) * 100
           : null
 
         const summaryData: MonthlySummaryData = {
-          totalRevenueCents: totalRevenue,
-          totalInvocations,
-          topToolName: topTool?.toolName ?? null,
-          topToolRevenueCents: topTool?.revenue ?? 0,
+          totalRevenueCents: t.revenue,
+          totalInvocations: t.calls,
+          topToolName: t.topTool,
+          topToolRevenueCents: t.topToolRevenue,
           momRevenuePct,
           momInvocationPct,
         }
 
         const tpl = monthlyDeveloperSummaryEmail(devName, monthName, summaryData)
+
+        // Claim this month's summary before sending (SET NX): one already sent, or
+        // being sent by an overlapping run, is skipped.
+        const sentKey = `monthly-summary:${dev.id}:${monthKey}`
+        const claimed = await redis.set(sentKey, '1', { nx: true, ex: 40 * 24 * 60 * 60 })
+        if (claimed === null) continue
 
         await sendNotificationEmail({
           developerId: dev.id,
@@ -165,16 +170,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (remaining > 0) {
+      logger.warn('cron.monthly_summary.incomplete', { month: monthName, remaining })
+    }
+
     logger.info('cron.monthly_summary.completed', {
       month: monthName,
       devsChecked: devsWithTools.length,
       emailsSent,
+      remaining,
     })
 
     return successResponse({
       month: monthName,
       devsChecked: devsWithTools.length,
       emailsSent,
+      remaining,
     })
   } catch (error) {
     logger.error('cron.monthly_summary.failed', {}, error)

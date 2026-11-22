@@ -46,7 +46,7 @@ export async function GET(
     let periodStart: Date
     let periodEnd: Date
 
-    if (period && /^\d{4}-\d{2}$/.test(period)) {
+    if (period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
       const [year, month] = period.split('-').map(Number)
       periodStart = new Date(Date.UTC(year, month - 1, 1))
       periodEnd = new Date(Date.UTC(year, month, 1))
