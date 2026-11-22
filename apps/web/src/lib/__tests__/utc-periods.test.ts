@@ -55,7 +55,7 @@ describe('routes use UTC periods (source guard)', () => {
     'app/api/dashboard/developer/stats/advanced/route.ts',
     'app/api/proxy/stats/route.ts',
   ]
-  const LOCAL = /new Date\(\s*now\.getFullYear\(\)|\.setHours\(|\.setDate\(|\.getMonth\(\)|\.getDate\(\)/
+  const LOCAL = /new Date\(\s*\w+\.getFullYear\(\)|\.set(?:Hours|Date|Month|FullYear)\(|\.get(?:Month|Date|Day|Hours)\(\)|toDateString\(|toLocaleDateString\(|startOf(?:Day|Month|Week)\(/
 
   it('has no local-time date maths in those files', async () => {
     const { readFileSync } = await import('node:fs')
@@ -74,6 +74,10 @@ describe('routes use UTC periods (source guard)', () => {
     expect(explorer).toMatch(/case 'month':\s*default:\s*return utcMonthStart\(now\)/)
     expect(explorer).toContain('const todayCutoff = utcDayStart(now)')
     expect(explorer).toContain('const monthCutoff = utcMonthStart(now)')
+    expect(explorer).toMatch(/case 'week':\s*return daysBefore\(now, 7\)/)
+    expect(explorer).toContain('const weekCutoff = daysBefore(now, 7)')
+    expect(explorer).toContain('const lookbackCutoff = daysBefore(new Date(), ANOMALY_LOOKBACK_DAYS)')
+    expect(explorer).toContain('const hourAgo = hoursBefore(new Date(), 1)')
     const job = read('app/api/cron/aggregate-usage/route.ts')
     expect(job).toContain('const periodStart = utcMonthStart(now)')
     expect(job).toContain('const periodEnd = utcNextMonthStart(now)')

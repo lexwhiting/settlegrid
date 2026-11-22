@@ -4,6 +4,8 @@
  *   so the cap never hides the newest tool or key.
  * - getSignupsByDay groups by UTC day and includes today; getInvocationsThisMonth
  *   counts from 00:00 UTC on the 1st, whatever the session or server time zone.
+ * - The consumer explorer's today and this month start at 00:00 UTC on a server in
+ *   another time zone.
  *
  * The schema is a test-only CREATE TABLE bootstrap of the columns these read (no
  * drizzle-kit, no migrations). Fixtures are SQL inserts. The clock is fixed.
@@ -30,6 +32,7 @@ vi.mock('@/lib/rate-limit', () => ({
 
 import { GET as listTools } from '../tools/route'
 import { GET as listKeys } from '../consumer/keys/route'
+import { GET as explorer } from '../consumer/explorer/route'
 import { getSignupsByDay, getInvocationsThisMonth } from '@/lib/analytics'
 
 const BOOTSTRAP_SQL = `
@@ -47,7 +50,12 @@ const BOOTSTRAP_SQL = `
     tool_id uuid NOT NULL, key_prefix text NOT NULL, status text NOT NULL DEFAULT 'active',
     is_test_key boolean NOT NULL DEFAULT false, ip_allowlist jsonb, last_used_at timestamptz,
     created_at timestamptz NOT NULL);
-  CREATE TABLE invocations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), created_at timestamptz NOT NULL);
+  CREATE TABLE invocations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), consumer_id uuid, tool_id uuid,
+    api_key_id uuid, method text NOT NULL DEFAULT 'run', cost_cents integer NOT NULL DEFAULT 0,
+    latency_ms integer, status text NOT NULL DEFAULT 'success', created_at timestamptz NOT NULL);
+  CREATE TABLE consumer_tool_balances (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), consumer_id uuid NOT NULL,
+    tool_id uuid NOT NULL, balance_cents integer NOT NULL DEFAULT 0, spending_limit_cents integer,
+    current_period_spend_cents integer NOT NULL DEFAULT 0);
 `
 
 // "Now" is Sunday 2026-11-01 04:30 UTC: 21:30 on Oct 31 in Los Angeles.
@@ -88,7 +96,14 @@ beforeAll(async () => {
   for (const at of ['2026-11-01T03:00:00Z', '2026-10-31T12:00:00Z', '2026-10-30T12:00:00Z', '2026-10-29T12:00:00Z']) {
     await pg.query('INSERT INTO developers (created_at) VALUES ($1)', [at])
   }
-  await pg.query(`INSERT INTO invocations (created_at) VALUES ('2026-11-01T01:00:00Z'), ('2026-10-31T12:00:00Z')`)
+  // The two invocations are CONSUMER's calls on the newest tool, so the explorer reads them too.
+  await pg.query(
+    `INSERT INTO invocations (consumer_id, tool_id, api_key_id, cost_cents, latency_ms, created_at)
+     SELECT $1, t.id, k.id, v.cents, 100, v.at::timestamptz
+     FROM (SELECT id FROM tools WHERE slug = 'newest') t, (SELECT id FROM api_keys WHERE key_prefix = 'sg_newest') k,
+          (VALUES (5, '2026-11-01T01:00:00Z'), (7, '2026-10-31T12:00:00Z')) v(cents, at)`,
+    [CONSUMER],
+  )
 }, 120_000)
 
 afterAll(async () => {
@@ -133,6 +148,30 @@ describe('analytics: UTC days and months (pglite)', () => {
       ])
     } finally {
       await pg.exec("SET TIME ZONE 'UTC'")
+    }
+  }, 20_000)
+
+  it('the consumer explorer counts today and this month from 00:00 UTC on a server in Los Angeles time', async () => {
+    const saved = process.env.TZ
+    process.env.TZ = 'America/Los_Angeles'
+    try {
+      authState.id = CONSUMER
+      const call = async (period: string) => {
+        const res = await explorer(new NextRequest(`http://localhost:3005/api/consumer/explorer?period=${period}`))
+        expect(res.status).toBe(200)
+        return res.json()
+      }
+      const today = await call('today')
+      expect(today.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5]) // 01:00 UTC; not Oct 31
+      expect(today.stats).toMatchObject({ callsToday: 1, spentToday: 5 })
+      const month = await call('month')
+      expect(month.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5]) // November only
+      expect(month.stats).toMatchObject({ callsMonth: 1, spentMonth: 5 })
+      const week = await call('week')
+      expect(week.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5, 7]) // a rolling 7 days
+    } finally {
+      if (saved === undefined) delete process.env.TZ
+      else process.env.TZ = saved
     }
   }, 20_000)
 
