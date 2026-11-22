@@ -35,6 +35,15 @@ const MAX_ALERT_EMAILS_PER_RUN = 50
 
 const COOLDOWN_LOOKUP_CHUNK = 100
 
+/**
+ * The no-traffic alert is off (founder decision, 2026-11-22). Before this change it
+ * never fired in production: postgres-js returns COUNT(*) as a string, so the old
+ * `recentCount === 0` test was never true. Turning it on would start a new email
+ * stream (one email per idle tool, including tools idle for months), so it stays off
+ * until the founder decides how it should work.
+ */
+const NO_TRAFFIC_ALERTS_ENABLED = false
+
 type AlertKind = 'slowResponse' | 'highErrorRate' | 'noTraffic'
 
 interface ActiveTool {
@@ -65,7 +74,8 @@ interface Candidate {
  * on how many tools):
  *   1. Average response time >2000ms in the last hour
  *   2. Error rate >10% in the last hour
- *   3. Zero invocations for 7+ days (for previously active tools)
+ *   3. Zero invocations for 7+ days (for previously active tools); switched off,
+ *      see NO_TRAFFIC_ALERTS_ENABLED
  *
  * Alerts are sent in that order (the last-hour checks first), oldest tool first
  * within each check, up to MAX_ALERT_EMAILS_PER_RUN per run.
@@ -123,8 +133,8 @@ export async function GET(request: NextRequest) {
       ))
       .groupBy(invocations.toolId)
 
-    // ─── Check 3: previously active tools with no call in 7 days ───────────
-    const idle = await db
+    // ─── Check 3: previously active tools with no call in 7 days (off) ─────
+    const idle = !NO_TRAFFIC_ALERTS_ENABLED ? [] : await db
       .select({ toolId: tools.id })
       .from(tools)
       .where(and(
