@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { tools, developers } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
@@ -180,6 +180,7 @@ export async function GET(request: NextRequest) {
       })
       .from(tools)
       .where(eq(tools.developerId, auth.id))
+      .orderBy(desc(tools.createdAt), desc(tools.id)) // newest first, so the cap never hides a new tool
       .limit(500)
 
     // Fetch developer profile for quality gate checklist

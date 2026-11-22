@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
 import { usageWarning80Email, usageWarning90Email, usageExceededEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
+import { utcMonthStart, utcNextMonthStart, utcMonthKey } from '@/lib/utc-periods'
 
 export const maxDuration = 60
 
@@ -44,9 +45,10 @@ export async function GET(request: NextRequest) {
 
     // Period: current month start to now
     const now = new Date()
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    // The UTC calendar month, whatever the server's time zone
+    const periodStart = utcMonthStart(now)
+    const periodEnd = utcNextMonthStart(now)
+    const monthKey = utcMonthKey(now)
 
     // ─── Phase 1: Aggregate cost allocations ──────────────────────────
     const orgs = await db

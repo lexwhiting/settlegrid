@@ -6,6 +6,7 @@
 import { db } from '@/lib/db'
 import { developers, tools, invocations, consumers, signupInvites } from '@/lib/db/schema'
 import { sql, eq, and, count } from 'drizzle-orm'
+import { daysBefore, utcMonthStart } from '@/lib/utc-periods'
 
 // ── Tier pricing for MRR calculation ────────────────────────────────────────
 
@@ -25,8 +26,7 @@ const TIER_PRICE_CENTS: Record<string, number> = {
  * consumer who is NOT the tool's creator (organic traction signal).
  */
 export async function getToolsWithOrganicInvocations(days: number): Promise<number> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - days)
+  const cutoff = daysBefore(new Date(), days)
 
   const rows = await db
     .select({ toolCount: sql<number>`COUNT(DISTINCT ${invocations.toolId})` })
@@ -58,23 +58,23 @@ export async function getConsumerAccountsWithActivity(): Promise<number> {
 }
 
 /**
- * Daily signups for the last N days (developers table).
- * Returns newest first.
+ * Daily signups for the last N days (developers table), by UTC day.
+ * Returns oldest first; the window touches N + 1 UTC dates, today included.
  */
 export async function getSignupsByDay(days: number): Promise<{ date: string; count: number }[]> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - days)
+  const cutoff = daysBefore(new Date(), days)
+  const signupUtcDay = sql`(${developers.createdAt} at time zone 'UTC')::date`
 
   const rows = await db
     .select({
-      date: sql<string>`TO_CHAR(${developers.createdAt}::date, 'YYYY-MM-DD')`,
+      date: sql<string>`TO_CHAR(${signupUtcDay}, 'YYYY-MM-DD')`,
       count: sql<number>`COUNT(*)::int`,
     })
     .from(developers)
     .where(sql`${developers.createdAt} >= ${cutoff.toISOString()}::timestamptz`)
-    .groupBy(sql`${developers.createdAt}::date`)
-    .orderBy(sql`${developers.createdAt}::date ASC`)
-    .limit(days)
+    .groupBy(signupUtcDay)
+    .orderBy(sql`${signupUtcDay} ASC`)
+    .limit(days + 1)
 
   return rows.map((r) => ({ date: r.date, count: r.count }))
 }
@@ -150,7 +150,7 @@ export async function getReferralStats(): Promise<{
  */
 export async function getInvocationsThisMonth(): Promise<number> {
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthStart = utcMonthStart(now)
 
   const [result] = await db
     .select({ total: count() })
