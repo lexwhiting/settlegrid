@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
 import { safeFetch } from '@/lib/safe-egress'
 import { isNotificationOptedOut, type NotificationEventKey } from '@/lib/notification-events'
+import { isSuppressed } from '@/lib/email-suppression'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -226,12 +227,24 @@ export async function notifyDeveloper(params: {
 // ── Legacy Email Notification ───────────────────────────────────────────────
 
 /**
+ * What happened to a notification email: sent, skipped because the developer
+ * opted out or the address is suppressed (hard bounce or complaint), or failed
+ * (the send errored or Resend refused it, e.g. a 429).
+ */
+export type NotificationOutcome = 'sent' | 'opted_out' | 'suppressed' | 'failed'
+
+/**
  * Send a notification email to a developer, respecting their notification preferences.
  *
  * - Critical emails (security alerts, payout failures) are always sent regardless of preference.
  * - Non-critical emails check the developer's notificationPreferences JSONB column.
  * - If the eventKey is explicitly set to false, the email is skipped.
  * - If the eventKey is not present (undefined), the email is sent (opt-out model).
+ * - Non-critical emails are not sent to an address suppressed for every stream
+ *   (`'all'`: a hard bounce or a complaint, recorded by the Resend webhook).
+ *
+ * Never throws. Returns the outcome so a caller can, for example, keep retrying
+ * an alert whose send failed instead of recording it as delivered.
  */
 export async function sendNotificationEmail(params: {
   developerId: string
@@ -240,7 +253,7 @@ export async function sendNotificationEmail(params: {
   subject: string
   html: string
   critical?: boolean
-}): Promise<void> {
+}): Promise<NotificationOutcome> {
   try {
     // Critical emails (security alerts, payout failures) always send
     if (!params.critical) {
@@ -258,16 +271,26 @@ export async function sendNotificationEmail(params: {
           developerId: params.developerId,
           eventKey: params.eventKey,
         })
-        return
+        return 'opted_out'
+      }
+
+      if (await isSuppressed(params.email, 'all')) {
+        logger.info('notification.suppressed', {
+          developerId: params.developerId,
+          eventKey: params.eventKey,
+        })
+        return 'suppressed'
       }
     }
 
-    await sendEmail({ to: params.email, subject: params.subject, html: params.html })
+    const sent = await sendEmail({ to: params.email, subject: params.subject, html: params.html })
+    return sent ? 'sent' : 'failed'
   } catch (err) {
     logger.error(
       'notification.send_failed',
       { developerId: params.developerId, eventKey: params.eventKey },
       err
     )
+    return 'failed'
   }
 }

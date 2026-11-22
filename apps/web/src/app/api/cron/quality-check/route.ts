@@ -11,7 +11,7 @@ import { sendNotificationEmail } from '@/lib/notifications'
 import {
   toolSlowResponseEmail,
   toolHighErrorRateEmail,
-  toolNoTrafficEmail,
+  toolsWentQuietEmail,
 } from '@/lib/email'
 
 export const maxDuration = 60
@@ -19,12 +19,13 @@ export const maxDuration = 60
 // Cooldown keys expire after the cooldown period
 const SLOW_RESPONSE_COOLDOWN_SECS = 24 * 60 * 60 // 24 hours
 const ERROR_RATE_COOLDOWN_SECS = 24 * 60 * 60 // 24 hours
-const NO_TRAFFIC_COOLDOWN_SECS = 7 * 24 * 60 * 60 // 7 days
+const WENT_QUIET_COOLDOWN_SECS = 7 * 24 * 60 * 60 // 7 days, per developer
 
 // Thresholds
 const SLOW_RESPONSE_MS = 2000
 const HIGH_ERROR_RATE_PCT = 10
-const NO_TRAFFIC_DAYS = 7
+const QUIET_DAYS = 7 // no call for this long...
+const QUIET_LOOKBACK_DAYS = 14 // ...after a call within this window, so only tools that went quiet this week
 const MIN_INVOCATIONS_FOR_CHECK = 10 // minimum invocations in the hour to trigger alerts
 
 /**
@@ -35,16 +36,8 @@ const MAX_ALERT_EMAILS_PER_RUN = 50
 
 const COOLDOWN_LOOKUP_CHUNK = 100
 
-/**
- * The no-traffic alert is off (founder decision, 2026-11-22). Before this change it
- * never fired in production: postgres-js returns COUNT(*) as a string, so the old
- * `recentCount === 0` test was never true. Turning it on would start a new email
- * stream (one email per idle tool, including tools idle for months), so it stays off
- * until the founder decides how it should work.
- */
-const NO_TRAFFIC_ALERTS_ENABLED = false
 
-type AlertKind = 'slowResponse' | 'highErrorRate' | 'noTraffic'
+type AlertKind = 'slowResponse' | 'highErrorRate' | 'wentQuiet'
 
 interface ActiveTool {
   toolId: string
@@ -56,8 +49,10 @@ interface ActiveTool {
 
 interface Candidate {
   kind: AlertKind
+  /** The tool (slow, errors) or, for a went-quiet digest, the developer's oldest quiet tool */
   tool: ActiveTool
   cooldownKey: string
+  quietTools?: Array<{ name: string; lastCallDate: string }>
   cooldownSecs: number
   avgLatency?: number
   invCount?: number
@@ -74,11 +69,17 @@ interface Candidate {
  * on how many tools):
  *   1. Average response time >2000ms in the last hour
  *   2. Error rate >10% in the last hour
- *   3. Zero invocations for 7+ days (for previously active tools); switched off,
- *      see NO_TRAFFIC_ALERTS_ENABLED
+ *   3. Went quiet: no call for 7 days after a call in the 7 days before that
+ *      (last call 7 to 14 days ago). One digest per developer listing those
+ *      tools, at most once a week per developer. A tool without calls for longer
+ *      is never emailed about. (Founder decision, 2026-11-22; the old per-tool
+ *      no-traffic email never fired in production: postgres-js returns COUNT(*)
+ *      as a string, so its `recentCount === 0` test was never true.)
  *
  * Alerts are sent in that order (the last-hour checks first), oldest tool first
- * within each check, up to MAX_ALERT_EMAILS_PER_RUN per run.
+ * within each check, up to MAX_ALERT_EMAILS_PER_RUN per run. A cooldown is set
+ * only when the email was sent or deliberately skipped (opted out, suppressed),
+ * never when the send failed, so a failed alert is retried on the next run.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -97,7 +98,8 @@ export async function GET(request: NextRequest) {
 
     const now = new Date()
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-    const sevenDaysAgo = new Date(now.getTime() - NO_TRAFFIC_DAYS * 24 * 60 * 60 * 1000)
+    const quietSince = new Date(now.getTime() - QUIET_DAYS * 24 * 60 * 60 * 1000)
+    const quietLookback = new Date(now.getTime() - QUIET_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
 
     const redis = getRedis()
 
@@ -133,16 +135,19 @@ export async function GET(request: NextRequest) {
       ))
       .groupBy(invocations.toolId)
 
-    // ─── Check 3: previously active tools with no call in 7 days (off) ─────
-    const idle = !NO_TRAFFIC_ALERTS_ENABLED ? [] : await db
-      .select({ toolId: tools.id })
-      .from(tools)
+    // ─── Check 3: tools whose last call was 7 to 14 days ago ───────────────
+    const quiet = await db
+      .select({
+        toolId: invocations.toolId,
+        lastAt: sql<string>`max(${invocations.createdAt})::text`,
+      })
+      .from(invocations)
       .where(and(
-        eq(tools.status, 'active'),
-        sql`${tools.totalInvocations} > 0`,
-        sql`not exists (select 1 from ${invocations} where ${invocations.toolId} = ${tools.id} and ${invocations.createdAt} >= ${sevenDaysAgo.toISOString()}::timestamptz)`,
+        sql`${invocations.toolId} in ${activeToolIds}`,
+        sql`${invocations.createdAt} >= ${quietLookback.toISOString()}::timestamptz`,
       ))
-      .orderBy(tools.createdAt, tools.id)
+      .groupBy(invocations.toolId)
+      .having(sql`max(${invocations.createdAt}) < ${quietSince.toISOString()}::timestamptz`)
 
     // ─── Candidates, in sending order ──────────────────────────────────────
     const order = new Map(activeTools.map((t, i) => [t.toolId, i]))
@@ -171,10 +176,21 @@ export async function GET(request: NextRequest) {
         }
       }
     }
-    for (const row of byToolAge(idle)) {
+    // One digest per developer, ordered by their oldest quiet tool
+    const quietByDeveloper = new Map<string, { first: ActiveTool; tools: Array<{ name: string; lastCallDate: string }> }>()
+    for (const row of byToolAge(quiet)) {
+      const t = toolById.get(row.toolId)!
+      const entry = quietByDeveloper.get(t.developerId) ?? { first: t, tools: [] }
+      entry.tools.push({
+        name: t.toolName,
+        lastCallDate: new Date(row.lastAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }),
+      })
+      quietByDeveloper.set(t.developerId, entry)
+    }
+    for (const [developerId, entry] of quietByDeveloper) {
       candidates.push({
-        kind: 'noTraffic', tool: toolById.get(row.toolId)!, cooldownKey: `quality:notraffic:${row.toolId}`,
-        cooldownSecs: NO_TRAFFIC_COOLDOWN_SECS,
+        kind: 'wentQuiet', tool: entry.first, cooldownKey: `quality:quiet:${developerId}`,
+        cooldownSecs: WENT_QUIET_COOLDOWN_SECS, quietTools: entry.tools,
       })
     }
 
@@ -187,8 +203,9 @@ export async function GET(request: NextRequest) {
     }
 
     // ─── Send, up to the cap ───────────────────────────────────────────────
-    const alerts = { slowResponse: 0, highErrorRate: 0, noTraffic: 0 }
+    const alerts = { slowResponse: 0, highErrorRate: 0, wentQuiet: 0 }
     let deferred = 0
+    let failed = 0
     let sent = 0
 
     for (const c of candidates) {
@@ -205,35 +222,29 @@ export async function GET(request: NextRequest) {
         } else if (c.kind === 'highErrorRate') {
           tpl = toolHighErrorRateEmail(devName, c.tool.toolName, c.errorRate!)
         } else {
-          // The last invocation date for the email
-          const [lastInv] = await db
-            .select({ lastAt: sql<string>`max(${invocations.createdAt})` })
-            .from(invocations)
-            .where(eq(invocations.toolId, c.tool.toolId))
-            .limit(1)
-          const lastDate = lastInv?.lastAt
-            ? new Date(lastInv.lastAt).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                timeZone: 'UTC',
-              })
-            : 'unknown'
-          tpl = toolNoTrafficEmail(devName, c.tool.toolName, lastDate)
+          tpl = toolsWentQuietEmail(devName, c.quietTools!)
         }
         sent++
-        await sendNotificationEmail({
+        const outcome = await sendNotificationEmail({
           developerId: c.tool.developerId,
           eventKey: 'quality_alert',
           email: c.tool.devEmail,
           subject: tpl.subject,
           html: tpl.html,
         })
+        if (outcome === 'failed') {
+          // No cooldown: the next run tries again if the alert still applies
+          failed++
+          logger.warn('cron.quality_check.send_failed', { toolId: c.tool.toolId, kind: c.kind })
+          continue
+        }
         await redis.set(c.cooldownKey, '1', { ex: c.cooldownSecs })
-        alerts[c.kind]++
+        if (outcome === 'sent') alerts[c.kind]++
 
-        logger.info(`cron.quality_check.${c.kind === 'slowResponse' ? 'slow_response' : c.kind === 'highErrorRate' ? 'high_error_rate' : 'no_traffic'}`, {
+        logger.info(`cron.quality_check.${c.kind === 'slowResponse' ? 'slow_response' : c.kind === 'highErrorRate' ? 'high_error_rate' : 'went_quiet'}`, {
           toolId: c.tool.toolId,
+          outcome,
+          ...(c.kind === 'wentQuiet' ? { developerId: c.tool.developerId, quietTools: c.quietTools!.length } : {}),
           ...(c.kind === 'slowResponse' ? { avgLatency: c.avgLatency, invCount: c.invCount } : {}),
           ...(c.kind === 'highErrorRate'
             ? { errorRate: Math.round(c.errorRate! * 10) / 10, totalCount: c.totalCount, errorCount: c.errorCount }
@@ -245,12 +256,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const totalAlerts = alerts.slowResponse + alerts.highErrorRate + alerts.noTraffic
+    const totalAlerts = alerts.slowResponse + alerts.highErrorRate + alerts.wentQuiet
 
     logger.info('cron.quality_check.completed', {
       toolsChecked: activeTools.length,
       totalAlerts,
       deferred,
+      failed,
       ...alerts,
     })
 
@@ -259,6 +271,7 @@ export async function GET(request: NextRequest) {
       totalAlerts,
       alerts,
       deferred,
+      failed,
     })
   } catch (error) {
     logger.error('cron.quality_check.failed', {}, error)

@@ -2051,6 +2051,45 @@ ${UNSUBSCRIBE_FOOTER}
   }
 }
 
+/**
+ * Sent once to a developer when one or more of their tools went quiet this week:
+ * the tool's last call was 7 to 14 days ago (so a tool idle for longer is never
+ * emailed about). Lists up to 10 tools, oldest first.
+ */
+export function toolsWentQuietEmail(
+  devName: string,
+  quietTools: ReadonlyArray<{ name: string; lastCallDate: string }>,
+): EmailTemplate {
+  const shown = quietTools.slice(0, 10)
+  const more = quietTools.length - shown.length
+  const one = quietTools.length === 1
+  const subject = one
+    ? `No calls to ${quietTools[0].name} for 7 days`
+    : `${quietTools.length} of your tools had no calls for 7 days`
+  const items = shown
+    .map((t) => `<li><strong>${escapeHtml(t.name)}</strong>: last call ${escapeHtml(t.lastCallDate)}</li>`)
+    .join('')
+  return {
+    subject: sanitizeSubject(subject),
+    html: baseEmailTemplate(
+      `
+<h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">${one ? 'A tool went quiet' : 'Some tools went quiet'}</h2>
+<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(devName)}, ${one ? 'this tool was' : 'these tools were'} called recently but ${one ? 'has' : 'have'} had no calls for the last 7 days:</p>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">${items}</ul>
+${more > 0 ? `<p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">And ${more} more on your dashboard.</p>` : ''}
+<h3 class="sg-heading" style="color:#1A1F3A;margin:24px 0 8px;font-family:${FONT_STACK}">Things to check:</h3>
+<ul class="sg-text" style="color:#4b5563;line-height:1.8;padding-left:20px">
+<li>Is the tool's endpoint up and responding?</li>
+<li>Did a consumer's integration or API key change?</li>
+</ul>
+${ctaButton('View your tools', 'https://settlegrid.ai/dashboard/tools')}
+${UNSUBSCRIBE_FOOTER}
+`,
+      { preheader: one ? `${quietTools[0].name} has had no calls for 7 days.` : `${quietTools.length} tools have had no calls for 7 days.` }
+    ),
+  }
+}
+
 // ── Monthly Developer Summary Template ───────────────────────────────────────
 
 export interface MonthlySummaryData {
