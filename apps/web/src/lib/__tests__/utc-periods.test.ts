@@ -59,9 +59,10 @@ describe('routes use UTC periods (source guard)', () => {
     'app/api/developer/referrals/route.ts',
     'app/api/developer/referrals/[id]/earnings/route.ts',
   ]
-  // Local constructors (new Date(now.getFullYear(), …), new Date(year, month - 1, 1)),
-  // local setters and getters, and date formatting without timeZone: 'UTC'.
-  const LOCAL = /new Date\(\s*\w+\.getFullYear\(\)|new Date\(\s*\w+\s*,\s*\w+|\.set(?:Hours|Date|Month|FullYear)\(|\.get(?:Month|Date|Day|Hours)\(\)|toDateString\(|toLocaleDateString\((?![^)]{0,120}timeZone:\s*'UTC')|startOf(?:Day|Month|Week)\(/
+  // Local constructors (new Date(now.getFullYear(), …), new Date(year, month - 1, 1), and
+  // new Date(now.getUTCFullYear(), …), UTC parts read as local), local setters and getters,
+  // and date formatting without timeZone: 'UTC'. Lexical: Dates built elsewhere aren't seen.
+  const LOCAL = /new Date\(\s*\w+\.get(?:UTC)?FullYear\(\)|new Date\(\s*\w+\s*,\s*\w+|toLocale(?:Time)?String\((?![^)]{0,120}timeZone:\s*'UTC')|Intl\.DateTimeFormat\((?![^)]{0,120}timeZone:\s*'UTC')|\.set(?:Hours|Date|Month|FullYear)\(|\.get(?:Month|Date|Day|Hours)\(\)|toDateString\(|toLocaleDateString\((?![^)]{0,120}timeZone:\s*'UTC')|startOf(?:Day|Month|Week)\(/
 
   it('has no local-time date maths in those files', async () => {
     const { readFileSync } = await import('node:fs')
@@ -76,6 +77,9 @@ describe('routes use UTC periods (source guard)', () => {
       'periodStart = new Date(year, month - 1, 1)',
       'd.setHours(0, 0, 0, 0)',
       "d.toLocaleDateString('en-US', { month: 'long' })",
+      'new Date(now.getUTCFullYear(), now.getUTCMonth(), 1)',
+      "d.toLocaleString('en-US')",
+      "new Intl.DateTimeFormat('en-US', { month: 'long' })",
     ]) expect(LOCAL.test(bad), bad).toBe(true)
     for (const good of [
       'new Date(Date.UTC(year, month - 1, 1))',

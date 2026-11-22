@@ -69,6 +69,8 @@ const FOUNDER = 'd0000000-0000-4000-8000-000000000003' // 45,000, founding membe
 const LAST_MONTH = 'd0000000-0000-4000-8000-000000000004' // 39,999 this month + 20,000 in October
 const BUILDER = 'd0000000-0000-4000-8000-000000000005' // builder tier (200,000): 45,000 is 22%
 const ENTERPRISE = 'd0000000-0000-4000-8000-000000000006' // enterprise, 50,000: no cap, no warning
+const ACADEMIC = 'd0000000-0000-4000-8000-000000000007' // academic (500,000): 45,000 is 9%
+const LEGACY = 'd0000000-0000-4000-8000-000000000008' // legacy 'starter' = Builder (200,000): 45,000 is 22%
 let pg: PGlite
 
 async function calls(dev: string, n: number, at: string, isTest = false) {
@@ -98,6 +100,7 @@ beforeAll(async () => {
   for (const [id, tier, founder] of [
     [AT_80, 'standard', false], [AT_100, 'standard', false], [FOUNDER, 'standard', true],
     [LAST_MONTH, 'standard', false], [BUILDER, 'builder', false], [ENTERPRISE, 'enterprise', false],
+    [ACADEMIC, 'academic', false], [LEGACY, 'starter', false],
   ] as const) {
     await pg.query('INSERT INTO developers (id, email, name, tier, is_founding_member) VALUES ($1, $2, $3, $4, $5)', [id, `${id}@example.com`, 'Dev', tier, founder])
     await pg.query('INSERT INTO tools (id, developer_id) VALUES (gen_random_uuid(), $1)', [id])
@@ -110,6 +113,8 @@ beforeAll(async () => {
   await calls(LAST_MONTH, 20_000, '2026-10-31T23:59:59Z') // last UTC month: doesn't count
   await calls(BUILDER, 45_000, '2026-11-15T00:00:00Z')
   await calls(ENTERPRISE, 50_000, '2026-11-15T00:00:00Z') // over every capped limit but Scale
+  await calls(ACADEMIC, 45_000, '2026-11-15T00:00:00Z')
+  await calls(LEGACY, 45_000, '2026-11-15T00:00:00Z')
 
   // An organization whose member made this month's calls: the paused phase wrote rows for it.
   await pg.query(`INSERT INTO organizations (id) VALUES ('a0000000-0000-4000-8000-000000000001')`)

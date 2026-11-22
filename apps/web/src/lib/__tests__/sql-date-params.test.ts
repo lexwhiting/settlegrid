@@ -10,7 +10,9 @@
  *
  * The check is lexical: inside every sql`…` template it flags `${x}` where x is
  * declared in the same file as a Date (new Date(…) or a utc-periods helper without
- * .toISOString(), or typed `: Date`), and `${new Date(…)}`.
+ * .toISOString(), or typed `: Date`), and `${new Date(…)}`. It does not see property
+ * access (`${range.start}`), `Date | null` variables, or Dates returned by other
+ * functions or read from rows; the real-driver rule above still applies to those.
  */
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'

@@ -10,23 +10,17 @@ import { getRedis } from '@/lib/redis'
 import { usageWarning80Email, usageWarning90Email, usageExceededEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { utcMonthStart, utcNextMonthStart, utcMonthKey } from '@/lib/utc-periods'
-import { getEffectiveTier } from '@/lib/tier-config'
+import { getEffectiveTier, getTierConfig, TIER_LIMITS } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
-// Monthly operation limits per tier (soft limits — tools keep working)
-const TIER_OPS_LIMITS: Record<string, number> = {
-  standard: 50_000,
-  builder: 200_000,
-  scale: 2_000_000,
-  enterprise: Infinity,
-}
 
 /**
  * Vercel Cron handler: checks each developer's ops this UTC month against their
  * tier limit and sends one warning email per level and month at 80%, 90% and 100%.
  * Org cost allocations are paused (see below).
- * Schedule: daily at 00:00 UTC (vercel.json)
+ * Schedule: daily at 23:50 UTC (vercel.json), so each month's last day is checked
+ * against that month.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -71,7 +65,7 @@ export async function GET(request: NextRequest) {
       .groupBy(tools.developerId)
 
     // No tier warns below 80% of the smallest limit.
-    const minLimit = Math.min(...Object.values(TIER_OPS_LIMITS))
+    const minLimit = Math.min(...Object.values(TIER_LIMITS).map((t) => t.opsPerMonth))
     const opsByDev = new Map(
       usage.filter((u) => u.opCount >= minLimit * 0.8).map((u) => [u.developerId, u.opCount])
     )
@@ -93,8 +87,9 @@ export async function GET(request: NextRequest) {
       try {
         // The tier the usage page shows (founding members get Scale)
         const tier = getEffectiveTier(dev.tier, dev.isFoundingMember)
-        const limit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard
-        if (limit === Infinity) continue // Enterprise has no cap
+        // Monthly ops limit (soft: tools keep working); legacy and academic tiers included
+        const limit = getTierConfig(tier).opsPerMonth
+        if (!Number.isFinite(limit)) continue // Enterprise has no cap
 
         const currentOps = opsByDev.get(dev.id) ?? 0
         const usagePct = (currentOps / limit) * 100

@@ -5,7 +5,10 @@
  *   the month before it for the trend.
  * - Sandbox (test) calls don't count. Developers with no calls last month, or no
  *   active tool, get no email.
- * - One email per developer and month: a second run sends nothing.
+ * - One email per developer and month: a second run sends nothing; a run that ran
+ *   out of time leaves the rest to the next run.
+ * - The top tool is the one with most revenue (ties: the name that sorts first). No
+ *   trend when the month before may be partly purged (short log retention).
  *
  * The schema is a test-only CREATE TABLE bootstrap of the columns the route reads
  * (no drizzle-kit, no migrations). Redis is an in-memory map; the email template
@@ -50,7 +53,8 @@ import { GET } from '../route'
 
 const BOOTSTRAP_SQL = `
   SET TIME ZONE 'UTC';
-  CREATE TABLE developers (id uuid PRIMARY KEY, email text NOT NULL, name text);
+  CREATE TABLE developers (id uuid PRIMARY KEY, email text NOT NULL, name text,
+    log_retention_days integer NOT NULL DEFAULT 90);
   CREATE TABLE tools (id uuid PRIMARY KEY, developer_id uuid NOT NULL, name text NOT NULL,
     status text NOT NULL DEFAULT 'active');
   CREATE TABLE invocations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tool_id uuid NOT NULL,
@@ -65,11 +69,14 @@ const ACTIVE = 'd0000000-0000-4000-8000-000000000001'
 const QUIET = 'd0000000-0000-4000-8000-000000000002' // calls in October only
 const RETIRED = 'd0000000-0000-4000-8000-000000000003' // calls in November, no active tool
 const SANDBOX = 'd0000000-0000-4000-8000-000000000004' // sandbox calls only
+const TIED = 'd0000000-0000-4000-8000-000000000005' // two tools tied on revenue; 30-day log retention
 const T_SEARCH = 'e0000000-0000-4000-8000-000000000001'
 const T_MAPS = 'e0000000-0000-4000-8000-000000000002'
 const T_RETIRED = 'e0000000-0000-4000-8000-000000000003'
 const T_QUIET = 'e0000000-0000-4000-8000-000000000004'
 const T_SANDBOX = 'e0000000-0000-4000-8000-000000000005'
+const T_BETA = 'e0000000-0000-4000-8000-000000000006'
+const T_ALPHA = 'e0000000-0000-4000-8000-000000000007'
 let pg: PGlite
 let savedTz: string | undefined
 
@@ -119,7 +126,15 @@ beforeAll(async () => {
   await calls(T_QUIET, 2, 10, '2026-10-15T00:00:00Z')
   await calls(T_RETIRED, 2, 10, '2026-11-15T00:00:00Z')
   await calls(T_SANDBOX, 3, 10, '2026-11-15T00:00:00Z', true)
+
+  await pg.query('INSERT INTO developers (id, email, name, log_retention_days) VALUES ($1, $2, $3, 30)', [TIED, `${TIED}@example.com`, 'Tied'])
+  await pg.query(`INSERT INTO tools (id, developer_id, name) VALUES ($1, $3, 'beta'), ($2, $3, 'alpha')`, [T_BETA, T_ALPHA, TIED])
+  await calls(T_BETA, 2, 30, '2026-11-20T00:00:00Z') // 60¢
+  await calls(T_ALPHA, 3, 20, '2026-11-20T00:00:00Z') // 60¢: tied, 'alpha' sorts first
+  await calls(T_ALPHA, 1, 30, '2026-10-20T00:00:00Z') // October survives here, but 30-day retention may have purged some
 }, 60_000)
+
+const templateFor = (name: string) => holder.template.mock.calls.find((c) => c[0] === name)
 
 beforeEach(() => { holder.send.mockClear(); holder.template.mockClear() })
 
@@ -133,9 +148,9 @@ afterAll(async () => {
 describe('cron monthly-summary (pglite)', () => {
   it("reports last UTC month's figures to developers with activity and an active tool", async () => {
     const body = await run()
-    expect(body).toMatchObject({ month: 'November 2026', devsChecked: 1, emailsSent: 1, remaining: 0 })
-    expect(holder.template).toHaveBeenCalledTimes(1)
-    expect(holder.template.mock.calls[0]).toEqual(['Dev', 'November 2026', {
+    expect(body).toMatchObject({ month: 'November 2026', devsChecked: 2, emailsSent: 2, remaining: 0 })
+    expect(holder.template).toHaveBeenCalledTimes(2)
+    expect(templateFor('Dev')).toEqual(['Dev', 'November 2026', {
       totalRevenueCents: 300,
       totalInvocations: 14,
       topToolName: 'search',
@@ -143,9 +158,20 @@ describe('cron monthly-summary (pglite)', () => {
       momRevenuePct: 100, // 150¢ → 300¢
       momInvocationPct: 100, // 7 → 14
     }])
-    expect(holder.send).toHaveBeenCalledTimes(1)
-    expect(holder.send.mock.calls[0][0]).toMatchObject({ developerId: ACTIVE, eventKey: 'monthly_summary' })
-    expect([...holder.store.keys()]).toEqual([`monthly-summary:${ACTIVE}:2026-11`])
+    expect(templateFor('Tied')).toEqual(['Tied', 'November 2026', {
+      totalRevenueCents: 120,
+      totalInvocations: 5,
+      topToolName: 'alpha',
+      topToolRevenueCents: 60,
+      momRevenuePct: null, // October may be partly purged under 30-day retention
+      momInvocationPct: null,
+    }])
+    expect(holder.send).toHaveBeenCalledTimes(2)
+    expect(holder.send.mock.calls.map((c) => c[0])).toEqual([
+      expect.objectContaining({ developerId: ACTIVE, eventKey: 'monthly_summary' }),
+      expect.objectContaining({ developerId: TIED, eventKey: 'monthly_summary' }),
+    ])
+    expect([...holder.store.keys()].sort()).toEqual([`monthly-summary:${ACTIVE}:2026-11`, `monthly-summary:${TIED}:2026-11`])
   }, 20_000)
 
   it('a second run sends nothing (one summary per developer and month)', async () => {
@@ -157,7 +183,22 @@ describe('cron monthly-summary (pglite)', () => {
   it('two overlapping runs send one summary between them', async () => {
     holder.store.clear()
     const [a, b] = await Promise.all([run(), run()])
-    expect(a.emailsSent + b.emailsSent).toBe(1)
-    expect(holder.send).toHaveBeenCalledTimes(1)
+    expect(a.emailsSent + b.emailsSent).toBe(2)
+    expect(holder.send).toHaveBeenCalledTimes(2)
+  }, 20_000)
+
+  it('a run out of time leaves the rest, and the next run sends only those', async () => {
+    holder.store.clear()
+    // The first send takes the run past its 45 s budget.
+    holder.send.mockImplementationOnce(async () => { vi.setSystemTime(new Date(NOW.getTime() + 50_000)) })
+    const first = await run()
+    expect(first).toMatchObject({ emailsSent: 1, remaining: 1 })
+    expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([ACTIVE])
+
+    vi.setSystemTime(NOW)
+    holder.send.mockClear()
+    const second = await run()
+    expect(second).toMatchObject({ emailsSent: 1, remaining: 0 })
+    expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([TIED])
   }, 20_000)
 })

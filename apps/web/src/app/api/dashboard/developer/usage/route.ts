@@ -6,17 +6,12 @@ import { developerHasTools, invocationsOfDeveloper } from '@/lib/developer-invoc
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { getEffectiveTier } from '@/lib/tier-config'
+import { getEffectiveTier, getTierConfig } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
-/** Tier-to-monthly-ops-limit mapping */
-const TIER_OPS_LIMITS: Record<string, number> = {
-  standard: 50_000,
-  builder: 200_000,
-  scale: 2_000_000,
-  enterprise: 10_000_000,
-}
+/** Shown for enterprise, whose ops are uncapped (tier-config: Infinity, which JSON can't carry). */
+const ENTERPRISE_DISPLAY_LIMIT = 10_000_000
 
 /**
  * GET /api/dashboard/developer/usage
@@ -60,7 +55,9 @@ export async function GET(request: NextRequest) {
 
     const isFoundingMember = developer?.isFoundingMember ?? false
     const tier = getEffectiveTier(developer?.tier ?? 'standard', isFoundingMember)
-    const tierLimit = TIER_OPS_LIMITS[tier] ?? TIER_OPS_LIMITS.standard
+    // The plan's monthly ops (legacy starter/growth count as Builder; academic has its own)
+    const planLimit = getTierConfig(tier).opsPerMonth
+    const tierLimit = Number.isFinite(planLimit) ? planLimit : ENTERPRISE_DISPLAY_LIMIT
 
     // Calculate current month boundaries
     const now = new Date()

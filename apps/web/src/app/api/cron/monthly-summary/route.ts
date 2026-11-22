@@ -10,16 +10,19 @@ import { sendNotificationEmail } from '@/lib/notifications'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
 import type { MonthlySummaryData } from '@/lib/email'
 import { getRedis } from '@/lib/redis'
-import { utcMonthStart, utcMonthKey } from '@/lib/utc-periods'
+import { utcMonthStart, utcMonthKey, daysBefore } from '@/lib/utc-periods'
 
 export const maxDuration = 60
 
 /** Stop starting new sends after this long (maxDuration is 60 s). */
 const SEND_BUDGET_MS = 45_000
+/** At least this long between sends: under Resend's default 10 requests/second. */
+const MIN_SEND_INTERVAL_MS = 150
 
 /**
  * Vercel Cron handler: sends monthly developer summary emails.
- * Runs on the 1st of each month at 9 AM UTC.
+ * Runs on the 1st of each month at 00:15, 00:35 and 00:55 UTC (vercel.json): before
+ * the 03:00 log purge, and a later run sends what an earlier one ran out of time for.
  *
  * For each developer with at least 1 active tool and calls last UTC month (one
  * email per developer and month; sandbox calls don't count):
@@ -106,6 +109,7 @@ export async function GET(request: NextRequest) {
         id: developers.id,
         email: developers.email,
         name: developers.name,
+        logRetentionDays: developers.logRetentionDays,
       })
       .from(developers)
       .where(and(
@@ -117,6 +121,7 @@ export async function GET(request: NextRequest) {
     const redis = getRedis()
     let emailsSent = 0
     let remaining = 0
+    let lastSendAt = 0
 
     for (const dev of devsWithTools) {
       // Stop starting sends well before the 60 s limit. Running the job again sends
@@ -129,12 +134,16 @@ export async function GET(request: NextRequest) {
         const t = totalsByDev.get(dev.id)!
         const devName = dev.name ?? 'Developer'
 
+        // The month before may be partly purged under a short log retention
+        // (0 = keep forever): then there is no trend rather than a wrong one.
+        const prevComplete = !(dev.logRetentionDays > 0 && daysBefore(now, dev.logRetentionDays) > prevMonthStart)
+
         // Calculate MoM trends
-        const momRevenuePct = t.prevRevenue > 0
+        const momRevenuePct = prevComplete && t.prevRevenue > 0
           ? ((t.revenue - t.prevRevenue) / t.prevRevenue) * 100
           : null
 
-        const momInvocationPct = t.prevCalls > 0
+        const momInvocationPct = prevComplete && t.prevCalls > 0
           ? ((t.calls - t.prevCalls) / t.prevCalls) * 100
           : null
 
@@ -154,6 +163,10 @@ export async function GET(request: NextRequest) {
         const sentKey = `monthly-summary:${dev.id}:${monthKey}`
         const claimed = await redis.set(sentKey, '1', { nx: true, ex: 40 * 24 * 60 * 60 })
         if (claimed === null) continue
+
+        const wait = lastSendAt + MIN_SEND_INTERVAL_MS - Date.now()
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+        lastSendAt = Date.now()
 
         await sendNotificationEmail({
           developerId: dev.id,
