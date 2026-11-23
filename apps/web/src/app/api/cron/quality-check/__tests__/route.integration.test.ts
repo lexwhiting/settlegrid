@@ -11,6 +11,8 @@
  *   than 'success' counting as an error.
  * - The no-traffic alert is switched off: idle tools get no email.
  * - Cooldowns are respected; inactive tools are not checked.
+ * - A failed send gets no cooldown and is tried again after an hour; an opted-out
+ *   developer's alert gets its cooldown but is not counted as sent.
  *
  * Redis is an in-memory fake; emails are captured, not sent. The schema is a
  * test-only CREATE TABLE bootstrap of the columns the route reads (no drizzle-kit,
@@ -32,7 +34,7 @@ const fakeRedis = vi.hoisted(() => {
     mget: vi.fn(async (...keys: string[]) => keys.map((k) => store.get(k) ?? null)),
   }
 })
-const sendNotificationEmail = vi.hoisted(() => vi.fn(async () => undefined))
+const sendNotificationEmail = vi.hoisted(() => vi.fn(async (): Promise<string> => 'sent'))
 
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
 vi.mock('@/lib/redis', () => ({ getRedis: () => fakeRedis }))
@@ -59,6 +61,7 @@ const BOOTSTRAP_SQL = `
 const NOW = new Date('2026-11-22T12:00:00.000Z')
 const IN_LAST_HOUR = '2026-11-22T11:30:00Z'
 let pg: PGlite
+let slowTool: (email: string, name: string) => Promise<string>
 
 type Sent = { email: string; subject: string; developerId: string }
 const sentEmails = () => (sendNotificationEmail.mock.calls as unknown as Array<[Sent]>).map(([p]) => p)
@@ -122,6 +125,13 @@ beforeAll(async () => {
   // Idle tools (used before, no call for 10 days): the no-traffic alert is off.
   const idleDev = await dev('idle@example.com')
   for (let i = 0; i < 5; i++) await calls(await tool(idleDev, `Idle ${i}`, { total: 1 }), 1, 100, 'success', '2026-11-12T12:00:00Z')
+
+  // For the later cases: a new developer with one slow tool, created on demand.
+  slowTool = async (email: string, name: string) => {
+    const id = await tool(await dev(email), name)
+    await calls(id, 10, 4000, 'success')
+    return id
+  }
 
   // An inactive tool that would otherwise be slow.
   await calls(await tool(slowDev, 'Draft tool', { status: 'draft' }), 10, 5000, 'success')
@@ -191,4 +201,38 @@ describe('cron quality-check (pglite)', () => {
     expect(keys.filter((k) => k.startsWith('quality:error:'))).toHaveLength(1)
     expect(keys.filter((k) => k.startsWith('quality:notraffic:'))).toHaveLength(0)
   }, 20_000)
+
+  it('a failed send gets no cooldown and is tried again after an hour', async () => {
+    const flaky = await slowTool('flaky@example.com', 'Flaky tool')
+    sendNotificationEmail.mockImplementationOnce(async () => 'failed')
+    const first = await run()
+    expect(first).toMatchObject({ totalAlerts: 0, failed: 1, skipped: 0, deferred: 0 })
+    expect(fakeRedis.store.has(`quality:slow:${flaky}`)).toBe(false)
+    expect(fakeRedis.store.has(`quality:slow:${flaky}:retry`)).toBe(true)
+
+    sendNotificationEmail.mockClear()
+    const waiting = await run() // within the hour: not retried, not deferred
+    expect(waiting).toMatchObject({ totalAlerts: 0, failed: 0, deferred: 0 })
+    expect(sentEmails()).toHaveLength(0)
+
+    fakeRedis.store.delete(`quality:slow:${flaky}:retry`) // the hour has passed
+    const retried = await run()
+    expect(retried.alerts).toEqual({ slowResponse: 1, highErrorRate: 0, noTraffic: 0 })
+    expect(sentEmails()).toEqual([expect.objectContaining({ email: 'flaky@example.com' })])
+    expect(fakeRedis.store.has(`quality:slow:${flaky}`)).toBe(true)
+  }, 30_000)
+
+  it("an opted-out developer's alert gets its cooldown but is not counted as sent", async () => {
+    const muted = await slowTool('muted@example.com', 'Muted tool')
+    sendNotificationEmail.mockImplementationOnce(async () => 'opted_out')
+    const first = await run()
+    expect(first).toMatchObject({ totalAlerts: 0, skipped: 1, failed: 0 })
+    expect(first.alerts).toEqual({ slowResponse: 0, highErrorRate: 0, noTraffic: 0 })
+    expect(fakeRedis.store.has(`quality:slow:${muted}`)).toBe(true)
+
+    sendNotificationEmail.mockClear()
+    const next = await run()
+    expect(next).toMatchObject({ totalAlerts: 0, skipped: 0 })
+    expect(sentEmails()).toHaveLength(0)
+  }, 30_000)
 })
