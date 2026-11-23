@@ -36,6 +36,12 @@ const MAX_ALERT_EMAILS_PER_RUN = 50
 const COOLDOWN_LOOKUP_CHUNK = 100
 
 /**
+ * After a failed send, wait this long before trying the alert again, so an address
+ * Resend keeps refusing doesn't take one of the run's slots every 15 minutes.
+ */
+const RETRY_AFTER_FAILURE_SECS = 60 * 60 // 1 hour
+
+/**
  * The no-traffic alert is off (founder decision, 2026-11-22). Before this change it
  * never fired in production: postgres-js returns COUNT(*) as a string, so the old
  * `recentCount === 0` test was never true. Turning it on would start a new email
@@ -78,7 +84,10 @@ interface Candidate {
  *      see NO_TRAFFIC_ALERTS_ENABLED
  *
  * Alerts are sent in that order (the last-hour checks first), oldest tool first
- * within each check, up to MAX_ALERT_EMAILS_PER_RUN per run.
+ * within each check, up to MAX_ALERT_EMAILS_PER_RUN per run. The alert's cooldown
+ * is set when the email was sent or the developer opted out of it; when the send
+ * fails, no cooldown is set and the alert is tried again after an hour if it still
+ * applies.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -178,17 +187,21 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Cooldowns, looked up in chunks
+    // Cooldowns and retry waits, looked up in chunks
+    const retryKey = (c: Candidate) => `${c.cooldownKey}:retry`
     const onCooldown = new Set<string>()
     for (let i = 0; i < candidates.length; i += COOLDOWN_LOOKUP_CHUNK) {
-      const keys = candidates.slice(i, i + COOLDOWN_LOOKUP_CHUNK).map((c) => c.cooldownKey)
+      const chunk = candidates.slice(i, i + COOLDOWN_LOOKUP_CHUNK)
+      const keys = chunk.flatMap((c) => [c.cooldownKey, retryKey(c)])
       const values = await redis.mget<(string | null)[]>(...keys)
-      keys.forEach((key, j) => { if (values[j]) onCooldown.add(key) })
+      chunk.forEach((c, j) => { if (values[2 * j] || values[2 * j + 1]) onCooldown.add(c.cooldownKey) })
     }
 
     // ─── Send, up to the cap ───────────────────────────────────────────────
     const alerts = { slowResponse: 0, highErrorRate: 0, noTraffic: 0 }
     let deferred = 0
+    let failed = 0
+    let skipped = 0 // opted out of quality alerts
     let sent = 0
 
     for (const c of candidates) {
@@ -222,14 +235,25 @@ export async function GET(request: NextRequest) {
           tpl = toolNoTrafficEmail(devName, c.tool.toolName, lastDate)
         }
         sent++
-        await sendNotificationEmail({
+        const outcome = await sendNotificationEmail({
           developerId: c.tool.developerId,
           eventKey: 'quality_alert',
           email: c.tool.devEmail,
           subject: tpl.subject,
           html: tpl.html,
         })
+        if (outcome === 'failed') {
+          // No cooldown: tried again after RETRY_AFTER_FAILURE_SECS if it still applies
+          failed++
+          await redis.set(retryKey(c), '1', { ex: RETRY_AFTER_FAILURE_SECS })
+          logger.warn('cron.quality_check.send_failed', { toolId: c.tool.toolId, kind: c.kind })
+          continue
+        }
         await redis.set(c.cooldownKey, '1', { ex: c.cooldownSecs })
+        if (outcome === 'opted_out') {
+          skipped++
+          continue
+        }
         alerts[c.kind]++
 
         logger.info(`cron.quality_check.${c.kind === 'slowResponse' ? 'slow_response' : c.kind === 'highErrorRate' ? 'high_error_rate' : 'no_traffic'}`, {
@@ -251,6 +275,8 @@ export async function GET(request: NextRequest) {
       toolsChecked: activeTools.length,
       totalAlerts,
       deferred,
+      failed,
+      skipped,
       ...alerts,
     })
 
@@ -259,6 +285,8 @@ export async function GET(request: NextRequest) {
       totalAlerts,
       alerts,
       deferred,
+      failed,
+      skipped,
     })
   } catch (error) {
     logger.error('cron.quality_check.failed', {}, error)
