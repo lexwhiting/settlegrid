@@ -121,6 +121,8 @@ export async function GET(request: NextRequest) {
     const redis = getRedis()
     let emailsSent = 0
     let remaining = 0
+    let failed = 0
+    let skipped = 0
     let lastSendAt = 0
 
     for (const dev of devsWithTools) {
@@ -168,7 +170,7 @@ export async function GET(request: NextRequest) {
         if (wait > 0) await new Promise((r) => setTimeout(r, wait))
         lastSendAt = Date.now()
 
-        await sendNotificationEmail({
+        const outcome = await sendNotificationEmail({
           developerId: dev.id,
           eventKey: 'monthly_summary',
           email: dev.email,
@@ -176,6 +178,18 @@ export async function GET(request: NextRequest) {
           html: tpl.html,
         })
 
+        if (outcome === 'failed') {
+          // Not delivered: release the claim so the next scheduled run tries again
+          await redis.del(sentKey)
+          failed++
+          logger.warn('cron.monthly_summary.send_failed', { developerId: dev.id })
+          continue
+        }
+        if (outcome === 'opted_out') {
+          // Keep the claim: the developer turned summaries off; not counted as sent
+          skipped++
+          continue
+        }
         emailsSent++
       } catch (devErr) {
         // Don't let one developer failure stop the batch
@@ -191,6 +205,8 @@ export async function GET(request: NextRequest) {
       month: monthName,
       devsChecked: devsWithTools.length,
       emailsSent,
+      failed,
+      skipped,
       remaining,
     })
 
@@ -198,6 +214,8 @@ export async function GET(request: NextRequest) {
       month: monthName,
       devsChecked: devsWithTools.length,
       emailsSent,
+      failed,
+      skipped,
       remaining,
     })
   } catch (error) {

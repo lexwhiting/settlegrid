@@ -81,6 +81,8 @@ export async function GET(request: NextRequest) {
       .where(inArray(developers.id, [...opsByDev.keys()]))
 
     let alertsSent = 0
+    let failed = 0
+    let skipped = 0
     const redis = getRedis()
 
     for (const dev of candidates) {
@@ -123,7 +125,7 @@ export async function GET(request: NextRequest) {
         const claimed = await redis.set(dedupKey, '1', { nx: true, ex: 31 * 24 * 60 * 60 })
         if (claimed === null) continue
 
-        await sendNotificationEmail({
+        const outcome = await sendNotificationEmail({
           developerId: dev.id,
           eventKey: 'usage_alert',
           email: dev.email,
@@ -131,6 +133,18 @@ export async function GET(request: NextRequest) {
           html: email.html,
         })
 
+        if (outcome === 'failed') {
+          // Not delivered: release the claim so tomorrow's run tries again
+          await redis.del(dedupKey)
+          failed++
+          logger.warn('cron.aggregate_usage.send_failed', { developerId: dev.id, level })
+          continue
+        }
+        if (outcome === 'opted_out') {
+          // Keep the claim: the developer turned these off; not counted as sent
+          skipped++
+          continue
+        }
         alertsSent++
 
         logger.info('cron.aggregate_usage.alert_sent', {
@@ -150,12 +164,16 @@ export async function GET(request: NextRequest) {
       period: periodStart.toISOString(),
       developersWithUsage: usage.length,
       alertsSent,
+      failed,
+      skipped,
     })
 
     return successResponse({
       period: periodStart.toISOString(),
       developersWithUsage: usage.length,
       alertsSent,
+      failed,
+      skipped,
     })
   } catch (error) {
     logger.error('cron.aggregate_usage.failed', {}, error)

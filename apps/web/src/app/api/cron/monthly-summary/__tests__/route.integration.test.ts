@@ -26,7 +26,7 @@ const holder = vi.hoisted(() => ({
   send: null as unknown as Mock,
   template: null as unknown as Mock,
 }))
-holder.send = vi.fn(async () => undefined)
+holder.send = vi.fn(async () => 'sent')
 holder.template = vi.fn(() => ({ subject: 'Your monthly summary', html: '<p>summary</p>' }))
 
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
@@ -39,6 +39,7 @@ vi.mock('@/lib/redis', () => ({
       holder.store.set(k, v)
       return 'OK'
     },
+    del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
   }),
 }))
 vi.mock('@/lib/notifications', () => ({ sendNotificationEmail: (...a: unknown[]) => holder.send(...a) }))
@@ -190,7 +191,7 @@ describe('cron monthly-summary (pglite)', () => {
   it('a run out of time leaves the rest, and the next run sends only those', async () => {
     holder.store.clear()
     // The first send takes the run past its 45 s budget.
-    holder.send.mockImplementationOnce(async () => { vi.setSystemTime(new Date(NOW.getTime() + 50_000)) })
+    holder.send.mockImplementationOnce(async () => { vi.setSystemTime(new Date(NOW.getTime() + 50_000)); return 'sent' })
     const first = await run()
     expect(first).toMatchObject({ emailsSent: 1, remaining: 1 })
     expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([ACTIVE])
@@ -200,5 +201,21 @@ describe('cron monthly-summary (pglite)', () => {
     const second = await run()
     expect(second).toMatchObject({ emailsSent: 1, remaining: 0 })
     expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([TIED])
+  }, 20_000)
+
+  it('a failed send releases its claim and is sent by the next run; an opted-out one is not counted or retried', async () => {
+    holder.store.clear()
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === ACTIVE ? 'failed' : 'opted_out'))
+    try {
+      const first = await run()
+      expect(first).toMatchObject({ emailsSent: 0, failed: 1, skipped: 1 })
+      expect([...holder.store.keys()]).toEqual([`monthly-summary:${TIED}:2026-11`]) // ACTIVE's claim released
+    } finally {
+      holder.send.mockImplementation(async () => 'sent')
+    }
+    holder.send.mockClear()
+    const second = await run()
+    expect(second).toMatchObject({ emailsSent: 1, failed: 0, skipped: 0 })
+    expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([ACTIVE])
   }, 20_000)
 })

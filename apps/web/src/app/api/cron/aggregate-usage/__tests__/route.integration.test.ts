@@ -20,7 +20,7 @@ const holder = vi.hoisted(() => ({
   store: new Map<string, string>(),
   send: null as unknown as Mock,
 }))
-holder.send = vi.fn(async () => undefined)
+holder.send = vi.fn(async () => 'sent')
 
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
 vi.mock('@/lib/cron-auth', () => ({ verifyCronAuth: () => 'ok' }))
@@ -32,6 +32,7 @@ vi.mock('@/lib/redis', () => ({
       holder.store.set(k, v)
       return 'OK'
     },
+    del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
   }),
 }))
 vi.mock('@/lib/notifications', () => ({ sendNotificationEmail: (...a: unknown[]) => holder.send(...a) }))
@@ -161,6 +162,22 @@ describe('cron aggregate-usage (pglite)', () => {
     expect(body.alertsSent).toBe(1)
     expect(sentTo()).toEqual([AT_80])
     expect((holder.send.mock.calls[0][0] as { subject: string }).subject).toMatch(/90%/)
+  }, 30_000)
+
+  it('a failed send releases its claim and is sent by the next run; an opted-out one is not counted or retried', async () => {
+    holder.store.clear()
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'failed' : 'opted_out'))
+    try {
+      const first = await run()
+      expect(first).toMatchObject({ alertsSent: 0, failed: 1, skipped: 1 })
+      expect([...holder.store.keys()]).toEqual([`usage-alert:${AT_80}:2026-11:90`]) // AT_100's claim released
+    } finally {
+      holder.send.mockImplementation(async () => 'sent')
+    }
+    holder.send.mockClear()
+    const second = await run()
+    expect(second).toMatchObject({ alertsSent: 1, failed: 0, skipped: 0 })
+    expect(sentTo()).toEqual([AT_100])
   }, 30_000)
 
   it('leaves cost_allocations alone (paused), though an organization has members with calls', async () => {
