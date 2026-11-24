@@ -101,9 +101,9 @@ beforeAll(async () => {
   // The two invocations are CONSUMER's calls on the newest tool, so the explorer reads them too.
   await pg.query(
     `INSERT INTO invocations (consumer_id, tool_id, api_key_id, cost_cents, latency_ms, created_at)
-     SELECT $1, t.id, k.id, v.cents, 100, v.at::timestamptz
+     SELECT $1, t.id, k.id, v.cents, v.latency, v.at::timestamptz
      FROM (SELECT id FROM tools WHERE slug = 'newest') t, (SELECT id FROM api_keys WHERE key_prefix = 'sg_newest') k,
-          (VALUES (5, '2026-11-01T01:00:00Z'), (7, '2026-10-31T12:00:00Z')) v(cents, at)`,
+          (VALUES (5, 100, '2026-11-01T01:00:00Z'), (7, 300, '2026-10-31T12:00:00Z')) v(cents, latency, at)`,
     [CONSUMER],
   )
 }, 120_000)
@@ -166,11 +166,16 @@ describe('analytics: UTC days and months (pglite)', () => {
       const today = await call('today')
       expect(today.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5]) // 01:00 UTC; not Oct 31
       expect(today.stats).toMatchObject({ callsToday: 1, spentToday: 5 })
+      // The header's week and month cover their own windows whatever period is selected:
+      // with "today" selected, the rolling week still holds both calls and the month the November one.
+      expect(today.stats).toMatchObject({ callsWeek: 2, spentWeek: 12, callsMonth: 1, spentMonth: 5, avgCostCents: 5 })
+      expect(today.stats.avgResponseMs).toBe(100) // the selected period only (today's call)
       const month = await call('month')
       expect(month.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5]) // November only
       expect(month.stats).toMatchObject({ callsMonth: 1, spentMonth: 5 })
       const week = await call('week')
       expect(week.transactions.map((t: { costCents: number }) => t.costCents)).toEqual([5, 7]) // a rolling 7 days
+      expect(week.stats.avgResponseMs).toBe(200) // (100 + 300) / 2
     } finally {
       if (saved === undefined) delete process.env.TZ
       else process.env.TZ = saved

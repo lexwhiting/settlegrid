@@ -127,40 +127,37 @@ export async function GET(request: NextRequest) {
       .limit(5000)
 
     // ── Compute header stats ────────────────────────────────────────────────
+    // Today, the rolling week and this month always cover their own windows, whatever
+    // period is selected, and have no row cap; the average response time covers the
+    // selected period.
     const now = new Date()
     const todayCutoff = utcDayStart(now)
     const weekCutoff = daysBefore(now, 7)
     const monthCutoff = utcMonthStart(now)
+    const statsFrom = new Date(Math.min(weekCutoff.getTime(), monthCutoff.getTime(), periodCutoff.getTime()))
+    const since = (d: Date) => sql`${invocations.createdAt} >= ${d.toISOString()}::timestamptz`
+    const [agg] = await db
+      .select({
+        spentToday: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${since(todayCutoff)}), 0))::int`,
+        spentWeek: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${since(weekCutoff)}), 0))::int`,
+        spentMonth: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${since(monthCutoff)}), 0))::int`,
+        callsToday: sql<number>`(count(*) filter (where ${since(todayCutoff)}))::int`,
+        callsWeek: sql<number>`(count(*) filter (where ${since(weekCutoff)}))::int`,
+        callsMonth: sql<number>`(count(*) filter (where ${since(monthCutoff)}))::int`,
+        avgLatencyMs: sql<number | null>`avg(${invocations.latencyMs}) filter (where ${since(periodCutoff)} and ${invocations.latencyMs} is not null)`,
+      })
+      .from(invocations)
+      .innerJoin(tools, eq(invocations.toolId, tools.id))
+      .where(and(eq(invocations.consumerId, auth.id), since(statsFrom)))
 
-    let spentToday = 0, spentWeek = 0, spentMonth = 0
-    let callsToday = 0, callsWeek = 0, callsMonth = 0
-    let totalLatency = 0, latencyCount = 0
-
-    for (const row of allPeriodData) {
-      const ts = new Date(row.createdAt)
-      const cost = Number.isFinite(row.costCents) ? row.costCents : 0
-      const latency = row.latencyMs
-
-      if (ts >= monthCutoff) {
-        spentMonth += cost
-        callsMonth += 1
-      }
-      if (ts >= weekCutoff) {
-        spentWeek += cost
-        callsWeek += 1
-      }
-      if (ts >= todayCutoff) {
-        spentToday += cost
-        callsToday += 1
-      }
-      if (latency !== null && Number.isFinite(latency)) {
-        totalLatency += latency
-        latencyCount += 1
-      }
-    }
-
+    const spentToday = agg?.spentToday ?? 0
+    const spentWeek = agg?.spentWeek ?? 0
+    const spentMonth = agg?.spentMonth ?? 0
+    const callsToday = agg?.callsToday ?? 0
+    const callsWeek = agg?.callsWeek ?? 0
+    const callsMonth = agg?.callsMonth ?? 0
     const avgCostCents = callsMonth > 0 ? Math.round(spentMonth / callsMonth) : 0
-    const avgResponseMs = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0
+    const avgResponseMs = agg?.avgLatencyMs != null ? Math.round(Number(agg.avgLatencyMs)) : 0
 
     const stats = {
       spentToday,
