@@ -42,6 +42,8 @@ export async function sendEmail(params: {
   from?: string
   replyTo?: string
   headers?: Record<string, string>
+  /** Resend Idempotency-Key (1–256 chars): the same key and payload within 24 hours is not sent again. */
+  idempotencyKey?: string
 }): Promise<boolean> {
   let resendApiKey: string | null = null
   try {
@@ -61,6 +63,7 @@ export async function sendEmail(params: {
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
+        ...(params.idempotencyKey ? { 'Idempotency-Key': params.idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from: params.from ?? FROM_TRANSACTIONAL,

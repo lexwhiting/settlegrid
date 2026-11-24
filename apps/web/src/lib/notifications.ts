@@ -253,6 +253,8 @@ export async function sendNotificationEmail(params: {
   subject: string
   html: string
   critical?: boolean
+  /** Passed to Resend: the same key and payload within 24 hours is not sent again. */
+  idempotencyKey?: string
 }): Promise<NotificationOutcome> {
   try {
     // Critical emails (security alerts, payout failures) always send
@@ -275,7 +277,12 @@ export async function sendNotificationEmail(params: {
       }
     }
 
-    const sent = await sendEmail({ to: params.email, subject: params.subject, html: params.html })
+    const sent = await sendEmail({
+      to: params.email,
+      subject: params.subject,
+      html: params.html,
+      ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
+    })
     return sent ? 'sent' : 'failed'
   } catch (err) {
     logger.error(

@@ -9,6 +9,7 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
 import { usageWarning80Email, usageWarning90Email, usageExceededEmail } from '@/lib/email'
 import { sendNotificationEmail } from '@/lib/notifications'
+import { deliverOnce } from '@/lib/notification-delivery'
 import { utcMonthStart, utcNextMonthStart, utcMonthKey } from '@/lib/utc-periods'
 import { getEffectiveTier, getTierConfig, TIER_LIMITS } from '@/lib/tier-config'
 
@@ -119,30 +120,30 @@ export async function GET(request: NextRequest) {
           email = usageWarning80Email(devName, currentOps, limit, tier)
         }
 
-        // Claim this level for the month before sending (SET NX): a level already
-        // sent, or being sent by an overlapping run, is skipped. Expires after 31 days.
-        const dedupKey = `usage-alert:${dev.id}:${monthKey}:${level}`
-        const claimed = await redis.set(dedupKey, '1', { nx: true, ex: 31 * 24 * 60 * 60 })
-        if (claimed === null) continue
-
-        const outcome = await sendNotificationEmail({
-          developerId: dev.id,
-          eventKey: 'usage_alert',
-          email: dev.email,
-          subject: email.subject,
-          html: email.html,
+        // Once per level and month (lib/notification-delivery): recorded only when sent
+        // or opted out, so a failed send is tried again tomorrow; overlapping runs and
+        // a run killed mid-send can't send it twice.
+        const result = await deliverOnce(redis, {
+          key: `usage-alert:${dev.id}:${monthKey}:${level}`,
+          recordTtlSecs: 31 * 24 * 60 * 60,
+          send: (idempotencyKey) => sendNotificationEmail({
+            developerId: dev.id,
+            eventKey: 'usage_alert',
+            email: dev.email,
+            subject: email.subject,
+            html: email.html,
+            idempotencyKey,
+          }),
         })
 
-        if (outcome === 'failed') {
-          // Not delivered: release the claim so tomorrow's run tries again
-          await redis.del(dedupKey)
+        if (result === 'delivered' || result === 'busy') continue
+        if (result === 'failed') {
           failed++
           logger.warn('cron.aggregate_usage.send_failed', { developerId: dev.id, level })
           continue
         }
-        if (outcome === 'opted_out') {
-          // Keep the claim: the developer turned these off; not counted as sent
-          skipped++
+        if (result === 'opted_out') {
+          skipped++ // the developer turned these off: recorded, not counted as sent
           continue
         }
         alertsSent++

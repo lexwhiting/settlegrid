@@ -180,6 +180,19 @@ describe('cron aggregate-usage (pglite)', () => {
     expect(sentTo()).toEqual([AT_100])
   }, 30_000)
 
+  it('a run killed mid-send blocks nobody: its claim expires and a later run sends it, with the same idempotency key', async () => {
+    holder.store.clear()
+    holder.store.set(`usage-alert:${AT_100}:2026-11:100:inflight`, '1') // claimed, never recorded
+    holder.send.mockClear()
+    const first = await run()
+    expect(sentTo()).toEqual([AT_80]) // AT_100 is busy
+    expect(first).toMatchObject({ alertsSent: 1 })
+    holder.store.delete(`usage-alert:${AT_100}:2026-11:100:inflight`) // the claim's 10 minutes are up
+    holder.send.mockClear()
+    await run()
+    expect(holder.send.mock.calls[0][0]).toMatchObject({ developerId: AT_100, idempotencyKey: `usage-alert:${AT_100}:2026-11:100` })
+  }, 30_000)
+
   it('leaves cost_allocations alone (paused), though an organization has members with calls', async () => {
     const r = await pg.query<{ n: number }>('SELECT count(*)::int AS n FROM cost_allocations')
     expect(r.rows[0].n).toBe(2)

@@ -136,6 +136,8 @@ beforeAll(async () => {
 }, 60_000)
 
 const templateFor = (name: string) => holder.template.mock.calls.find((c) => c[0] === name)
+// Delivery records (not the snapshot, done marker or in-flight claims)
+const sentKeys = () => [...holder.store.keys()].filter((k) => /^monthly-summary:[0-9a-f-]{36}:2026-11$/.test(k)).sort()
 
 beforeEach(() => { holder.send.mockClear(); holder.template.mockClear() })
 
@@ -172,7 +174,9 @@ describe('cron monthly-summary (pglite)', () => {
       expect.objectContaining({ developerId: ACTIVE, eventKey: 'monthly_summary' }),
       expect.objectContaining({ developerId: TIED, eventKey: 'monthly_summary' }),
     ])
-    expect([...holder.store.keys()].sort()).toEqual([`monthly-summary:${ACTIVE}:2026-11`, `monthly-summary:${TIED}:2026-11`])
+    expect(sentKeys()).toEqual([`monthly-summary:${ACTIVE}:2026-11`, `monthly-summary:${TIED}:2026-11`])
+    // The send carries the delivery key as Resend's idempotency key
+    expect(holder.send.mock.calls[0][0]).toMatchObject({ idempotencyKey: `monthly-summary:${ACTIVE}:2026-11` })
   }, 20_000)
 
   it('a second run sends nothing (one summary per developer and month)', async () => {
@@ -209,7 +213,8 @@ describe('cron monthly-summary (pglite)', () => {
     try {
       const first = await run()
       expect(first).toMatchObject({ emailsSent: 0, failed: 1, skipped: 1 })
-      expect([...holder.store.keys()]).toEqual([`monthly-summary:${TIED}:2026-11`]) // ACTIVE's claim released
+      expect(sentKeys()).toEqual([`monthly-summary:${TIED}:2026-11`]) // ACTIVE not recorded: retried
+      expect([...holder.store.keys()].filter((k) => k.endsWith(':inflight'))).toEqual([]) // claims released
     } finally {
       holder.send.mockImplementation(async () => 'sent')
     }
@@ -217,5 +222,56 @@ describe('cron monthly-summary (pglite)', () => {
     const second = await run()
     expect(second).toMatchObject({ emailsSent: 1, failed: 0, skipped: 0 })
     expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([ACTIVE])
+  }, 20_000)
+
+  it('a run killed mid-send blocks nobody: its claim expires and a later run sends it', async () => {
+    holder.store.clear()
+    // A run claimed ACTIVE's summary and died before recording it: the claim is held...
+    holder.store.set(`monthly-summary:${ACTIVE}:2026-11:inflight`, '1')
+    holder.send.mockClear()
+    const first = await run()
+    expect(first).toMatchObject({ emailsSent: 1 }) // TIED only; ACTIVE is busy
+    expect(holder.store.has('monthly-summary:done:2026-11')).toBe(false) // not finished
+    // ...until it expires (10 minutes; the mock store has no TTL, so drop it)
+    holder.store.delete(`monthly-summary:${ACTIVE}:2026-11:inflight`)
+    holder.send.mockClear()
+    const second = await run()
+    expect(second).toMatchObject({ emailsSent: 1 })
+    expect(holder.send.mock.calls[0][0]).toMatchObject({ developerId: ACTIVE, idempotencyKey: `monthly-summary:${ACTIVE}:2026-11` })
+  }, 20_000)
+
+  it('work left after the 1st goes out on a later day from the stored figures, after the log purge; then runs stop', async () => {
+    holder.store.clear()
+    holder.send.mockClear()
+    holder.template.mockClear()
+    holder.send.mockImplementationOnce(async () => { vi.setSystemTime(new Date(NOW.getTime() + 50_000)); return 'sent' })
+    const first = await run()
+    expect(first).toMatchObject({ emailsSent: 1, remaining: 1 })
+
+    // Past every run on the 1st; the logs the figures came from are purged
+    await pg.query('DELETE FROM invocations')
+    vi.setSystemTime(new Date('2026-12-02T10:15:00.000Z'))
+    try {
+      holder.send.mockClear()
+      holder.template.mockClear()
+      const later = await run()
+      expect(later).toMatchObject({ month: 'November 2026', emailsSent: 1, remaining: 0 })
+      expect(holder.template.mock.calls).toEqual([['Tied', 'November 2026', {
+        totalRevenueCents: 120,
+        totalInvocations: 5,
+        topToolName: 'alpha',
+        topToolRevenueCents: 60,
+        momRevenuePct: null,
+        momInvocationPct: null,
+      }]])
+      expect(holder.store.has('monthly-summary:done:2026-11')).toBe(true)
+
+      holder.send.mockClear()
+      const after = await run()
+      expect(after).toMatchObject({ done: true, emailsSent: 0 })
+      expect(holder.send).not.toHaveBeenCalled()
+    } finally {
+      vi.setSystemTime(NOW)
+    }
   }, 20_000)
 })

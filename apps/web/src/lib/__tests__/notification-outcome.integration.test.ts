@@ -63,6 +63,11 @@ describe('sendNotificationEmail outcomes (pglite)', () => {
     expect(sendEmail).toHaveBeenCalledWith({ to: 'dev@example.com', subject: 'S', html: '<p>H</p>' })
   })
 
+  it('passes an idempotency key through to Resend', async () => {
+    expect(await sendNotificationEmail({ developerId: DEV, eventKey: 'quality_alert', email: 'dev@example.com', subject: 'S', html: '<p>H</p>', idempotencyKey: 'k1' })).toBe('sent')
+    expect(sendEmail).toHaveBeenCalledWith({ to: 'dev@example.com', subject: 'S', html: '<p>H</p>', idempotencyKey: 'k1' })
+  })
+
   it("returns 'opted_out' and sends nothing when the developer turned the event off", async () => {
     expect(await notify(OPTED_OUT, 'dev@example.com')).toBe('opted_out')
     expect(sendEmail).not.toHaveBeenCalled()

@@ -387,6 +387,17 @@ describe('sendEmail', () => {
     expect(body.html).toBe('<p>Hello</p>')
   })
 
+  it('sends an idempotency key as the Idempotency-Key header, only when given', async () => {
+    await sendEmail({ to: 'user@test.com', subject: 'Test', html: '<p>Hello</p>', idempotencyKey: 'monthly-summary:d1:2026-11' })
+    const [, withKey] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(withKey.headers['Idempotency-Key']).toBe('monthly-summary:d1:2026-11')
+    expect(JSON.parse(withKey.body).headers).toBeUndefined() // an HTTP header, not an email header
+
+    await sendEmail({ to: 'user@test.com', subject: 'Test', html: '<p>Hello</p>' })
+    const [, withoutKey] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[1]
+    expect('Idempotency-Key' in withoutKey.headers).toBe(false)
+  })
+
   it('supports array of recipients', async () => {
     await sendEmail({
       to: ['a@test.com', 'b@test.com'],

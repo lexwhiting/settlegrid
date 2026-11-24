@@ -7,6 +7,7 @@ import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendNotificationEmail } from '@/lib/notifications'
+import { deliverOnce } from '@/lib/notification-delivery'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
 import type { MonthlySummaryData } from '@/lib/email'
 import { getRedis } from '@/lib/redis'
@@ -19,10 +20,101 @@ const SEND_BUDGET_MS = 45_000
 /** At least this long between sends: under Resend's default 10 requests/second. */
 const MIN_SEND_INTERVAL_MS = 150
 
+/** Snapshots, done markers and delivery records outlive the month's runs. */
+const RECORD_TTL_SECS = 40 * 24 * 60 * 60
+
+interface SnapshotEntry {
+  developerId: string
+  summary: MonthlySummaryData
+}
+
+function parseSnapshot(raw: unknown): SnapshotEntry[] | null {
+  if (raw == null) return null
+  // Upstash returns stored JSON already parsed; other clients return the string
+  const value = typeof raw === 'string' ? JSON.parse(raw) : raw
+  return Array.isArray(value) ? (value as SnapshotEntry[]) : null
+}
+
+/**
+ * Last month's figures for each developer with calls last month and at least 1
+ * active tool, ordered by developer id. Sandbox calls don't count, as in the weekly
+ * report. Timestamps go to SQL as ISO strings: the postgres-js driver cannot
+ * serialize a JS Date inside a sql template.
+ */
+async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: Date, lastMonthEnd: Date): Promise<SnapshotEntry[]> {
+  const ts = (d: Date) => sql`${d.toISOString()}::timestamptz`
+  const inLast = sql`${invocations.createdAt} >= ${ts(lastMonthStart)}`
+  const rows = await db
+    .select({
+      developerId: tools.developerId,
+      toolName: tools.name,
+      revenue: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${inLast}), 0))::int`,
+      calls: sql<number>`(count(*) filter (where ${inLast}))::int`,
+      prevRevenue: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where not ${inLast}), 0))::int`,
+      prevCalls: sql<number>`(count(*) filter (where not ${inLast}))::int`,
+    })
+    .from(invocations)
+    .innerJoin(tools, eq(invocations.toolId, tools.id))
+    .where(and(
+      eq(invocations.isTest, false),
+      gte(invocations.createdAt, ts(prevMonthStart)),
+      lt(invocations.createdAt, ts(lastMonthEnd)),
+    ))
+    .groupBy(tools.developerId, tools.name)
+
+  type Totals = { revenue: number; calls: number; prevRevenue: number; prevCalls: number; topTool: string | null; topToolRevenue: number }
+  const totalsByDev = new Map<string, Totals>()
+  for (const r of rows) {
+    const t = totalsByDev.get(r.developerId) ?? { revenue: 0, calls: 0, prevRevenue: 0, prevCalls: 0, topTool: null, topToolRevenue: 0 }
+    t.revenue += r.revenue
+    t.calls += r.calls
+    t.prevRevenue += r.prevRevenue
+    t.prevCalls += r.prevCalls
+    // Top tool: most revenue last month; ties go to the name that sorts first
+    if (r.calls > 0 && (t.topTool === null || r.revenue > t.topToolRevenue || (r.revenue === t.topToolRevenue && r.toolName < t.topTool))) {
+      t.topTool = r.toolName
+      t.topToolRevenue = r.revenue
+    }
+    totalsByDev.set(r.developerId, t)
+  }
+
+  // No email for a month without activity
+  const activeIds = [...totalsByDev].filter(([, t]) => t.calls > 0).map(([id]) => id)
+  if (activeIds.length === 0) return []
+  const devs = await db
+    .select({ id: developers.id, logRetentionDays: developers.logRetentionDays })
+    .from(developers)
+    .where(and(
+      inArray(developers.id, activeIds),
+      sql`EXISTS (SELECT 1 FROM ${tools} WHERE ${tools.developerId} = ${developers.id} AND ${tools.status} = 'active')`,
+    ))
+    .orderBy(developers.id)
+
+  return devs.map((dev) => {
+    const t = totalsByDev.get(dev.id)!
+    // The month before may be partly purged under a short log retention
+    // (0 = keep forever): then there is no trend rather than a wrong one.
+    const prevComplete = !(dev.logRetentionDays > 0 && daysBefore(now, dev.logRetentionDays) > prevMonthStart)
+    return {
+      developerId: dev.id,
+      summary: {
+        totalRevenueCents: t.revenue,
+        totalInvocations: t.calls,
+        topToolName: t.topTool,
+        topToolRevenueCents: t.topToolRevenue,
+        momRevenuePct: prevComplete && t.prevRevenue > 0 ? ((t.revenue - t.prevRevenue) / t.prevRevenue) * 100 : null,
+        momInvocationPct: prevComplete && t.prevCalls > 0 ? ((t.calls - t.prevCalls) / t.prevCalls) * 100 : null,
+      },
+    }
+  })
+}
+
 /**
  * Vercel Cron handler: sends monthly developer summary emails.
- * Runs on the 1st of each month at 00:15, 00:35 and 00:55 UTC (vercel.json): before
- * the 03:00 log purge, and a later run sends what an earlier one ran out of time for.
+ * Runs every 20 minutes on days 1–3 of each month from 00:15 UTC (vercel.json). The
+ * first run computes the month's figures before the 03:00 log purge and keeps them
+ * (a snapshot); each run sends what is left (within a 45 s budget) and retries failed
+ * sends, until every summary is sent or recorded; then later runs stop at once.
  *
  * For each developer with at least 1 active tool and calls last UTC month (one
  * email per developer and month; sandbox calls don't count):
@@ -49,7 +141,8 @@ export async function GET(request: NextRequest) {
     const startedAt = Date.now()
     const now = new Date()
 
-    // UTC calendar months: the month reported on and the month before it (for the trend)
+    // UTC calendar months: the month reported on and the month before it (for the trend).
+    // Every run on days 1–3 reports the same month.
     const lastMonthEnd = utcMonthStart(now) // 1st of this month = end of last month
     const lastMonthStart = new Date(Date.UTC(lastMonthEnd.getUTCFullYear(), lastMonthEnd.getUTCMonth() - 1, 1))
     const prevMonthStart = new Date(Date.UTC(lastMonthEnd.getUTCFullYear(), lastMonthEnd.getUTCMonth() - 2, 1))
@@ -61,149 +154,99 @@ export async function GET(request: NextRequest) {
       timeZone: 'UTC',
     })
 
-    // Per developer and tool name: last month's and the month before's revenue and
-    // calls, in one query. Sandbox (test) calls don't count, as in the weekly report.
-    // Timestamps go to SQL as ISO strings: the postgres-js driver cannot serialize a
-    // JS Date inside a sql template.
-    const ts = (d: Date) => sql`${d.toISOString()}::timestamptz`
-    const inLast = sql`${invocations.createdAt} >= ${ts(lastMonthStart)}`
-    const rows = await db
-      .select({
-        developerId: tools.developerId,
-        toolName: tools.name,
-        revenue: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${inLast}), 0))::int`,
-        calls: sql<number>`(count(*) filter (where ${inLast}))::int`,
-        prevRevenue: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where not ${inLast}), 0))::int`,
-        prevCalls: sql<number>`(count(*) filter (where not ${inLast}))::int`,
-      })
-      .from(invocations)
-      .innerJoin(tools, eq(invocations.toolId, tools.id))
-      .where(and(
-        eq(invocations.isTest, false),
-        gte(invocations.createdAt, ts(prevMonthStart)),
-        lt(invocations.createdAt, ts(lastMonthEnd)),
-      ))
-      .groupBy(tools.developerId, tools.name)
-
-    type Totals = { revenue: number; calls: number; prevRevenue: number; prevCalls: number; topTool: string | null; topToolRevenue: number }
-    const totalsByDev = new Map<string, Totals>()
-    for (const r of rows) {
-      const t = totalsByDev.get(r.developerId) ?? { revenue: 0, calls: 0, prevRevenue: 0, prevCalls: 0, topTool: null, topToolRevenue: 0 }
-      t.revenue += r.revenue
-      t.calls += r.calls
-      t.prevRevenue += r.prevRevenue
-      t.prevCalls += r.prevCalls
-      // Top tool: most revenue last month; ties go to the name that sorts first
-      if (r.calls > 0 && (t.topTool === null || r.revenue > t.topToolRevenue || (r.revenue === t.topToolRevenue && r.toolName < t.topTool))) {
-        t.topTool = r.toolName
-        t.topToolRevenue = r.revenue
-      }
-      totalsByDev.set(r.developerId, t)
+    const redis = getRedis()
+    const doneKey = `monthly-summary:done:${monthKey}`
+    if (await redis.get(doneKey)) {
+      return successResponse({ month: monthName, done: true, devsChecked: 0, emailsSent: 0, failed: 0, skipped: 0, remaining: 0 })
     }
 
-    // Developers with at least 1 active tool and calls last month (no email for a
-    // month without activity)
-    const activeIds = [...totalsByDev].filter(([, t]) => t.calls > 0).map(([id]) => id)
-    const devsWithTools = activeIds.length === 0 ? [] : await db
-      .select({
-        id: developers.id,
-        email: developers.email,
-        name: developers.name,
-        logRetentionDays: developers.logRetentionDays,
-      })
-      .from(developers)
-      .where(and(
-        inArray(developers.id, activeIds),
-        sql`EXISTS (SELECT 1 FROM ${tools} WHERE ${tools.developerId} = ${developers.id} AND ${tools.status} = 'active')`,
-      ))
-      .orderBy(developers.id)
+    // The month's figures are computed once (the first run, before the 03:00 log
+    // purge) and kept, so later runs send the same figures whatever was purged since.
+    const snapshotKey = `monthly-summary:snapshot:${monthKey}`
+    let snapshot = parseSnapshot(await redis.get(snapshotKey))
+    if (!snapshot) {
+      const computed = await computeSnapshot(now, lastMonthStart, prevMonthStart, lastMonthEnd)
+      await redis.set(snapshotKey, JSON.stringify(computed), { nx: true, ex: RECORD_TTL_SECS })
+      // An overlapping run may have stored its snapshot first: use the stored one
+      snapshot = parseSnapshot(await redis.get(snapshotKey)) ?? computed
+    }
 
-    const redis = getRedis()
+    // Names and addresses as they are now
+    const ids = snapshot.map((e) => e.developerId)
+    const contacts = new Map(
+      (ids.length === 0 ? [] : await db
+        .select({ id: developers.id, email: developers.email, name: developers.name })
+        .from(developers)
+        .where(inArray(developers.id, ids))
+      ).map((d) => [d.id, d]),
+    )
+
     let emailsSent = 0
     let remaining = 0
     let failed = 0
     let skipped = 0
+    let busy = 0
     let lastSendAt = 0
 
-    for (const dev of devsWithTools) {
-      // Stop starting sends well before the 60 s limit. Running the job again sends
-      // the rest: developers already sent this month's summary are skipped.
+    for (const entry of snapshot) {
+      // Stop starting sends well before the 60 s limit; the next run (every 20 minutes
+      // on days 1–3) carries on with the same snapshot.
       if (Date.now() - startedAt > SEND_BUDGET_MS) {
         remaining++
         continue
       }
+      const dev = contacts.get(entry.developerId)
+      if (!dev) continue // account deleted since
       try {
-        const t = totalsByDev.get(dev.id)!
-        const devName = dev.name ?? 'Developer'
-
-        // The month before may be partly purged under a short log retention
-        // (0 = keep forever): then there is no trend rather than a wrong one.
-        const prevComplete = !(dev.logRetentionDays > 0 && daysBefore(now, dev.logRetentionDays) > prevMonthStart)
-
-        // Calculate MoM trends
-        const momRevenuePct = prevComplete && t.prevRevenue > 0
-          ? ((t.revenue - t.prevRevenue) / t.prevRevenue) * 100
-          : null
-
-        const momInvocationPct = prevComplete && t.prevCalls > 0
-          ? ((t.calls - t.prevCalls) / t.prevCalls) * 100
-          : null
-
-        const summaryData: MonthlySummaryData = {
-          totalRevenueCents: t.revenue,
-          totalInvocations: t.calls,
-          topToolName: t.topTool,
-          topToolRevenueCents: t.topToolRevenue,
-          momRevenuePct,
-          momInvocationPct,
-        }
-
-        const tpl = monthlyDeveloperSummaryEmail(devName, monthName, summaryData)
-
-        // Claim this month's summary before sending (SET NX): one already sent, or
-        // being sent by an overlapping run, is skipped.
-        const sentKey = `monthly-summary:${dev.id}:${monthKey}`
-        const claimed = await redis.set(sentKey, '1', { nx: true, ex: 40 * 24 * 60 * 60 })
-        if (claimed === null) continue
-
-        const wait = lastSendAt + MIN_SEND_INTERVAL_MS - Date.now()
-        if (wait > 0) await new Promise((r) => setTimeout(r, wait))
-        lastSendAt = Date.now()
-
-        const outcome = await sendNotificationEmail({
-          developerId: dev.id,
-          eventKey: 'monthly_summary',
-          email: dev.email,
-          subject: tpl.subject,
-          html: tpl.html,
+        // Once per developer and month (lib/notification-delivery): recorded only when
+        // sent or opted out, so a failed send is retried by the next run; overlapping
+        // runs and a run killed mid-send can't send it twice.
+        const result = await deliverOnce(redis, {
+          key: `monthly-summary:${dev.id}:${monthKey}`,
+          recordTtlSecs: RECORD_TTL_SECS,
+          send: async (idempotencyKey) => {
+            const wait = lastSendAt + MIN_SEND_INTERVAL_MS - Date.now()
+            if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+            lastSendAt = Date.now()
+            const tpl = monthlyDeveloperSummaryEmail(dev.name ?? 'Developer', monthName, entry.summary)
+            return sendNotificationEmail({
+              developerId: dev.id,
+              eventKey: 'monthly_summary',
+              email: dev.email,
+              subject: tpl.subject,
+              html: tpl.html,
+              idempotencyKey,
+            })
+          },
         })
 
-        if (outcome === 'failed') {
-          // Not delivered: release the claim so the next scheduled run tries again
-          await redis.del(sentKey)
+        if (result === 'sent') emailsSent++
+        else if (result === 'opted_out') skipped++ // recorded, not counted as sent
+        else if (result === 'busy') busy++
+        else if (result === 'failed') {
           failed++
           logger.warn('cron.monthly_summary.send_failed', { developerId: dev.id })
-          continue
         }
-        if (outcome === 'opted_out') {
-          // Keep the claim: the developer turned summaries off; not counted as sent
-          skipped++
-          continue
-        }
-        emailsSent++
       } catch (devErr) {
-        // Don't let one developer failure stop the batch
+        // Don't let one developer failure stop the batch; the next run retries it
+        failed++
         logger.error('cron.monthly_summary.dev_failed', { developerId: dev.id }, devErr)
       }
     }
 
-    if (remaining > 0) {
+    if (remaining === 0 && failed === 0 && busy === 0) {
+      // Every summary for the month is sent or recorded: later runs stop at the top
+      await redis.set(doneKey, '1', { ex: RECORD_TTL_SECS })
+    } else if (now.getUTCDate() >= 3 && now.getUTCHours() === 23 && now.getUTCMinutes() >= 55) {
+      // The last scheduled run (day 3, 23:55): anything left is not retried
+      logger.error('cron.monthly_summary.undelivered', { month: monthName, remaining, failed, busy })
+    } else if (remaining > 0) {
       logger.warn('cron.monthly_summary.incomplete', { month: monthName, remaining })
     }
 
     logger.info('cron.monthly_summary.completed', {
       month: monthName,
-      devsChecked: devsWithTools.length,
+      devsChecked: snapshot.length,
       emailsSent,
       failed,
       skipped,
@@ -212,7 +255,7 @@ export async function GET(request: NextRequest) {
 
     return successResponse({
       month: monthName,
-      devsChecked: devsWithTools.length,
+      devsChecked: snapshot.length,
       emailsSent,
       failed,
       skipped,
