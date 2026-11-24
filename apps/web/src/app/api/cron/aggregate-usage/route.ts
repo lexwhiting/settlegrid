@@ -20,8 +20,10 @@ export const maxDuration = 60
  * Vercel Cron handler: checks each developer's ops this UTC month against their
  * tier limit and sends one warning email per level and month at 80%, 90% and 100%.
  * Org cost allocations are paused (see below).
- * Schedule: daily at 23:50 UTC (vercel.json), so each month's last day is checked
- * against that month.
+ * Schedule: hourly at :50 (vercel.json). A warning goes out within the hour of a
+ * level being crossed, each month's last hours are checked against that month (23:50),
+ * and a retry after a failed or cut-off send lands well inside Resend's 24 h
+ * idempotency window (lib/notification-delivery).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -137,6 +139,13 @@ export async function GET(request: NextRequest) {
         })
 
         if (result === 'delivered' || result === 'busy') continue
+        if (result === 'ambiguous') {
+          // An earlier attempt's outcome is unknown and Resend's 24 h window has passed:
+          // not resent (recorded); reconcile by hand
+          failed++
+          logger.error('cron.aggregate_usage.delivery_ambiguous', { developerId: dev.id, level })
+          continue
+        }
         if (result === 'failed') {
           failed++
           logger.warn('cron.aggregate_usage.send_failed', { developerId: dev.id, level })

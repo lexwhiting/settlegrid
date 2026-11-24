@@ -8,10 +8,11 @@ import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { deliverOnce } from '@/lib/notification-delivery'
-import { loadSnapshot, storeSnapshot, type SnapshotEntry } from '@/lib/monthly-summary-snapshot'
+import { loadSnapshot, storeSnapshot, inCaptureWindow, retainedSince, type SnapshotEntry } from '@/lib/monthly-summary-snapshot'
+import { effectiveRetentionDays, MIN_LOG_RETENTION_DAYS } from '@/lib/retention-options'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
 import { getRedis } from '@/lib/redis'
-import { utcMonthStart, utcMonthKey, daysBefore } from '@/lib/utc-periods'
+import { utcMonthStart, utcMonthKey } from '@/lib/utc-periods'
 
 export const maxDuration = 60
 
@@ -81,12 +82,21 @@ async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: 
     ))
     .orderBy(developers.id)
 
-  return devs.map((dev) => {
+  const entries: SnapshotEntry[] = []
+  let partlyPurged = 0
+  for (const dev of devs) {
     const t = totalsByDev.get(dev.id)!
-    // The month before may be partly purged under a short log retention
-    // (0 = keep forever): then there is no trend rather than a wrong one.
-    const prevComplete = !(dev.logRetentionDays > 0 && daysBefore(now, dev.logRetentionDays) > prevMonthStart)
-    return {
+    // What the last purge kept under this developer's log retention (0 = forever)
+    const kept = retainedSince(now, effectiveRetentionDays(dev.logRetentionDays, MIN_LOG_RETENTION_DAYS))
+    if (kept && kept > lastMonthStart) {
+      // Part of the reported month is already purged: no summary rather than
+      // understated totals (30-day retention after a 31-day month)
+      partlyPurged++
+      continue
+    }
+    // The month before may be partly purged: then no trend rather than a wrong one
+    const prevComplete = !(kept && kept > prevMonthStart)
+    entries.push({
       developerId: dev.id,
       summary: {
         totalRevenueCents: t.revenue,
@@ -96,17 +106,22 @@ async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: 
         momRevenuePct: prevComplete && t.prevRevenue > 0 ? ((t.revenue - t.prevRevenue) / t.prevRevenue) * 100 : null,
         momInvocationPct: prevComplete && t.prevCalls > 0 ? ((t.calls - t.prevCalls) / t.prevCalls) * 100 : null,
       },
-    }
-  })
+    })
+  }
+  if (partlyPurged > 0) {
+    logger.warn('cron.monthly_summary.partly_purged', { developers: partlyPurged })
+  }
+  return entries
 }
 
 /**
  * Vercel Cron handler: sends monthly developer summary emails.
  * Runs every 20 minutes through the month from 00:15 UTC on the 1st (vercel.json);
- * every run in a month reports the month before. The first run computes the figures
- * before the 03:00 log purge and keeps them (a snapshot); each run sends what is left
- * (within a 45 s budget) and retries failed sends, until every summary is sent or
- * recorded; then later runs stop at once (one Redis read).
+ * every run in a month reports the month before. The figures are captured only on
+ * the 1st before the 03:00 log purge (nine runs from 00:15 to 02:55) and kept (a
+ * snapshot); a month whose capture was missed is logged and not sent. Each run sends
+ * what is left (within a 45 s budget) and retries failed sends, until every summary is
+ * sent or recorded; then later runs stop at once (one Redis read).
  *
  * For each developer with at least 1 active tool and calls last UTC month (one
  * email per developer and month; sandbox calls don't count):
@@ -152,13 +167,28 @@ export async function GET(request: NextRequest) {
       return successResponse({ month: monthName, done: true, devsChecked: 0, emailsSent: 0, failed: 0, skipped: 0, remaining: 0 })
     }
 
-    // The month's figures are computed once (the first run, before the 03:00 log
-    // purge) and kept (lib/monthly-summary-snapshot), so later runs send the same
-    // figures whatever was purged since.
-    let snapshot = await loadSnapshot(redis, monthKey)
+    // The month's figures are captured once, only while last month's logs are known
+    // complete (the 1st, before the 03:00 purge), and kept (lib/monthly-summary-snapshot):
+    // later runs send the same figures whatever was purged since.
+    const state = await loadSnapshot(redis, monthKey)
+    let snapshot: SnapshotEntry[] | null = state.status === 'ok' ? state.entries : null
     if (!snapshot) {
+      if (!inCaptureWindow(now)) {
+        // Missed the capture (e.g. first deployed mid-month) or the stored figures are
+        // incomplete: send nothing rather than figures from partly purged logs, and
+        // don't mark the month done. Logged once per month.
+        if (await redis.set(`monthly-summary:not-captured:${monthKey}`, '1', { nx: true, ex: RECORD_TTL_SECS })) {
+          logger.error('cron.monthly_summary.not_captured', { month: monthName, snapshot: state.status })
+        }
+        return successResponse({ month: monthName, captured: false, devsChecked: 0, emailsSent: 0, failed: 0, skipped: 0, remaining: 0 })
+      }
       const computed = await computeSnapshot(now, lastMonthStart, prevMonthStart, lastMonthEnd)
       snapshot = await storeSnapshot(redis, monthKey, computed, RECORD_TTL_SECS)
+      if (!snapshot) {
+        // Not readable back: send nothing; the next run in the window tries again
+        logger.error('cron.monthly_summary.snapshot_unreadable', { month: monthName })
+        return errorResponse('Snapshot could not be stored', 503, 'SNAPSHOT_UNAVAILABLE')
+      }
     }
 
     // Skip what is already delivered with batched reads, so a run's 45 s go to the
@@ -186,6 +216,7 @@ export async function GET(request: NextRequest) {
     let failed = 0
     let skipped = 0
     let busy = 0
+    let ambiguous = 0
     let lastSendAt = 0
 
     for (const entry of pending) {
@@ -223,7 +254,12 @@ export async function GET(request: NextRequest) {
         if (result === 'sent') emailsSent++
         else if (result === 'opted_out') skipped++ // recorded, not counted as sent
         else if (result === 'busy') busy++
-        else if (result === 'failed') {
+        else if (result === 'ambiguous') {
+          // An earlier attempt's outcome is unknown and Resend's 24 h window has passed:
+          // not resent (recorded); reconcile by hand
+          ambiguous++
+          logger.error('cron.monthly_summary.delivery_ambiguous', { developerId: dev.id, month: monthName })
+        } else if (result === 'failed') {
           failed++
           logger.warn('cron.monthly_summary.send_failed', { developerId: dev.id })
         }
@@ -251,6 +287,7 @@ export async function GET(request: NextRequest) {
       emailsSent,
       failed,
       skipped,
+      ambiguous,
       remaining,
     })
 
@@ -260,6 +297,7 @@ export async function GET(request: NextRequest) {
       emailsSent,
       failed,
       skipped,
+      ambiguous,
       remaining,
     })
   } catch (error) {

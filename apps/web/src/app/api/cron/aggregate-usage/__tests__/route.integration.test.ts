@@ -177,7 +177,8 @@ describe('cron aggregate-usage (pglite)', () => {
     try {
       const first = await run()
       expect(first).toMatchObject({ alertsSent: 0, failed: 1, skipped: 1 })
-      expect([...holder.store.keys()]).toEqual([`usage-alert:${AT_80}:2026-11:90`]) // AT_100's claim released
+      // AT_100 not recorded (retried); its first attempt is remembered; claims released
+      expect([...holder.store.keys()].sort()).toEqual([`usage-alert:${AT_100}:2026-11:100:attempt`, `usage-alert:${AT_80}:2026-11:90`].sort())
     } finally {
       holder.send.mockImplementation(async () => 'sent')
     }

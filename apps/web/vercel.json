@@ -25,7 +25,7 @@
     },
     {
       "path": "/api/cron/aggregate-usage",
-      "schedule": "50 23 * * *"
+      "schedule": "50 * * * *"
     },
     {
       "path": "/api/cron/quality-check",

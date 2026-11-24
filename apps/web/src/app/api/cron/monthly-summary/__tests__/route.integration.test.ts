@@ -70,8 +70,9 @@ const BOOTSTRAP_SQL = `
     created_at timestamptz NOT NULL);
 `
 
-// 1 December 03:00 UTC is still 30 November in Los Angeles: the report is on November.
-const NOW = new Date('2026-12-01T03:00:00.000Z')
+// 1 December 02:00 UTC (inside the capture window, before the 03:00 purge) is still
+// 30 November in Los Angeles: the report is on November.
+const NOW = new Date('2026-12-01T02:00:00.000Z')
 const CONSUMER = 'c0000000-0000-4000-8000-000000000001'
 const ACTIVE = 'd0000000-0000-4000-8000-000000000001'
 const QUIET = 'd0000000-0000-4000-8000-000000000002' // calls in October only
@@ -163,7 +164,7 @@ describe('cron monthly-summary (pglite)', () => {
     const crons = vercel.crons as Array<{ path: string; schedule: string }>
     expect(crons.find((c) => c.path === '/api/cron/monthly-summary')?.schedule).toBe('15,35,55 * * * *')
     expect(crons.find((c) => c.path === '/api/cron/data-retention')?.schedule).toBe('0 3 * * *')
-    expect(crons.find((c) => c.path === '/api/cron/aggregate-usage')?.schedule).toBe('50 23 * * *')
+    expect(crons.find((c) => c.path === '/api/cron/aggregate-usage')?.schedule).toBe('50 * * * *')
   })
 
   it("reports last UTC month's figures to developers with activity and an active tool", async () => {
@@ -287,6 +288,65 @@ describe('cron monthly-summary (pglite)', () => {
       const after = await run()
       expect(after).toMatchObject({ done: true, emailsSent: 0 })
       expect(holder.send).not.toHaveBeenCalled()
+    } finally {
+      vi.setSystemTime(NOW)
+    }
+  }, 20_000)
+
+  it('a fresh cache outside the capture window (after the purge, or a mid-month deploy) sends nothing and does not mark the month done', async () => {
+    // State after the previous test: November's invocations are purged
+    holder.store.clear()
+    holder.send.mockClear()
+    vi.setSystemTime(new Date('2026-12-02T10:15:00.000Z'))
+    try {
+      const first = await run()
+      expect(first).toMatchObject({ month: 'November 2026', captured: false, emailsSent: 0 })
+      expect(holder.send).not.toHaveBeenCalled()
+      expect(holder.store.has('monthly-summary:done:2026-11')).toBe(false)
+      expect([...holder.store.keys()].filter((k) => k.startsWith('monthly-summary:snapshot:'))).toEqual([]) // nothing captured
+      expect(holder.store.has('monthly-summary:not-captured:2026-11')).toBe(true) // logged once
+      const again = await run()
+      expect(again).toMatchObject({ captured: false, emailsSent: 0 })
+      expect(holder.send).not.toHaveBeenCalled()
+    } finally {
+      vi.setSystemTime(NOW)
+    }
+  }, 20_000)
+
+  it('an incomplete stored snapshot outside the window fails closed: nothing recomputed or sent', async () => {
+    // Restore some November data, capture it inside the window, then lose a chunk
+    await pg.query('DELETE FROM invocations')
+    await calls(T_SEARCH, 4, 50, '2026-11-01T00:00:00Z')
+    await calls(T_ALPHA, 1, 20, '2026-11-20T00:00:00Z')
+    holder.store.clear()
+    holder.send.mockImplementationOnce(async () => { vi.setSystemTime(new Date(NOW.getTime() + 50_000)); return 'sent' })
+    expect(await run()).toMatchObject({ emailsSent: 1, remaining: 1 }) // captured; one summary left
+    const chunk = [...holder.store.keys()].find((k) => /^monthly-summary:snapshot:2026-11:.+:0$/.test(k))!
+    holder.store.delete(chunk)
+    vi.setSystemTime(new Date('2026-12-02T10:15:00.000Z'))
+    try {
+      holder.send.mockClear()
+      const later = await run()
+      expect(later).toMatchObject({ captured: false, emailsSent: 0 })
+      expect(holder.send).not.toHaveBeenCalled()
+      expect(holder.store.has('monthly-summary:done:2026-11')).toBe(false)
+    } finally {
+      vi.setSystemTime(NOW)
+    }
+  }, 20_000)
+
+  it('after a 31-day month, a developer on 30-day retention (day 1 partly purged) gets no summary rather than understated totals', async () => {
+    await pg.query('DELETE FROM invocations')
+    await calls(T_SEARCH, 2, 50, '2026-12-01T01:00:00Z') // ACTIVE (90-day retention)
+    await calls(T_ALPHA, 2, 20, '2026-12-15T00:00:00Z') // TIED (30-day retention): 1–3 Dec 03:00 may be gone
+    holder.store.clear()
+    holder.send.mockClear()
+    holder.template.mockClear()
+    vi.setSystemTime(new Date('2027-01-01T01:00:00.000Z'))
+    try {
+      const body = await run()
+      expect(body).toMatchObject({ month: 'December 2026', devsChecked: 1, emailsSent: 1 })
+      expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([ACTIVE])
     } finally {
       vi.setSystemTime(NOW)
     }
