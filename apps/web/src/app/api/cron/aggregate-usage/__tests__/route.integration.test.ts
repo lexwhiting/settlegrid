@@ -42,7 +42,10 @@ vi.mock('@/lib/redis', () => ({
     del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
   }),
 }))
-vi.mock('@/lib/notifications', () => ({ sendNotificationEmail: (...a: unknown[]) => holder.send(...a) }))
+vi.mock('@/lib/notifications', () => ({
+  sendNotificationEmail: (...a: unknown[]) => holder.send(...a),
+  sendNotificationEmailResult: (...a: unknown[]) => holder.send(...a),
+}))
 vi.mock('@/lib/rate-limit', () => ({
   getClientIp: () => 'test-ip',
   apiLimiter: {},
@@ -173,7 +176,7 @@ describe('cron aggregate-usage (pglite)', () => {
 
   it('a failed send releases its claim and is sent by the next run; an opted-out one is not counted or retried', async () => {
     holder.store.clear()
-    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'failed' : 'opted_out'))
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'unknown' : 'opted_out'))
     try {
       const first = await run()
       expect(first).toMatchObject({ alertsSent: 0, failed: 1, skipped: 1 })

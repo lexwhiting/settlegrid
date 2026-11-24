@@ -74,6 +74,7 @@ import {
   escapeHtml,
   formatCurrency,
   sendEmail,
+  sendEmailResult,
   FROM_TRANSACTIONAL,
 } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -398,15 +399,20 @@ describe('sendEmail', () => {
     expect('Idempotency-Key' in withoutKey.headers).toBe(false)
   })
 
-  it("counts Resend's 409 invalid_idempotent_request (key used on an accepted email) as sent, only with a key", async () => {
-    const conflict = { ok: false, status: 409, text: async () => '{"statusCode":409,"name":"invalid_idempotent_request","message":"used with a different payload"}' }
-    global.fetch = vi.fn().mockResolvedValue(conflict)
-    expect(await sendEmail({ to: 'u@test.com', subject: 'T', html: '<p>H</p>', idempotencyKey: 'k' })).toBe(true)
-    expect(await sendEmail({ to: 'u@test.com', subject: 'T', html: '<p>H</p>' })).toBe(false)
+  it('sendEmailResult tells refused (nothing sent) from unknown (may have been accepted)', async () => {
+    const reply = (status: number) => vi.fn().mockResolvedValue({ ok: status < 400, status, text: async () => '{}' })
+    const params = { to: 'u@test.com', subject: 'T', html: '<p>H</p>', idempotencyKey: 'k' }
+    for (const [status, result] of [[200, 'sent'], [401, 'not_sent'], [403, 'not_sent'], [422, 'not_sent'], [429, 'not_sent'],
+      [408, 'unknown'], [409, 'unknown'], [500, 'unknown'], [503, 'unknown']] as const) {
+      global.fetch = reply(status)
+      expect(await sendEmailResult(params), String(status)).toBe(result)
+    }
+    global.fetch = vi.fn().mockRejectedValue(new Error('socket hang up'))
+    expect(await sendEmailResult(params)).toBe('unknown')
   })
 
-  it("treats Resend's 409 concurrent_idempotent_requests as failed (retried later)", async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 409, text: async () => '{"statusCode":409,"name":"concurrent_idempotent_requests"}' })
+  it('sendEmail is true only when Resend accepted the email (a 409 is not counted as sent)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 409, text: async () => '{"name":"invalid_idempotent_request"}' })
     expect(await sendEmail({ to: 'u@test.com', subject: 'T', html: '<p>H</p>', idempotencyKey: 'k' })).toBe(false)
   })
 

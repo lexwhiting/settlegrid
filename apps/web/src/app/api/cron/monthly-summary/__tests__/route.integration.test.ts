@@ -49,7 +49,10 @@ vi.mock('@/lib/redis', () => ({
     del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
   }),
 }))
-vi.mock('@/lib/notifications', () => ({ sendNotificationEmail: (...a: unknown[]) => holder.send(...a) }))
+vi.mock('@/lib/notifications', () => ({
+  sendNotificationEmail: (...a: unknown[]) => holder.send(...a),
+  sendNotificationEmailResult: (...a: unknown[]) => holder.send(...a),
+}))
 vi.mock('@/lib/email', () => ({ monthlyDeveloperSummaryEmail: (...a: unknown[]) => holder.template(...a) }))
 vi.mock('@/lib/rate-limit', () => ({
   getClientIp: () => 'test-ip',
@@ -102,6 +105,7 @@ async function run() {
   expect(res.status).toBe(200)
   return res.json()
 }
+const runStatus = async () => (await GET(new NextRequest('http://localhost:3005/api/cron/monthly-summary'))).status
 
 beforeAll(async () => {
   savedTz = process.env.TZ
@@ -227,7 +231,7 @@ describe('cron monthly-summary (pglite)', () => {
 
   it('a failed send releases its claim and is sent by the next run; an opted-out one is not counted or retried', async () => {
     holder.store.clear()
-    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === ACTIVE ? 'failed' : 'opted_out'))
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === ACTIVE ? 'unknown' : 'opted_out'))
     try {
       const first = await run()
       expect(first).toMatchObject({ emailsSent: 0, failed: 1, skipped: 1 })
@@ -299,8 +303,7 @@ describe('cron monthly-summary (pglite)', () => {
     holder.send.mockClear()
     vi.setSystemTime(new Date('2026-12-02T10:15:00.000Z'))
     try {
-      const first = await run()
-      expect(first).toMatchObject({ month: 'November 2026', captured: false, emailsSent: 0 })
+      expect(await runStatus()).toBe(503) // the first miss fails the cron run, so it shows
       expect(holder.send).not.toHaveBeenCalled()
       expect(holder.store.has('monthly-summary:done:2026-11')).toBe(false)
       expect([...holder.store.keys()].filter((k) => k.startsWith('monthly-summary:snapshot:'))).toEqual([]) // nothing captured
@@ -326,8 +329,8 @@ describe('cron monthly-summary (pglite)', () => {
     vi.setSystemTime(new Date('2026-12-02T10:15:00.000Z'))
     try {
       holder.send.mockClear()
-      const later = await run()
-      expect(later).toMatchObject({ captured: false, emailsSent: 0 })
+      expect(await runStatus()).toBe(503)
+      expect(await run()).toMatchObject({ captured: false, emailsSent: 0 })
       expect(holder.send).not.toHaveBeenCalled()
       expect(holder.store.has('monthly-summary:done:2026-11')).toBe(false)
     } finally {
@@ -350,5 +353,18 @@ describe('cron monthly-summary (pglite)', () => {
     } finally {
       vi.setSystemTime(NOW)
     }
+  }, 20_000)
+
+  it("a developer whose month a recorded purge already reached (an early run, or a retention change) is left out", async () => {
+    await pg.query('DELETE FROM invocations')
+    await calls(T_SEARCH, 2, 50, '2026-11-20T00:00:00Z') // ACTIVE (90-day retention)
+    await calls(T_ALPHA, 2, 20, '2026-11-20T00:00:00Z') // TIED
+    holder.store.clear()
+    holder.send.mockClear()
+    // The purge recorded a cutoff inside November for ACTIVE (it ran early, with a shorter retention)
+    holder.store.set(`retention:invocations-cutoff:${ACTIVE}`, '2026-11-05T00:00:00.000Z')
+    const body = await run()
+    expect(body).toMatchObject({ month: 'November 2026', devsChecked: 1, emailsSent: 1 })
+    expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([TIED])
   }, 20_000)
 })

@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getRedis } from '@/lib/redis'
 import { usageWarning80Email, usageWarning90Email, usageExceededEmail } from '@/lib/email'
-import { sendNotificationEmail } from '@/lib/notifications'
+import { sendNotificationEmailResult } from '@/lib/notifications'
 import { deliverOnce } from '@/lib/notification-delivery'
 import { utcMonthStart, utcNextMonthStart, utcMonthKey } from '@/lib/utc-periods'
 import { getEffectiveTier, getTierConfig, TIER_LIMITS } from '@/lib/tier-config'
@@ -123,17 +123,18 @@ export async function GET(request: NextRequest) {
         }
 
         // Once per level and month (lib/notification-delivery): recorded only when sent
-        // or opted out, so a failed send is tried again tomorrow; overlapping runs and
+        // or opted out, so a failed send is tried again next hour; overlapping runs and
         // a run killed mid-send can't send it twice.
         const result = await deliverOnce(redis, {
           key: `usage-alert:${dev.id}:${monthKey}:${level}`,
           recordTtlSecs: 31 * 24 * 60 * 60,
-          send: (idempotencyKey) => sendNotificationEmail({
+          render: () => email,
+          send: (payload, idempotencyKey) => sendNotificationEmailResult({
             developerId: dev.id,
             eventKey: 'usage_alert',
             email: dev.email,
-            subject: email.subject,
-            html: email.html,
+            subject: payload.subject,
+            html: payload.html,
             idempotencyKey,
           }),
         })
@@ -165,7 +166,7 @@ export async function GET(request: NextRequest) {
           usagePct: Math.round(usagePct),
         })
       } catch (devErr) {
-        // Don't let one developer failure stop the batch; tomorrow's run retries it
+        // Don't let one developer failure stop the batch; the next run retries it
         failed++
         logger.error('cron.aggregate_usage.dev_alert_failed', { developerId: dev.id }, devErr)
       }

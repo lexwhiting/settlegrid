@@ -9,29 +9,42 @@
  *   expires on its own (10 minutes, far longer than a run's 60 s limit), so a run
  *   killed between claiming and recording (a timeout, a crash) doesn't block the
  *   next run.
- * - The send carries `key` as Resend's Idempotency-Key, which Resend honours for 24
- *   hours: a retry within that window is not sent again if an earlier attempt got the
- *   email out.
- * - `${key}:attempt` keeps the time of the first attempt. If a send failed, threw or
- *   was cut off, its outcome is unknown (Resend may have accepted it). Retries go
- *   ahead only while the first attempt is under SAFE_RETRY_MS old, inside Resend's
- *   window. After that, the delivery is recorded as 'ambiguous' and never sent again:
- *   the caller logs it for reconciliation rather than risk a second email. Callers run
- *   often (hourly or more), so a retry normally lands well inside the window.
+ * - `${key}:attempt` keeps the first attempt that may have reached Resend: its time
+ *   and the exact subject and HTML. A retry resends that same payload with `key` as
+ *   Resend's Idempotency-Key, which Resend honours for 24 hours: if an earlier attempt
+ *   got the email out, the retry is not sent again.
+ * - A send Resend provably refused (`not_sent`) clears the attempt it started, so a
+ *   long run of refusals (a bad API key) is simply retried. An attempt whose outcome
+ *   is unknown (`unknown`, a throw, a killed run) stays. Retries go ahead only while
+ *   it is under SAFE_RETRY_MS old, inside Resend's window. After that the delivery is
+ *   recorded as 'ambiguous' and never sent again: the caller logs it for
+ *   reconciliation rather than risk a second email. Callers run hourly or more often,
+ *   so a retry normally lands well inside the window.
  */
 import { randomUUID } from 'node:crypto'
 import type { Redis } from '@upstash/redis'
-import type { NotificationOutcome } from '@/lib/notifications'
+import type { SendEmailResult } from '@/lib/email'
 
 /** The subset of the Upstash client used here. */
 export type DeliveryRedis = Pick<Redis, 'get' | 'set' | 'del'>
 
+export interface DeliveryPayload {
+  subject: string
+  html: string
+}
+
+/** What a send reports: the email's fate, or that the developer opted out. */
+export type SendOutcome = 'opted_out' | SendEmailResult
+
 /**
- * `delivered`: already sent, opted out or given up earlier; `busy`: another run is
- * sending it; `ambiguous`: an earlier attempt's outcome is unknown and Resend's
- * idempotency window has passed, so it is not sent again (logged by the caller).
+ * - `sent` / `opted_out`: done (recorded).
+ * - `failed`: not sent this time, or not known to be; a later run retries it.
+ * - `delivered`: already sent, opted out or given up earlier.
+ * - `busy`: another run is sending it.
+ * - `ambiguous`: an earlier attempt's outcome is unknown and Resend's idempotency
+ *   window has passed, so it is not sent again (recorded; the caller logs it).
  */
-export type DeliveryResult = NotificationOutcome | 'delivered' | 'busy' | 'ambiguous'
+export type DeliveryResult = 'sent' | 'opted_out' | 'failed' | 'delivered' | 'busy' | 'ambiguous'
 
 /** Long enough for one send; shorter than the gap between runs. */
 export const IN_FLIGHT_TTL_SECS = 10 * 60
@@ -39,14 +52,27 @@ export const IN_FLIGHT_TTL_SECS = 10 * 60
 /** Retries reuse the idempotency key only inside Resend's 24 h window, with an hour's margin. */
 export const SAFE_RETRY_MS = 23 * 60 * 60 * 1000
 
+interface Attempt extends DeliveryPayload {
+  at: number
+}
+
+/** Upstash returns stored JSON already parsed; other clients return the string. */
+function parsedAttempt(raw: unknown): Attempt | null {
+  if (raw == null) return null
+  const value = typeof raw === 'string' ? JSON.parse(raw) : raw
+  return value && typeof value === 'object' && typeof (value as Attempt).at === 'number' ? (value as Attempt) : null
+}
+
 export async function deliverOnce(
   redis: DeliveryRedis,
   opts: {
     key: string
     /** How long the result is remembered (the period, plus a margin). */
     recordTtlSecs: number
-    /** Sends the email with the given Resend idempotency key. Should not throw. */
-    send: (idempotencyKey: string) => Promise<NotificationOutcome>
+    /** Builds the email; called only when there is no earlier attempt to resend. */
+    render: () => DeliveryPayload
+    /** Sends `payload` with the given Resend idempotency key. Should not throw. */
+    send: (payload: DeliveryPayload, idempotencyKey: string) => Promise<SendOutcome>
   },
 ): Promise<DeliveryResult> {
   if (await redis.get(opts.key)) return 'delivered'
@@ -61,27 +87,34 @@ export async function deliverOnce(
     if (await redis.get(opts.key)) return 'delivered'
 
     const attemptKey = `${opts.key}:attempt`
-    const firstAttempt = await redis.get(attemptKey)
-    if (firstAttempt != null) {
-      // An earlier attempt failed, threw or was cut off: it may have been accepted
-      if (Date.now() - Number(firstAttempt) > SAFE_RETRY_MS) {
+    let attempt = parsedAttempt(await redis.get(attemptKey))
+    let startedHere = false
+    if (attempt) {
+      if (Date.now() - attempt.at > SAFE_RETRY_MS) {
         await redis.set(opts.key, 'ambiguous', { ex: opts.recordTtlSecs })
         return 'ambiguous'
       }
     } else {
-      await redis.set(attemptKey, String(Date.now()), { ex: opts.recordTtlSecs })
+      attempt = { at: Date.now(), ...opts.render() }
+      startedHere = true
+      await redis.set(attemptKey, JSON.stringify(attempt), { ex: opts.recordTtlSecs })
     }
 
-    const outcome = await opts.send(opts.key)
-    if (outcome !== 'failed') {
+    const outcome = await opts.send({ subject: attempt.subject, html: attempt.html }, opts.key)
+    if (outcome === 'sent' || outcome === 'opted_out') {
       await redis.set(opts.key, outcome, { ex: opts.recordTtlSecs })
       await redis.del(attemptKey)
+      return outcome
     }
-    return outcome
+    // Refused outright: nothing went out on this attempt. Forget it if it started here,
+    // so a long run of refusals is retried rather than given up on.
+    if (outcome === 'not_sent' && startedHere) await redis.del(attemptKey)
+    return 'failed'
   } finally {
     // Released whatever happened (only if still ours): a failed send is retried by
     // the next run, and a sent one is recorded above (or, if recording threw, a retry
-    // inside the window reuses the idempotency key and Resend doesn't send it again).
+    // inside the window resends the same payload and key, which Resend doesn't send
+    // again).
     try {
       if ((await redis.get(inFlight)) === token) await redis.del(inFlight)
     } catch {

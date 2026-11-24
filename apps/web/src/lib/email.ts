@@ -30,12 +30,8 @@ export interface InvoiceItem {
 
 // ── Send helper ──────────────────────────────────────────────────────────────
 
-/**
- * Send an email via the Resend HTTP API.
- * Returns true if the email was accepted (or Resend is not configured in dev).
- * Never throws — logs errors and returns false on failure.
- */
-export async function sendEmail(params: {
+/** Parameters for a Resend send. */
+export interface SendEmailParams {
   to: string | string[]
   subject: string
   html: string
@@ -44,7 +40,19 @@ export async function sendEmail(params: {
   headers?: Record<string, string>
   /** Resend Idempotency-Key (1–256 chars): the same key and payload within 24 hours is not sent again. */
   idempotencyKey?: string
-}): Promise<boolean> {
+}
+
+/**
+ * - `sent`: Resend accepted the email.
+ * - `not_sent`: Resend answered and refused it (a 4xx other than 408 and 409, e.g. a bad
+ *   key, a validation error or a 429 rate limit), so nothing went out.
+ * - `unknown`: no answer, or one that doesn't rule out acceptance (a 5xx, 408, 409, a
+ *   network error or timeout).
+ */
+export type SendEmailResult = 'sent' | 'not_sent' | 'unknown'
+
+/** Sends via Resend and says whether the email went out. Never throws. */
+export async function sendEmailResult(params: SendEmailParams): Promise<SendEmailResult> {
   let resendApiKey: string | null = null
   try {
     resendApiKey = getResendApiKey()
@@ -54,7 +62,7 @@ export async function sendEmail(params: {
 
   if (!resendApiKey) {
     logger.info('email.skipped', { to: params.to, subject: params.subject })
-    return true
+    return 'sent'
   }
 
   try {
@@ -77,27 +85,30 @@ export async function sendEmail(params: {
 
     if (!res.ok) {
       const body = await res.text().catch(() => 'unknown')
-      // Resend: this idempotency key was already used, with a different payload, on an
-      // email it accepted, so the email went out earlier (e.g. a figure changed between
-      // a killed run and its retry). Not resent; counts as sent.
-      if (params.idempotencyKey && res.status === 409 && body.includes('invalid_idempotent_request')) {
-        logger.info('email.already_sent', { to: params.to, idempotencyKey: params.idempotencyKey })
-        return true
-      }
       logger.error('email.send_failed', {
         status: res.status,
         body,
         to: params.to,
       })
-      return false
+      const refused = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 409
+      return refused ? 'not_sent' : 'unknown'
     }
 
     logger.info('email.sent', { to: params.to, subject: params.subject })
-    return true
+    return 'sent'
   } catch (err) {
     logger.error('email.send_error', { to: params.to }, err)
-    return false
+    return 'unknown'
   }
+}
+
+/**
+ * Send an email via the Resend HTTP API.
+ * Returns true if the email was accepted (or Resend is not configured in dev).
+ * Never throws — logs errors and returns false on failure.
+ */
+export async function sendEmail(params: SendEmailParams): Promise<boolean> {
+  return (await sendEmailResult(params)) === 'sent'
 }
 
 // ── Design system components ─────────────────────────────────────────────────

@@ -6,12 +6,15 @@ import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { sendNotificationEmail } from '@/lib/notifications'
+import { sendNotificationEmailResult } from '@/lib/notifications'
 import { deliverOnce } from '@/lib/notification-delivery'
-import { loadSnapshot, storeSnapshot, inCaptureWindow, retainedSince, type SnapshotEntry } from '@/lib/monthly-summary-snapshot'
+import {
+  loadSnapshot, storeSnapshot, inCaptureWindow, keptSince, invocationsCutoffKey, type SnapshotEntry,
+} from '@/lib/monthly-summary-snapshot'
 import { effectiveRetentionDays, MIN_LOG_RETENTION_DAYS } from '@/lib/retention-options'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
 import { getRedis } from '@/lib/redis'
+import type { Redis } from '@upstash/redis'
 import { utcMonthStart, utcMonthKey } from '@/lib/utc-periods'
 
 export const maxDuration = 60
@@ -33,7 +36,7 @@ const MGET_CHUNK = 100
  * report. Timestamps go to SQL as ISO strings: the postgres-js driver cannot
  * serialize a JS Date inside a sql template.
  */
-async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: Date, lastMonthEnd: Date): Promise<SnapshotEntry[]> {
+async function computeSnapshot(redis: Redis, now: Date, lastMonthStart: Date, prevMonthStart: Date, lastMonthEnd: Date): Promise<SnapshotEntry[]> {
   const ts = (d: Date) => sql`${d.toISOString()}::timestamptz`
   const inLast = sql`${invocations.createdAt} >= ${ts(lastMonthStart)}`
   const rows = await db
@@ -82,16 +85,26 @@ async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: 
     ))
     .orderBy(developers.id)
 
+  // The cutoffs the purge actually used, where recorded (data-retention cron)
+  const recorded = new Map<string, Date>()
+  for (let i = 0; i < devs.length; i += MGET_CHUNK) {
+    const chunk = devs.slice(i, i + MGET_CHUNK)
+    const values = await redis.mget<unknown[]>(...chunk.map((d) => invocationsCutoffKey(d.id)))
+    chunk.forEach((d, j) => {
+      const at = values[j] != null ? new Date(String(values[j])) : null
+      if (at && !Number.isNaN(at.getTime())) recorded.set(d.id, at)
+    })
+  }
   const entries: SnapshotEntry[] = []
-  let partlyPurged = 0
+  const notComplete: string[] = []
   for (const dev of devs) {
     const t = totalsByDev.get(dev.id)!
-    // What the last purge kept under this developer's log retention (0 = forever)
-    const kept = retainedSince(now, effectiveRetentionDays(dev.logRetentionDays, MIN_LOG_RETENTION_DAYS))
+    // What is still there for this developer (null: everything)
+    const kept = keptSince(now, effectiveRetentionDays(dev.logRetentionDays, MIN_LOG_RETENTION_DAYS), recorded.get(dev.id) ?? null)
     if (kept && kept > lastMonthStart) {
-      // Part of the reported month is already purged: no summary rather than
-      // understated totals (30-day retention after a 31-day month)
-      partlyPurged++
+      // Part of the reported month is purged (e.g. 30-day retention after a 31-day
+      // month, or a purge that ran early): no summary rather than understated totals
+      notComplete.push(dev.id)
       continue
     }
     // The month before may be partly purged: then no trend rather than a wrong one
@@ -108,8 +121,8 @@ async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: 
       },
     })
   }
-  if (partlyPurged > 0) {
-    logger.warn('cron.monthly_summary.partly_purged', { developers: partlyPurged })
+  if (notComplete.length > 0) {
+    logger.error('cron.monthly_summary.not_complete', { count: notComplete.length, developerIds: notComplete })
   }
   return entries
 }
@@ -117,9 +130,9 @@ async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: 
 /**
  * Vercel Cron handler: sends monthly developer summary emails.
  * Runs every 20 minutes through the month from 00:15 UTC on the 1st (vercel.json);
- * every run in a month reports the month before. The figures are captured only on
- * the 1st before the 03:00 log purge (nine runs from 00:15 to 02:55) and kept (a
- * snapshot); a month whose capture was missed is logged and not sent. Each run sends
+ * every run in a month reports the month before. The figures are captured on the 1st
+ * before the 03:00 log purge (nine runs from 00:15 to 02:55) and kept (a snapshot). A
+ * month not captured in that window is logged (with a failing status) and not sent. Each run sends
  * what is left (within a 45 s budget) and retries failed sends, until every summary is
  * sent or recorded; then later runs stop at once (one Redis read).
  *
@@ -174,15 +187,19 @@ export async function GET(request: NextRequest) {
     let snapshot: SnapshotEntry[] | null = state.status === 'ok' ? state.entries : null
     if (!snapshot) {
       if (!inCaptureWindow(now)) {
-        // Missed the capture (e.g. first deployed mid-month) or the stored figures are
-        // incomplete: send nothing rather than figures from partly purged logs, and
-        // don't mark the month done. Logged once per month.
+        // Missed the capture (e.g. first deployed mid-month, or every run in the window
+        // failed) or the stored figures are incomplete: send nothing rather than figures
+        // from partly purged logs, and don't mark the month done. Logged once per month,
+        // with a failing status so the cron run shows it.
         if (await redis.set(`monthly-summary:not-captured:${monthKey}`, '1', { nx: true, ex: RECORD_TTL_SECS })) {
           logger.error('cron.monthly_summary.not_captured', { month: monthName, snapshot: state.status })
+          return errorResponse(`Monthly summary for ${monthName} was not captured`, 503, 'NOT_CAPTURED')
         }
         return successResponse({ month: monthName, captured: false, devsChecked: 0, emailsSent: 0, failed: 0, skipped: 0, remaining: 0 })
       }
-      const computed = await computeSnapshot(now, lastMonthStart, prevMonthStart, lastMonthEnd)
+      // In the window, before the day's purge; developers whose month an earlier purge
+      // already reached are left out (computeSnapshot)
+      const computed = await computeSnapshot(redis, now, lastMonthStart, prevMonthStart, lastMonthEnd)
       snapshot = await storeSnapshot(redis, monthKey, computed, RECORD_TTL_SECS)
       if (!snapshot) {
         // Not readable back: send nothing; the next run in the window tries again
@@ -235,17 +252,17 @@ export async function GET(request: NextRequest) {
         const result = await deliverOnce(redis, {
           key: deliveryKey(dev.id),
           recordTtlSecs: RECORD_TTL_SECS,
-          send: async (idempotencyKey) => {
+          render: () => monthlyDeveloperSummaryEmail(dev.name ?? 'Developer', monthName, entry.summary),
+          send: async (payload, idempotencyKey) => {
             const wait = lastSendAt + MIN_SEND_INTERVAL_MS - Date.now()
             if (wait > 0) await new Promise((r) => setTimeout(r, wait))
             lastSendAt = Date.now()
-            const tpl = monthlyDeveloperSummaryEmail(dev.name ?? 'Developer', monthName, entry.summary)
-            return sendNotificationEmail({
+            return sendNotificationEmailResult({
               developerId: dev.id,
               eventKey: 'monthly_summary',
               email: dev.email,
-              subject: tpl.subject,
-              html: tpl.html,
+              subject: payload.subject,
+              html: payload.html,
               idempotencyKey,
             })
           },

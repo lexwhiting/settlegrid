@@ -33,6 +33,15 @@ export const CHUNK_SIZE = 400
 /** The daily log purge's hour (vercel.json `data-retention`: `0 3 * * *`). */
 export const PURGE_HOUR_UTC = 3
 
+/**
+ * The data-retention cron records, per developer, the invocation cutoff it actually
+ * used (before deleting), so a capture can tell whether a developer's month is still
+ * complete even if their retention setting changed since or the purge ran off
+ * schedule. Kept long enough to cover the reported month and the month before.
+ */
+export const invocationsCutoffKey = (developerId: string) => `retention:invocations-cutoff:${developerId}`
+export const INVOCATIONS_CUTOFF_TTL_SECS = 70 * 24 * 60 * 60
+
 const metaKey = (monthKey: string) => `monthly-summary:snapshot:${monthKey}`
 const chunkKey = (monthKey: string, writer: string, i: number) => `monthly-summary:snapshot:${monthKey}:${writer}:${i}`
 
@@ -44,6 +53,18 @@ function parsed(raw: unknown): unknown {
 /** True on the 1st before the log purge: last month's logs are all still there. */
 export function inCaptureWindow(now: Date): boolean {
   return now.getUTCDate() === 1 && now.getUTCHours() < PURGE_HOUR_UTC
+}
+
+/**
+ * The earliest instant whose invocations are still there for a developer (null:
+ * everything): the later of the purge's recorded cutoff (if any; it covers a changed
+ * retention setting or a purge run off schedule) and the modelled scheduled purge
+ * under the current retention (`logDays`, 0 = forever).
+ */
+export function keptSince(now: Date, logDays: number, recorded: Date | null): Date | null {
+  const modelled = retainedSince(now, logDays)
+  if (!recorded) return modelled
+  return modelled && modelled > recorded ? modelled : recorded
 }
 
 /**

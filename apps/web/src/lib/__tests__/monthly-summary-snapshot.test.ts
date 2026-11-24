@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
-  loadSnapshot, storeSnapshot, inCaptureWindow, retainedSince,
+  loadSnapshot, storeSnapshot, inCaptureWindow, retainedSince, keptSince,
   type SnapshotEntry, type SnapshotRedis,
 } from '../monthly-summary-snapshot'
 
@@ -108,5 +108,17 @@ describe('capture window and purge coverage', () => {
     // After the day's purge: from that purge
     expect(retainedSince(new Date('2026-12-01T03:30:00Z'), 30)?.toISOString()).toBe('2026-11-01T03:00:00.000Z')
     expect(retainedSince(new Date('2026-12-01T00:15:00Z'), 0)).toBeNull() // kept forever
+  })
+
+  it('takes the later of the recorded purge cutoff and the modelled one', () => {
+    const now = new Date('2026-12-01T00:15:00Z') // modelled 90-day cutoff: 1 Sep 03:00
+    expect(keptSince(now, 90, null)?.toISOString()).toBe('2026-09-01T03:00:00.000Z')
+    // A purge that ran with a shorter retention, or off schedule, deleted more
+    expect(keptSince(now, 90, new Date('2026-11-05T00:00:00Z'))?.toISOString()).toBe('2026-11-05T00:00:00.000Z')
+    // A recorded cutoff older than the model doesn't loosen it
+    expect(keptSince(now, 30, new Date('2026-09-01T00:00:00Z'))?.toISOString()).toBe('2026-10-31T03:00:00.000Z')
+    // Keep-forever now, but an earlier purge already ran
+    expect(keptSince(now, 0, new Date('2026-11-05T00:00:00Z'))?.toISOString()).toBe('2026-11-05T00:00:00.000Z')
+    expect(keptSince(now, 0, null)).toBeNull()
   })
 })

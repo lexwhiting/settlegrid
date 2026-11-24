@@ -1,9 +1,14 @@
 /**
  * deliverOnce: once-per-period delivery that survives failed sends, overlapping runs
- * and a run killed mid-send. The Redis double honours NX and EX against a fake clock.
+ * and a run killed mid-send, never resends after Resend's idempotency window, and
+ * resends exactly the first attempt's payload. The Redis double honours NX and EX
+ * against a fake clock and, like Upstash, returns stored JSON parsed.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS, type DeliveryRedis } from '../notification-delivery'
+import {
+  deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS,
+  type DeliveryRedis, type DeliveryPayload, type SendOutcome,
+} from '../notification-delivery'
 
 function fakeRedis() {
   const data = new Map<string, { value: string; expiresAt: number }>()
@@ -13,7 +18,11 @@ function fakeRedis() {
     return data.get(k)
   }
   const redis = {
-    get: async (k: string) => live(k)?.value ?? null,
+    get: async (k: string) => {
+      const v = live(k)?.value
+      if (v === undefined) return null
+      try { return JSON.parse(v) } catch { return v }
+    },
     set: async (k: string, v: string, opts: { ex: number; nx?: boolean }) => {
       if (opts.nx && live(k)) return null
       data.set(k, { value: v, expiresAt: Date.now() + opts.ex * 1000 })
@@ -31,6 +40,19 @@ function fakeRedis() {
 
 const KEY = 'monthly-summary:dev-1:2026-11'
 const DAY = 24 * 60 * 60
+const HOUR_MS = 60 * 60 * 1000
+
+/** A render that changes with every call (like a figure that moves), so resends are checked. */
+function renders() {
+  let n = 0
+  return vi.fn((): DeliveryPayload => { n++; return { subject: `S${n}`, html: `<p>${n}</p>` } })
+}
+const sender = (...outcomes: SendOutcome[]) => {
+  const queue = [...outcomes]
+  return vi.fn(async (_p: DeliveryPayload, _k: string): Promise<SendOutcome> => queue.shift() ?? 'sent')
+}
+const deliver = (r: { redis: DeliveryRedis }, render: () => DeliveryPayload, send: ReturnType<typeof sender>, recordTtlSecs = 40 * DAY) =>
+  deliverOnce(r.redis, { key: KEY, recordTtlSecs, render, send })
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -39,46 +61,74 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('deliverOnce', () => {
-  it('sends once with the key as the idempotency key, records it, and releases the claim', async () => {
+  it('sends once with the key as the idempotency key, records it, and leaves no claim or attempt', async () => {
     const r = fakeRedis()
-    const send = vi.fn(async () => 'sent' as const)
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: 40 * DAY, send })).toBe('sent')
-    expect(send).toHaveBeenCalledWith(KEY)
+    const send = sender('sent')
+    expect(await deliver(r, renders(), send)).toBe('sent')
+    expect(send).toHaveBeenCalledWith({ subject: 'S1', html: '<p>1</p>' }, KEY)
     expect(r.value(KEY)).toBe('sent')
     expect(r.has(`${KEY}:inflight`)).toBe(false)
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: 40 * DAY, send })).toBe('delivered')
+    expect(r.has(`${KEY}:attempt`)).toBe(false)
+    expect(await deliver(r, renders(), send)).toBe('delivered')
     expect(send).toHaveBeenCalledTimes(1)
   })
 
-  it('records an opt-out (no retry) but not a failure (retried by the next call)', async () => {
-    const opted = fakeRedis()
-    expect(await deliverOnce(opted.redis, { key: KEY, recordTtlSecs: DAY, send: async () => 'opted_out' })).toBe('opted_out')
-    expect(opted.value(KEY)).toBe('opted_out')
-
+  it('records an opt-out (no retry)', async () => {
     const r = fakeRedis()
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send: async () => 'failed' })).toBe('failed')
-    expect(r.has(KEY)).toBe(false)
-    expect(r.has(`${KEY}:inflight`)).toBe(false)
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send: async () => 'sent' })).toBe('sent')
+    expect(await deliver(r, renders(), sender('opted_out'))).toBe('opted_out')
+    expect(r.value(KEY)).toBe('opted_out')
   })
 
-  it('a send that throws is not recorded and releases the claim', async () => {
+  it('an unknown outcome is retried with exactly the first payload and key', async () => {
     const r = fakeRedis()
-    await expect(deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send: async () => { throw new Error('boom') } })).rejects.toThrow('boom')
+    const render = renders()
+    const send = sender('unknown', 'sent')
+    expect(await deliver(r, render, send)).toBe('failed')
+    expect(r.has(KEY)).toBe(false)
+    vi.setSystemTime(new Date(Date.now() + HOUR_MS))
+    expect(await deliver(r, render, send)).toBe('sent')
+    expect(render).toHaveBeenCalledTimes(1) // not re-rendered: the stored payload is resent
+    expect(send.mock.calls).toEqual([[{ subject: 'S1', html: '<p>1</p>' }, KEY], [{ subject: 'S1', html: '<p>1</p>' }, KEY]])
+  })
+
+  it('a refused send (not_sent) is forgotten, so a long run of refusals is retried, not given up on', async () => {
+    const r = fakeRedis()
+    const send = sender('not_sent', 'not_sent', 'sent')
+    expect(await deliver(r, renders(), send)).toBe('failed')
+    expect(r.has(`${KEY}:attempt`)).toBe(false)
+    vi.setSystemTime(new Date(Date.now() + 2 * DAY * 1000)) // two days of refusals (a bad API key)
+    expect(await deliver(r, renders(), send)).toBe('failed')
+    expect(await deliver(r, renders(), send)).toBe('sent')
+  })
+
+  it('a refusal after an unknown attempt keeps that attempt (it may have gone out)', async () => {
+    const r = fakeRedis()
+    const send = sender('unknown', 'not_sent')
+    await deliver(r, renders(), send)
+    const attempt = r.value(`${KEY}:attempt`)
+    await deliver(r, renders(), send)
+    expect(r.value(`${KEY}:attempt`)).toBe(attempt)
+  })
+
+  it('a send that throws is not recorded, releases its claim and keeps its attempt', async () => {
+    const r = fakeRedis()
+    const send = vi.fn(async (): Promise<SendOutcome> => { throw new Error('boom') })
+    await expect(deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, render: renders(), send })).rejects.toThrow('boom')
     expect(r.has(KEY)).toBe(false)
     expect(r.has(`${KEY}:inflight`)).toBe(false)
+    expect(r.has(`${KEY}:attempt`)).toBe(true)
   })
 
   it('an overlapping run is told busy and does not send', async () => {
     const r = fakeRedis()
     let release!: () => void
     const first = deliverOnce(r.redis, {
-      key: KEY, recordTtlSecs: DAY,
+      key: KEY, recordTtlSecs: DAY, render: renders(),
       send: () => new Promise((resolve) => { release = () => resolve('sent') }),
     })
     await vi.waitFor(() => expect(r.has(`${KEY}:inflight`)).toBe(true))
-    const second = vi.fn(async () => 'sent' as const)
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send: second })).toBe('busy')
+    const second = sender('sent')
+    expect(await deliver(r, renders(), second, DAY)).toBe('busy')
     expect(second).not.toHaveBeenCalled()
     release()
     expect(await first).toBe('sent')
@@ -86,34 +136,27 @@ describe('deliverOnce', () => {
 
   it('releases only its own claim', async () => {
     const r = fakeRedis()
-    // While sending, this run's claim lapses and another run claims the key
-    const result = await deliverOnce(r.redis, {
-      key: KEY, recordTtlSecs: DAY,
-      send: async () => { r.put(`${KEY}:inflight`, 'other-run', IN_FLIGHT_TTL_SECS); return 'failed' },
-    })
-    expect(result).toBe('failed')
-    expect(r.value(`${KEY}:inflight`)).toBe('other-run') // not deleted
+    const send = vi.fn(async (): Promise<SendOutcome> => { r.put(`${KEY}:inflight`, 'other-run', IN_FLIGHT_TTL_SECS); return 'unknown' })
+    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, render: renders(), send })).toBe('failed')
+    expect(r.value(`${KEY}:inflight`)).toBe('other-run')
   })
 
-  it('re-checks the record after claiming: one sent and recorded meanwhile is not sent again', async () => {
+  it('re-checks the record after claiming: one recorded meanwhile is not sent again', async () => {
     const r = fakeRedis()
-    const base = r.redis
     let firstGet = true
     const racing = {
-      ...base,
-      // The record appears between the first check and the claim (another run finished)
+      ...r.redis,
       get: async (k: string) => {
-        if (k === KEY && firstGet) { firstGet = false; const v = await base.get(k); r.put(KEY, 'sent', DAY); return v }
-        return base.get(k)
+        if (k === KEY && firstGet) { firstGet = false; const v = await r.redis.get(k); r.put(KEY, 'sent', DAY); return v }
+        return r.redis.get(k)
       },
     } as unknown as DeliveryRedis
-    const send = vi.fn(async () => 'sent' as const)
-    expect(await deliverOnce(racing, { key: KEY, recordTtlSecs: DAY, send })).toBe('delivered')
+    const send = sender('sent')
+    expect(await deliverOnce(racing, { key: KEY, recordTtlSecs: DAY, render: renders(), send })).toBe('delivered')
     expect(send).not.toHaveBeenCalled()
-    expect(r.has(`${KEY}:inflight`)).toBe(false)
   })
 
-  it('if recording fails after a send, the claim is released and the retry reuses the idempotency key', async () => {
+  it('Resend accepts, recording fails, the retry comes within the window: same payload and key (Resend replays)', async () => {
     const r = fakeRedis()
     const failingRecord = {
       ...r.redis,
@@ -122,14 +165,15 @@ describe('deliverOnce', () => {
         return (r.redis.set as (k: string, v: string, o: object) => Promise<unknown>)(k, v, opts)
       },
     } as unknown as DeliveryRedis
-    const send = vi.fn(async () => 'sent' as const)
-    await expect(deliverOnce(failingRecord, { key: KEY, recordTtlSecs: DAY, send })).rejects.toThrow('redis down')
-    expect(r.has(`${KEY}:inflight`)).toBe(false)
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send })).toBe('sent')
-    expect(send.mock.calls).toEqual([[KEY], [KEY]]) // same key both times: Resend doesn't send the retry again
+    const render = renders()
+    const send = sender('sent', 'sent')
+    await expect(deliverOnce(failingRecord, { key: KEY, recordTtlSecs: DAY, render, send })).rejects.toThrow('redis down')
+    vi.setSystemTime(new Date(Date.now() + HOUR_MS)) // the next hourly run
+    expect(await deliver(r, render, send)).toBe('sent')
+    expect(send.mock.calls[1]).toEqual(send.mock.calls[0]) // byte-identical retry
   })
 
-  it('Resend accepts, recording fails, and the retry comes more than 24 h later: not sent again (ambiguous)', async () => {
+  it('Resend accepts, recording fails, the retry comes more than 24 h later: not sent again (ambiguous)', async () => {
     const r = fakeRedis()
     const failingRecord = {
       ...r.redis,
@@ -138,46 +182,37 @@ describe('deliverOnce', () => {
         return (r.redis.set as (k: string, v: string, o: object) => Promise<unknown>)(k, v, opts)
       },
     } as unknown as DeliveryRedis
-    const send = vi.fn(async () => 'sent' as const) // Resend accepted it
-    await expect(deliverOnce(failingRecord, { key: KEY, recordTtlSecs: 40 * DAY, send })).rejects.toThrow('redis down')
-    expect(r.has(`${KEY}:attempt`)).toBe(true) // the attempt is remembered
-
-    vi.setSystemTime(new Date(Date.now() + 25 * 60 * 60 * 1000)) // the next daily run
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: 40 * DAY, send })).toBe('ambiguous')
+    const send = sender('sent')
+    await expect(deliverOnce(failingRecord, { key: KEY, recordTtlSecs: 40 * DAY, render: renders(), send })).rejects.toThrow('redis down')
+    vi.setSystemTime(new Date(Date.now() + 25 * HOUR_MS)) // e.g. the cron was down for a day
+    expect(await deliver(r, renders(), send)).toBe('ambiguous')
     expect(send).toHaveBeenCalledTimes(1) // not sent a second time
-    expect(r.value(KEY)).toBe('ambiguous') // recorded: later runs see it delivered
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: 40 * DAY, send })).toBe('delivered')
+    expect(r.value(KEY)).toBe('ambiguous')
+    expect(await deliver(r, renders(), send)).toBe('delivered')
   })
 
-  it('a failed send keeps its first attempt time: retried inside the window, given up after it', async () => {
+  it('an unknown attempt keeps its first time: retried inside the window, given up after it', async () => {
     const r = fakeRedis()
-    const send = vi.fn(async () => 'failed' as const)
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: 40 * DAY, send })).toBe('failed')
-    const first = r.value(`${KEY}:attempt`)
-    vi.setSystemTime(new Date(Date.now() + 60 * 60 * 1000)) // an hour later: retried, same first-attempt time
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: 40 * DAY, send })).toBe('failed')
-    expect(r.value(`${KEY}:attempt`)).toBe(first)
-    vi.setSystemTime(new Date(Number(first) + SAFE_RETRY_MS + 1))
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: 40 * DAY, send })).toBe('ambiguous')
+    const send = sender('unknown', 'unknown', 'sent')
+    await deliver(r, renders(), send)
+    const first = JSON.parse(r.value(`${KEY}:attempt`)!).at
+    vi.setSystemTime(new Date(Date.now() + HOUR_MS))
+    expect(await deliver(r, renders(), send)).toBe('failed')
+    expect(JSON.parse(r.value(`${KEY}:attempt`)!).at).toBe(first)
+    vi.setSystemTime(new Date(first + SAFE_RETRY_MS + 1))
+    expect(await deliver(r, renders(), send)).toBe('ambiguous')
     expect(send).toHaveBeenCalledTimes(2)
-    expect(SAFE_RETRY_MS).toBeLessThan(24 * 60 * 60 * 1000) // inside Resend's idempotency window
+    expect(SAFE_RETRY_MS).toBeLessThan(24 * HOUR_MS) // inside Resend's idempotency window
   })
 
-  it('a sent email clears its attempt record', async () => {
+  it('a claim left by a killed run expires, and the retry reuses the payload and key', async () => {
     const r = fakeRedis()
-    await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send: async () => 'sent' })
-    expect(r.has(`${KEY}:attempt`)).toBe(false)
-  })
-
-  it('a claim left by a killed run expires, and the retry reuses the idempotency key', async () => {
-    const r = fakeRedis()
-    // The killed run: claimed, never recorded, never released
     await r.redis.set(`${KEY}:inflight`, '1', { nx: true, ex: IN_FLIGHT_TTL_SECS })
-    const send = vi.fn(async () => 'sent' as const)
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send })).toBe('busy')
+    const send = sender('sent')
+    expect(await deliver(r, renders(), send, DAY)).toBe('busy')
     vi.setSystemTime(new Date(Date.now() + IN_FLIGHT_TTL_SECS * 1000 + 1))
-    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send })).toBe('sent')
-    expect(send).toHaveBeenCalledWith(KEY)
+    expect(await deliver(r, renders(), send, DAY)).toBe('sent')
+    expect(send).toHaveBeenCalledWith({ subject: 'S1', html: '<p>1</p>' }, KEY)
     expect(IN_FLIGHT_TTL_SECS).toBeLessThan(20 * 60) // shorter than the gap between summary runs
   })
 })
