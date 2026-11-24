@@ -398,6 +398,18 @@ describe('sendEmail', () => {
     expect('Idempotency-Key' in withoutKey.headers).toBe(false)
   })
 
+  it("counts Resend's 409 invalid_idempotent_request (key used on an accepted email) as sent, only with a key", async () => {
+    const conflict = { ok: false, status: 409, text: async () => '{"statusCode":409,"name":"invalid_idempotent_request","message":"used with a different payload"}' }
+    global.fetch = vi.fn().mockResolvedValue(conflict)
+    expect(await sendEmail({ to: 'u@test.com', subject: 'T', html: '<p>H</p>', idempotencyKey: 'k' })).toBe(true)
+    expect(await sendEmail({ to: 'u@test.com', subject: 'T', html: '<p>H</p>' })).toBe(false)
+  })
+
+  it("treats Resend's 409 concurrent_idempotent_requests as failed (retried later)", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 409, text: async () => '{"statusCode":409,"name":"concurrent_idempotent_requests"}' })
+    expect(await sendEmail({ to: 'u@test.com', subject: 'T', html: '<p>H</p>', idempotencyKey: 'k' })).toBe(false)
+  })
+
   it('supports array of recipients', async () => {
     await sendEmail({
       to: ['a@test.com', 'b@test.com'],

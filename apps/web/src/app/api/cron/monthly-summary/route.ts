@@ -8,8 +8,8 @@ import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendNotificationEmail } from '@/lib/notifications'
 import { deliverOnce } from '@/lib/notification-delivery'
+import { loadSnapshot, storeSnapshot, type SnapshotEntry } from '@/lib/monthly-summary-snapshot'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
-import type { MonthlySummaryData } from '@/lib/email'
 import { getRedis } from '@/lib/redis'
 import { utcMonthStart, utcMonthKey, daysBefore } from '@/lib/utc-periods'
 
@@ -22,18 +22,9 @@ const MIN_SEND_INTERVAL_MS = 150
 
 /** Snapshots, done markers and delivery records outlive the month's runs. */
 const RECORD_TTL_SECS = 40 * 24 * 60 * 60
+/** Delivery records read per MGET. */
+const MGET_CHUNK = 100
 
-interface SnapshotEntry {
-  developerId: string
-  summary: MonthlySummaryData
-}
-
-function parseSnapshot(raw: unknown): SnapshotEntry[] | null {
-  if (raw == null) return null
-  // Upstash returns stored JSON already parsed; other clients return the string
-  const value = typeof raw === 'string' ? JSON.parse(raw) : raw
-  return Array.isArray(value) ? (value as SnapshotEntry[]) : null
-}
 
 /**
  * Last month's figures for each developer with calls last month and at least 1
@@ -111,10 +102,11 @@ async function computeSnapshot(now: Date, lastMonthStart: Date, prevMonthStart: 
 
 /**
  * Vercel Cron handler: sends monthly developer summary emails.
- * Runs every 20 minutes on days 1–3 of each month from 00:15 UTC (vercel.json). The
- * first run computes the month's figures before the 03:00 log purge and keeps them
- * (a snapshot); each run sends what is left (within a 45 s budget) and retries failed
- * sends, until every summary is sent or recorded; then later runs stop at once.
+ * Runs every 20 minutes through the month from 00:15 UTC on the 1st (vercel.json);
+ * every run in a month reports the month before. The first run computes the figures
+ * before the 03:00 log purge and keeps them (a snapshot); each run sends what is left
+ * (within a 45 s budget) and retries failed sends, until every summary is sent or
+ * recorded; then later runs stop at once (one Redis read).
  *
  * For each developer with at least 1 active tool and calls last UTC month (one
  * email per developer and month; sandbox calls don't count):
@@ -161,18 +153,26 @@ export async function GET(request: NextRequest) {
     }
 
     // The month's figures are computed once (the first run, before the 03:00 log
-    // purge) and kept, so later runs send the same figures whatever was purged since.
-    const snapshotKey = `monthly-summary:snapshot:${monthKey}`
-    let snapshot = parseSnapshot(await redis.get(snapshotKey))
+    // purge) and kept (lib/monthly-summary-snapshot), so later runs send the same
+    // figures whatever was purged since.
+    let snapshot = await loadSnapshot(redis, monthKey)
     if (!snapshot) {
       const computed = await computeSnapshot(now, lastMonthStart, prevMonthStart, lastMonthEnd)
-      await redis.set(snapshotKey, JSON.stringify(computed), { nx: true, ex: RECORD_TTL_SECS })
-      // An overlapping run may have stored its snapshot first: use the stored one
-      snapshot = parseSnapshot(await redis.get(snapshotKey)) ?? computed
+      snapshot = await storeSnapshot(redis, monthKey, computed, RECORD_TTL_SECS)
+    }
+
+    // Skip what is already delivered with batched reads, so a run's 45 s go to the
+    // summaries still to send rather than to re-checking sent ones one by one.
+    const deliveryKey = (developerId: string) => `monthly-summary:${developerId}:${monthKey}`
+    const pending: SnapshotEntry[] = []
+    for (let i = 0; i < snapshot.length; i += MGET_CHUNK) {
+      const chunk = snapshot.slice(i, i + MGET_CHUNK)
+      const records = await redis.mget<unknown[]>(...chunk.map((e) => deliveryKey(e.developerId)))
+      chunk.forEach((e, j) => { if (!records[j]) pending.push(e) })
     }
 
     // Names and addresses as they are now
-    const ids = snapshot.map((e) => e.developerId)
+    const ids = pending.map((e) => e.developerId)
     const contacts = new Map(
       (ids.length === 0 ? [] : await db
         .select({ id: developers.id, email: developers.email, name: developers.name })
@@ -188,9 +188,9 @@ export async function GET(request: NextRequest) {
     let busy = 0
     let lastSendAt = 0
 
-    for (const entry of snapshot) {
+    for (const entry of pending) {
       // Stop starting sends well before the 60 s limit; the next run (every 20 minutes
-      // on days 1–3) carries on with the same snapshot.
+      // through the month) carries on with the same snapshot.
       if (Date.now() - startedAt > SEND_BUDGET_MS) {
         remaining++
         continue
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
         // sent or opted out, so a failed send is retried by the next run; overlapping
         // runs and a run killed mid-send can't send it twice.
         const result = await deliverOnce(redis, {
-          key: `monthly-summary:${dev.id}:${monthKey}`,
+          key: deliveryKey(dev.id),
           recordTtlSecs: RECORD_TTL_SECS,
           send: async (idempotencyKey) => {
             const wait = lastSendAt + MIN_SEND_INTERVAL_MS - Date.now()
@@ -237,9 +237,10 @@ export async function GET(request: NextRequest) {
     if (remaining === 0 && failed === 0 && busy === 0) {
       // Every summary for the month is sent or recorded: later runs stop at the top
       await redis.set(doneKey, '1', { ex: RECORD_TTL_SECS })
-    } else if (now.getUTCDate() >= 3 && now.getUTCHours() === 23 && now.getUTCMinutes() >= 55) {
-      // The last scheduled run (day 3, 23:55): anything left is not retried
-      logger.error('cron.monthly_summary.undelivered', { month: monthName, remaining, failed, busy })
+    } else if (now.getUTCDate() >= 2) {
+      // Still not done after the 1st: say so on every run until it is (runs continue
+      // every 20 minutes through the month)
+      logger.error('cron.monthly_summary.behind', { month: monthName, remaining, failed, busy })
     } else if (remaining > 0) {
       logger.warn('cron.monthly_summary.incomplete', { month: monthName, remaining })
     }

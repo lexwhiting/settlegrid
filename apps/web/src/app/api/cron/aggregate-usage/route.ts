@@ -156,7 +156,8 @@ export async function GET(request: NextRequest) {
           usagePct: Math.round(usagePct),
         })
       } catch (devErr) {
-        // Don't let one developer failure stop the batch
+        // Don't let one developer failure stop the batch; tomorrow's run retries it
+        failed++
         logger.error('cron.aggregate_usage.dev_alert_failed', { developerId: dev.id }, devErr)
       }
     }

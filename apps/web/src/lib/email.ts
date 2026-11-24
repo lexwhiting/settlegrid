@@ -77,6 +77,13 @@ export async function sendEmail(params: {
 
     if (!res.ok) {
       const body = await res.text().catch(() => 'unknown')
+      // Resend: this idempotency key was already used, with a different payload, on an
+      // email it accepted, so the email went out earlier (e.g. a figure changed between
+      // a killed run and its retry). Not resent; counts as sent.
+      if (params.idempotencyKey && res.status === 409 && body.includes('invalid_idempotent_request')) {
+        logger.info('email.already_sent', { to: params.to, idempotencyKey: params.idempotencyKey })
+        return true
+      }
       logger.error('email.send_failed', {
         status: res.status,
         body,

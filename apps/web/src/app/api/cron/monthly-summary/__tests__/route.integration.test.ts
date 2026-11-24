@@ -29,11 +29,18 @@ const holder = vi.hoisted(() => ({
 holder.send = vi.fn(async () => 'sent')
 holder.template = vi.fn(() => ({ subject: 'Your monthly summary', html: '<p>summary</p>' }))
 
+function upstashValue(v: string | undefined): unknown {
+  if (v === undefined) return null
+  try { return JSON.parse(v) } catch { return v }
+}
+
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
 vi.mock('@/lib/cron-auth', () => ({ verifyCronAuth: () => 'ok' }))
 vi.mock('@/lib/redis', () => ({
   getRedis: () => ({
-    get: async (k: string) => holder.store.get(k) ?? null,
+    // Like Upstash: stored JSON comes back parsed
+    get: async (k: string) => upstashValue(holder.store.get(k)),
+    mget: async (...ks: string[]) => ks.map((k) => upstashValue(holder.store.get(k))),
     set: async (k: string, v: string, opts?: { nx?: boolean }) => {
       if (opts?.nx && holder.store.has(k)) return null
       holder.store.set(k, v)
@@ -149,6 +156,16 @@ afterAll(async () => {
 })
 
 describe('cron monthly-summary (pglite)', () => {
+  it('is scheduled every 20 minutes through the month, from 00:15 on the 1st (before the 03:00 purge)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const path = await import('node:path')
+    const vercel = JSON.parse(readFileSync(path.resolve(__dirname, '../../../../../../vercel.json'), 'utf8'))
+    const crons = vercel.crons as Array<{ path: string; schedule: string }>
+    expect(crons.find((c) => c.path === '/api/cron/monthly-summary')?.schedule).toBe('15,35,55 * * * *')
+    expect(crons.find((c) => c.path === '/api/cron/data-retention')?.schedule).toBe('0 3 * * *')
+    expect(crons.find((c) => c.path === '/api/cron/aggregate-usage')?.schedule).toBe('50 23 * * *')
+  })
+
   it("reports last UTC month's figures to developers with activity and an active tool", async () => {
     const body = await run()
     expect(body).toMatchObject({ month: 'November 2026', devsChecked: 2, emailsSent: 2, remaining: 0 })

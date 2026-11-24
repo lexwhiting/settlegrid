@@ -21,7 +21,12 @@ function fakeRedis() {
     },
     del: async (k: string) => (data.delete(k) ? 1 : 0),
   }
-  return { redis: redis as unknown as DeliveryRedis, has: (k: string) => live(k) !== undefined, value: (k: string) => live(k)?.value }
+  return {
+    redis: redis as unknown as DeliveryRedis,
+    has: (k: string) => live(k) !== undefined,
+    value: (k: string) => live(k)?.value,
+    put: (k: string, v: string, ttlSecs: number) => data.set(k, { value: v, expiresAt: Date.now() + ttlSecs * 1000 }),
+  }
 }
 
 const KEY = 'monthly-summary:dev-1:2026-11'
@@ -77,6 +82,51 @@ describe('deliverOnce', () => {
     expect(second).not.toHaveBeenCalled()
     release()
     expect(await first).toBe('sent')
+  })
+
+  it('releases only its own claim', async () => {
+    const r = fakeRedis()
+    // While sending, this run's claim lapses and another run claims the key
+    const result = await deliverOnce(r.redis, {
+      key: KEY, recordTtlSecs: DAY,
+      send: async () => { r.put(`${KEY}:inflight`, 'other-run', IN_FLIGHT_TTL_SECS); return 'failed' },
+    })
+    expect(result).toBe('failed')
+    expect(r.value(`${KEY}:inflight`)).toBe('other-run') // not deleted
+  })
+
+  it('re-checks the record after claiming: one sent and recorded meanwhile is not sent again', async () => {
+    const r = fakeRedis()
+    const base = r.redis
+    let firstGet = true
+    const racing = {
+      ...base,
+      // The record appears between the first check and the claim (another run finished)
+      get: async (k: string) => {
+        if (k === KEY && firstGet) { firstGet = false; const v = await base.get(k); r.put(KEY, 'sent', DAY); return v }
+        return base.get(k)
+      },
+    } as unknown as DeliveryRedis
+    const send = vi.fn(async () => 'sent' as const)
+    expect(await deliverOnce(racing, { key: KEY, recordTtlSecs: DAY, send })).toBe('delivered')
+    expect(send).not.toHaveBeenCalled()
+    expect(r.has(`${KEY}:inflight`)).toBe(false)
+  })
+
+  it('if recording fails after a send, the claim is released and the retry reuses the idempotency key', async () => {
+    const r = fakeRedis()
+    const failingRecord = {
+      ...r.redis,
+      set: async (k: string, v: string, opts: { ex: number; nx?: boolean }) => {
+        if (k === KEY) throw new Error('redis down')
+        return (r.redis.set as (k: string, v: string, o: object) => Promise<unknown>)(k, v, opts)
+      },
+    } as unknown as DeliveryRedis
+    const send = vi.fn(async () => 'sent' as const)
+    await expect(deliverOnce(failingRecord, { key: KEY, recordTtlSecs: DAY, send })).rejects.toThrow('redis down')
+    expect(r.has(`${KEY}:inflight`)).toBe(false)
+    expect(await deliverOnce(r.redis, { key: KEY, recordTtlSecs: DAY, send })).toBe('sent')
+    expect(send.mock.calls).toEqual([[KEY], [KEY]]) // same key both times: Resend doesn't send the retry again
   })
 
   it('a claim left by a killed run expires, and the retry reuses the idempotency key', async () => {

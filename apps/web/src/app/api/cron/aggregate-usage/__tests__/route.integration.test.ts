@@ -22,11 +22,18 @@ const holder = vi.hoisted(() => ({
 }))
 holder.send = vi.fn(async () => 'sent')
 
+function upstashValue(v: string | undefined): unknown {
+  if (v === undefined) return null
+  try { return JSON.parse(v) } catch { return v }
+}
+
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
 vi.mock('@/lib/cron-auth', () => ({ verifyCronAuth: () => 'ok' }))
 vi.mock('@/lib/redis', () => ({
   getRedis: () => ({
-    get: async (k: string) => holder.store.get(k) ?? null,
+    // Like Upstash: stored JSON comes back parsed
+    get: async (k: string) => upstashValue(holder.store.get(k)),
+    mget: async (...ks: string[]) => ks.map((k) => upstashValue(holder.store.get(k))),
     set: async (k: string, v: string, opts?: { nx?: boolean }) => {
       if (opts?.nx && holder.store.has(k)) return null
       holder.store.set(k, v)
