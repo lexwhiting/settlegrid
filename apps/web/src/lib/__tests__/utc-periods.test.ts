@@ -54,14 +54,38 @@ describe('routes use UTC periods (source guard)', () => {
     'app/api/dashboard/developer/fraud/signals/route.ts',
     'app/api/dashboard/developer/stats/advanced/route.ts',
     'app/api/proxy/stats/route.ts',
+    'app/api/orgs/[id]/allocations/route.ts',
+    'app/api/cron/monthly-summary/route.ts',
+    'app/api/developer/referrals/route.ts',
+    'app/api/developer/referrals/[id]/earnings/route.ts',
   ]
-  const LOCAL = /new Date\(\s*\w+\.getFullYear\(\)|\.set(?:Hours|Date|Month|FullYear)\(|\.get(?:Month|Date|Day|Hours)\(\)|toDateString\(|toLocaleDateString\(|startOf(?:Day|Month|Week)\(/
+  // Local constructors (new Date(now.getFullYear(), …), new Date(year, month - 1, 1), and
+  // new Date(now.getUTCFullYear(), …), UTC parts read as local), local setters and getters,
+  // and date formatting without timeZone: 'UTC'. Lexical: Dates built elsewhere aren't seen.
+  const LOCAL = /new Date\(\s*\w+\.get(?:UTC)?FullYear\(\)|new Date\(\s*\w+\s*,\s*\w+|toLocale(?:Time)?String\((?![^)]{0,120}timeZone:\s*'UTC')|Intl\.DateTimeFormat\((?![^)]{0,120}timeZone:\s*'UTC')|\.set(?:Hours|Date|Month|FullYear)\(|\.get(?:Month|Date|Day|Hours)\(\)|toDateString\(|toLocaleDateString\((?![^)]{0,120}timeZone:\s*'UTC')|startOf(?:Day|Month|Week)\(/
 
   it('has no local-time date maths in those files', async () => {
     const { readFileSync } = await import('node:fs')
     const path = await import('node:path')
     const offenders = files.filter((rel) => LOCAL.test(readFileSync(path.resolve(__dirname, '../..', rel), 'utf8')))
     expect(offenders).toEqual([])
+  })
+
+  it('the pattern catches local-time constructors and formatting', () => {
+    for (const bad of [
+      'new Date(now.getFullYear(), now.getMonth(), 1)',
+      'periodStart = new Date(year, month - 1, 1)',
+      'd.setHours(0, 0, 0, 0)',
+      "d.toLocaleDateString('en-US', { month: 'long' })",
+      'new Date(now.getUTCFullYear(), now.getUTCMonth(), 1)',
+      "d.toLocaleString('en-US')",
+      "new Intl.DateTimeFormat('en-US', { month: 'long' })",
+    ]) expect(LOCAL.test(bad), bad).toBe(true)
+    for (const good of [
+      'new Date(Date.UTC(year, month - 1, 1))',
+      "d.toLocaleDateString('en-US', {\n  month: 'long',\n  timeZone: 'UTC',\n})",
+      'new Date(now.getTime() - 1000)',
+    ]) expect(LOCAL.test(good), good).toBe(false)
   })
 
   it('takes the explorer and usage-job boundaries from utc-periods', async () => {

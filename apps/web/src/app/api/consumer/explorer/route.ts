@@ -9,6 +9,20 @@ import { utcDayStart, utcMonthStart, daysBefore, hoursBefore } from '@/lib/utc-p
 
 export const maxDuration = 60
 
+/**
+ * A bigint total from SQL (as text) as a JS number. Exact up to 2^53 − 1
+ * (Number.MAX_SAFE_INTEGER, about $90 trillion in cents); beyond that it throws, so
+ * the request fails with a 500 rather than returning a rounded total.
+ */
+function asSafeInteger(value: string | number | null | undefined): number {
+  if (value == null) return 0
+  const n = BigInt(value)
+  if (n > BigInt(Number.MAX_SAFE_INTEGER) || n < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new RangeError('Explorer total exceeds the safe integer range')
+  }
+  return Number(n)
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -127,40 +141,39 @@ export async function GET(request: NextRequest) {
       .limit(5000)
 
     // ── Compute header stats ────────────────────────────────────────────────
+    // Today, the rolling week and this month always cover their own windows, whatever
+    // period is selected, and have no row cap; the average response time covers the
+    // selected period.
     const now = new Date()
     const todayCutoff = utcDayStart(now)
     const weekCutoff = daysBefore(now, 7)
     const monthCutoff = utcMonthStart(now)
+    const statsFrom = new Date(Math.min(weekCutoff.getTime(), monthCutoff.getTime(), periodCutoff.getTime()))
+    const since = (d: Date) => sql`${invocations.createdAt} >= ${d.toISOString()}::timestamptz`
+    const [agg] = await db
+      .select({
+        // Sums and counts stay bigint in SQL (a 32-bit cast would reject a total above
+        // 2,147,483,647) and come back as text, decoded by asSafeInteger below
+        spentToday: sql<string>`(coalesce(sum(${invocations.costCents}) filter (where ${since(todayCutoff)}), 0))::bigint::text`,
+        spentWeek: sql<string>`(coalesce(sum(${invocations.costCents}) filter (where ${since(weekCutoff)}), 0))::bigint::text`,
+        spentMonth: sql<string>`(coalesce(sum(${invocations.costCents}) filter (where ${since(monthCutoff)}), 0))::bigint::text`,
+        callsToday: sql<string>`(count(*) filter (where ${since(todayCutoff)}))::bigint::text`,
+        callsWeek: sql<string>`(count(*) filter (where ${since(weekCutoff)}))::bigint::text`,
+        callsMonth: sql<string>`(count(*) filter (where ${since(monthCutoff)}))::bigint::text`,
+        avgLatencyMs: sql<number | null>`avg(${invocations.latencyMs}) filter (where ${since(periodCutoff)} and ${invocations.latencyMs} is not null)`,
+      })
+      .from(invocations)
+      .innerJoin(tools, eq(invocations.toolId, tools.id))
+      .where(and(eq(invocations.consumerId, auth.id), since(statsFrom)))
 
-    let spentToday = 0, spentWeek = 0, spentMonth = 0
-    let callsToday = 0, callsWeek = 0, callsMonth = 0
-    let totalLatency = 0, latencyCount = 0
-
-    for (const row of allPeriodData) {
-      const ts = new Date(row.createdAt)
-      const cost = Number.isFinite(row.costCents) ? row.costCents : 0
-      const latency = row.latencyMs
-
-      if (ts >= monthCutoff) {
-        spentMonth += cost
-        callsMonth += 1
-      }
-      if (ts >= weekCutoff) {
-        spentWeek += cost
-        callsWeek += 1
-      }
-      if (ts >= todayCutoff) {
-        spentToday += cost
-        callsToday += 1
-      }
-      if (latency !== null && Number.isFinite(latency)) {
-        totalLatency += latency
-        latencyCount += 1
-      }
-    }
-
+    const spentToday = asSafeInteger(agg?.spentToday)
+    const spentWeek = asSafeInteger(agg?.spentWeek)
+    const spentMonth = asSafeInteger(agg?.spentMonth)
+    const callsToday = asSafeInteger(agg?.callsToday)
+    const callsWeek = asSafeInteger(agg?.callsWeek)
+    const callsMonth = asSafeInteger(agg?.callsMonth)
     const avgCostCents = callsMonth > 0 ? Math.round(spentMonth / callsMonth) : 0
-    const avgResponseMs = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0
+    const avgResponseMs = agg?.avgLatencyMs != null ? Math.round(Number(agg.avgLatencyMs)) : 0
 
     const stats = {
       spentToday,

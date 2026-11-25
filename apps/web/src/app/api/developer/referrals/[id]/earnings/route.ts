@@ -5,6 +5,7 @@ import { referrals, tools, invocations } from '@/lib/db/schema'
 import { requireDeveloper } from '@/lib/middleware/auth'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { utcMonthStart } from '@/lib/utc-periods'
 
 export const maxDuration = 60
 
@@ -63,9 +64,8 @@ export async function GET(
       .where(eq(invocations.referralCode, referral.referralCode))
 
     // Count this month's earnings (invocations this month * commissionPct)
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
+    // The UTC calendar month (as the rest of the dashboard)
+    const startOfMonth = utcMonthStart(new Date())
 
     const [monthStats] = await db
       .select({
@@ -76,7 +76,7 @@ export async function GET(
       .where(
         and(
           eq(invocations.referralCode, referral.referralCode),
-          sql`${invocations.createdAt} >= ${startOfMonth}`
+          sql`${invocations.createdAt} >= ${startOfMonth.toISOString()}::timestamptz`
         )
       )
 

@@ -30,6 +30,15 @@ describe('notification events', () => {
     }
   })
 
+  it("doesn't offer the monthly summary or plan usage warnings in Settings while their senders are off", () => {
+    const shown = SETTINGS_NOTIFICATION_EVENTS.map((e) => e.key)
+    expect(shown).not.toContain('monthly_summary')
+    expect(shown).not.toContain('usage_alert')
+    // Still accepted, so a stored opt-out keeps applying when they are turned back on
+    expect(NOTIFICATION_PREFERENCE_KEYS).toContain('monthly_summary')
+    expect(NOTIFICATION_PREFERENCE_KEYS).toContain('usage_alert')
+  })
+
   it('maps legacy keys onto current keys', () => {
     for (const current of Object.values(LEGACY_NOTIFICATION_KEYS)) {
       expect(NOTIFICATION_PREFERENCE_KEYS).toContain(current)

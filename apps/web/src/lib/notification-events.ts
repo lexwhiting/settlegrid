@@ -24,8 +24,6 @@ export interface NotificationEventDef {
 
 export const NOTIFICATION_EVENTS = [
   { key: 'plan_changed', label: 'Plan changed', category: 'billing', critical: false, inSettings: true },
-  { key: 'monthly_summary', label: 'Monthly earnings summary', category: 'billing', critical: false, inSettings: true },
-  { key: 'usage_alert', label: 'Plan usage warnings (80%, 90%, 100% of monthly ops)', category: 'billing', critical: false, inSettings: true },
   { key: 'tool_published', label: 'Tool published', category: 'tools', critical: false, inSettings: true },
   { key: 'tool_health_down', label: 'Tool health check failed', category: 'tools', critical: true, inSettings: true },
   { key: 'usage_spike', label: 'Unusual traffic detected (spike or drop)', category: 'tools', critical: false, inSettings: true },
@@ -39,6 +37,10 @@ export const NOTIFICATION_EVENTS = [
   { key: 'tool_status_changed', label: 'Tool status changed', category: 'tools', critical: false, inSettings: false },
   { key: 'payout_completed', label: 'Payout completed', category: 'billing', critical: false, inSettings: false },
   { key: 'new_review', label: 'New review received', category: 'tools', critical: false, inSettings: false },
+  // Senders off until their delivery is reworked (cron/monthly-summary, cron/aggregate-usage):
+  // hidden in Settings so it doesn't offer emails that aren't sent; stored choices still apply.
+  { key: 'monthly_summary', label: 'Monthly earnings summary', category: 'billing', critical: false, inSettings: false },
+  { key: 'usage_alert', label: 'Plan usage warnings (80%, 90%, 100% of monthly ops)', category: 'billing', critical: false, inSettings: false },
 ] as const satisfies readonly NotificationEventDef[]
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENTS)[number]['key']
