@@ -9,7 +9,7 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendNotificationEmailResult } from '@/lib/notifications'
 import { deliverOnce } from '@/lib/notification-delivery'
 import {
-  loadSnapshot, storeSnapshot, inCaptureWindow, keptSince, invocationsCutoffKey, type SnapshotEntry,
+  loadSnapshot, storeSnapshot, inCaptureWindow, keptSince, invocationsCutoffKey, INVOCATIONS_CUTOFF_MEMBER, type SnapshotEntry,
 } from '@/lib/monthly-summary-snapshot'
 import { effectiveRetentionDays, MIN_LOG_RETENTION_DAYS } from '@/lib/retention-options'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
@@ -86,13 +86,14 @@ async function computeSnapshot(redis: Redis, now: Date, lastMonthStart: Date, pr
     .orderBy(developers.id)
 
   // The cutoffs the purge actually used, where recorded (data-retention cron)
+  // (a high-water mark: the furthest cutoff any purge used)
   const recorded = new Map<string, Date>()
   for (let i = 0; i < devs.length; i += MGET_CHUNK) {
     const chunk = devs.slice(i, i + MGET_CHUNK)
-    const values = await redis.mget<unknown[]>(...chunk.map((d) => invocationsCutoffKey(d.id)))
+    const scores = await Promise.all(chunk.map((d) => redis.zscore(invocationsCutoffKey(d.id), INVOCATIONS_CUTOFF_MEMBER)))
     chunk.forEach((d, j) => {
-      const at = values[j] != null ? new Date(String(values[j])) : null
-      if (at && !Number.isNaN(at.getTime())) recorded.set(d.id, at)
+      const ms = scores[j] == null ? NaN : Number(scores[j])
+      if (Number.isFinite(ms)) recorded.set(d.id, new Date(ms))
     })
   }
   const entries: SnapshotEntry[] = []

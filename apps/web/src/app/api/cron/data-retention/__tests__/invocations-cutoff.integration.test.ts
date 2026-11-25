@@ -15,17 +15,20 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { NextRequest } from 'next/server'
 import * as schema from '@/lib/db/schema'
 
-const holder = vi.hoisted(() => ({ db: null as unknown, store: new Map<string, string>(), redisDown: false }))
+const holder = vi.hoisted(() => ({ db: null as unknown, zsets: new Map<string, number>(), ttl: new Map<string, number>(), redisDown: false }))
 
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
 vi.mock('@/lib/cron-auth', () => ({ verifyCronAuth: () => 'ok' }))
 vi.mock('@/lib/redis', () => ({
+  // A sorted set per key with one member, as ZADD GT keeps it: the score only ever rises
   getRedis: () => ({
-    set: async (k: string, v: string) => {
+    zadd: async (k: string, opts: { gt?: boolean }, m: { score: number; member: string }) => {
       if (holder.redisDown) throw new Error('redis down')
-      holder.store.set(k, v)
-      return 'OK'
+      const cur = holder.zsets.get(k)
+      if (cur === undefined || !opts.gt || m.score > cur) holder.zsets.set(k, m.score)
+      return 1
     },
+    expire: async (k: string, secs: number) => { holder.ttl.set(k, secs); return 1 },
   }),
 }))
 vi.mock('@/lib/settlement/compliance', () => ({ processDataDeletion: vi.fn(async () => ({ success: true })) }))
@@ -77,7 +80,9 @@ beforeAll(async () => {
 }, 60_000)
 
 beforeEach(async () => {
-  holder.store.clear()
+  holder.zsets.clear()
+  holder.ttl.clear()
+  await pg.query('UPDATE developers SET log_retention_days = 30 WHERE id = $1', [KEEPS_30])
   holder.redisDown = false
   await pg.query('DELETE FROM invocations')
   // One call before the 30-day cutoff (1 Nov 03:00), one after, for each developer
@@ -94,14 +99,28 @@ afterAll(async () => {
 describe('cron data-retention: recorded invocation cutoffs (pglite)', () => {
   it('records the cutoff it used for a developer with log retention, and purges older rows', async () => {
     await run()
-    expect(holder.store.get(`retention:invocations-cutoff:${KEEPS_30}`)).toBe('2026-11-01T03:00:00.000Z')
+    expect(holder.zsets.get(`retention:invocations-cutoff:${KEEPS_30}`)).toBe(Date.parse('2026-11-01T03:00:00.000Z'))
+    expect(holder.ttl.get(`retention:invocations-cutoff:${KEEPS_30}`)).toBe(70 * 24 * 60 * 60)
     expect(await count(KEEPS_30)).toBe(1)
   })
 
   it('records nothing and purges nothing for a keep-forever developer', async () => {
     await run()
-    expect(holder.store.has(`retention:invocations-cutoff:${FOREVER}`)).toBe(false)
+    expect(holder.zsets.has(`retention:invocations-cutoff:${FOREVER}`)).toBe(false)
     expect(await count(FOREVER)).toBe(2)
+  })
+
+  it('the recorded cutoff never moves back: a later purge under a longer retention keeps the earlier, further cutoff', async () => {
+    await run() // 30 days: cutoff 1 Nov 03:00
+    await pg.query('UPDATE developers SET log_retention_days = 90 WHERE id = $1', [KEEPS_30])
+    vi.setSystemTime(new Date(NOW.getTime() + 24 * 60 * 60 * 1000)) // the next day's purge: cutoff 3 Sep 03:00
+    try {
+      await run()
+    } finally {
+      vi.setSystemTime(NOW)
+    }
+    // Still 1 Nov: rows before it were deleted, whatever the retention says now
+    expect(holder.zsets.get(`retention:invocations-cutoff:${KEEPS_30}`)).toBe(Date.parse('2026-11-01T03:00:00.000Z'))
   })
 
   it('still purges when the cutoff cannot be recorded', async () => {

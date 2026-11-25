@@ -35,12 +35,17 @@ export const CHUNK_SIZE = 400
 export const PURGE_HOUR_UTC = 3
 
 /**
- * The data-retention cron records, per developer, the invocation cutoff it actually
- * used (before deleting), so a capture can tell whether a developer's month is still
- * complete even if their retention setting changed since or the purge ran off
- * schedule. Kept long enough to cover the reported month and the month before.
+ * The data-retention cron records, per developer, the furthest invocation cutoff any
+ * purge has used (a high-water mark, before deleting), so a capture can tell whether a
+ * developer's month is still complete even if their retention setting changed since
+ * (a later purge under a longer retention has an older cutoff and must not move the
+ * mark back) or a purge ran off schedule. Stored as the score of one member in a
+ * sorted set and raised with ZADD GT, which only ever increases it, atomically.
+ * Refreshed on every purge; once purges stop it expires after 70 days, by which time
+ * the rows it covers are older than any month a capture reads.
  */
 export const invocationsCutoffKey = (developerId: string) => `retention:invocations-cutoff:${developerId}`
+export const INVOCATIONS_CUTOFF_MEMBER = 'cutoff'
 export const INVOCATIONS_CUTOFF_TTL_SECS = 70 * 24 * 60 * 60
 
 const metaKey = (monthKey: string) => `monthly-summary:snapshot:${monthKey}`

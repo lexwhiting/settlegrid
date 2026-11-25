@@ -23,6 +23,7 @@ import * as schema from '@/lib/db/schema'
 const holder = vi.hoisted(() => ({
   db: null as unknown,
   store: new Map<string, string>(),
+  zsets: new Map<string, number>(),
   send: null as unknown as Mock,
   template: null as unknown as Mock,
 }))
@@ -41,6 +42,7 @@ vi.mock('@/lib/redis', () => ({
     // Like Upstash: stored JSON comes back parsed
     get: async (k: string) => upstashValue(holder.store.get(k)),
     mget: async (...ks: string[]) => ks.map((k) => upstashValue(holder.store.get(k))),
+    zscore: async (k: string) => holder.zsets.get(k) ?? null,
     set: async (k: string, v: string, opts?: { nx?: boolean }) => {
       if (opts?.nx && holder.store.has(k)) return null
       holder.store.set(k, v)
@@ -362,9 +364,58 @@ describe('cron monthly-summary (pglite)', () => {
     holder.store.clear()
     holder.send.mockClear()
     // The purge recorded a cutoff inside November for ACTIVE (it ran early, with a shorter retention)
-    holder.store.set(`retention:invocations-cutoff:${ACTIVE}`, '2026-11-05T00:00:00.000Z')
+    holder.zsets.set(`retention:invocations-cutoff:${ACTIVE}`, Date.parse('2026-11-05T00:00:00.000Z'))
     const body = await run()
     expect(body).toMatchObject({ month: 'November 2026', devsChecked: 1, emailsSent: 1 })
     expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([TIED])
+  }, 20_000)
+
+  it('an incomplete stored snapshot inside the capture window is not repaired either: logged once, 503, nothing sent', async () => {
+    holder.store.clear()
+    holder.zsets.clear()
+    holder.send.mockImplementationOnce(async () => { vi.setSystemTime(new Date(NOW.getTime() + 50_000)); return 'sent' })
+    await run() // captured; one summary left
+    vi.setSystemTime(NOW) // still inside the window
+    const chunk = [...holder.store.keys()].find((k) => /^monthly-summary:snapshot:2026-11:.+:0$/.test(k))!
+    holder.store.delete(chunk)
+    const meta = holder.store.get('monthly-summary:snapshot:2026-11')
+    holder.send.mockClear()
+    expect(await runStatus()).toBe(503)
+    expect(holder.store.has('monthly-summary:not-captured:2026-11')).toBe(true) // logged as not captured
+    expect(holder.store.get('monthly-summary:snapshot:2026-11')).toBe(meta) // not replaced
+    expect(holder.send).not.toHaveBeenCalled()
+  }, 20_000)
+
+  it('a summary not sent because email is not configured stays pending, and a later configured run sends it', async () => {
+    holder.store.clear()
+    holder.zsets.clear()
+    holder.send.mockClear()
+    holder.send.mockImplementation(async () => 'not_sent') // no Resend key: sendNotificationEmailResult says not_sent
+    try {
+      const first = await run()
+      expect(first).toMatchObject({ emailsSent: 0 })
+      expect(first.failed).toBeGreaterThan(0)
+      expect(sentKeys()).toEqual([]) // nothing recorded as delivered
+    } finally {
+      holder.send.mockImplementation(async () => 'sent')
+    }
+    const later = await run()
+    expect(later.emailsSent).toBe(later.devsChecked)
+    expect(sentKeys().length).toBe(later.devsChecked)
+  }, 20_000)
+
+  it('a purge high-water mark inside the month before (retention raised since) drops the trend', async () => {
+    // ACTIVE keeps 90 days now, but an earlier purge under 30 days already deleted
+    // October's first days: the recorded mark is 5 Oct, so October is incomplete
+    await pg.query('DELETE FROM invocations')
+    await calls(T_SEARCH, 2, 50, '2026-11-20T00:00:00Z')
+    await calls(T_SEARCH, 1, 50, '2026-10-20T00:00:00Z')
+    holder.store.clear()
+    holder.zsets.clear()
+    holder.send.mockClear()
+    holder.template.mockClear()
+    holder.zsets.set(`retention:invocations-cutoff:${ACTIVE}`, Date.parse('2026-10-05T00:00:00.000Z'))
+    expect(await run()).toMatchObject({ emailsSent: 1 })
+    expect(templateFor('Dev')?.[2]).toMatchObject({ totalRevenueCents: 100, momRevenuePct: null, momInvocationPct: null })
   }, 20_000)
 })

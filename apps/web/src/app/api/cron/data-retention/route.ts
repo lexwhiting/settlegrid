@@ -18,7 +18,7 @@ import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { processDataDeletion } from '@/lib/settlement/compliance'
 import { getRedis } from '@/lib/redis'
-import { invocationsCutoffKey, INVOCATIONS_CUTOFF_TTL_SECS } from '@/lib/monthly-summary-snapshot'
+import { invocationsCutoffKey, INVOCATIONS_CUTOFF_MEMBER, INVOCATIONS_CUTOFF_TTL_SECS } from '@/lib/monthly-summary-snapshot'
 import {
   effectiveRetentionDays,
   MIN_LOG_RETENTION_DAYS,
@@ -30,7 +30,11 @@ export const maxDuration = 300 // 5 minutes — may process many developers
 
 async function recordInvocationsCutoff(developerId: string, cutoffIso: string): Promise<void> {
   try {
-    await getRedis().set(invocationsCutoffKey(developerId), cutoffIso, { ex: INVOCATIONS_CUTOFF_TTL_SECS })
+    // Only ever raised (ZADD GT): a purge under a longer retention has an older cutoff
+    const redis = getRedis()
+    const key = invocationsCutoffKey(developerId)
+    await redis.zadd(key, { gt: true }, { score: new Date(cutoffIso).getTime(), member: INVOCATIONS_CUTOFF_MEMBER })
+    await redis.expire(key, INVOCATIONS_CUTOFF_TTL_SECS)
   } catch (err) {
     logger.warn('cron.data_retention.cutoff_not_recorded', { developerId, error: err instanceof Error ? err.message : String(err) })
   }
