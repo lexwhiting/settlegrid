@@ -17,6 +17,9 @@ vi.mock('@/lib/logger', () => ({
 const originalFetch = global.fetch
 
 import {
+  usageWarning80Email,
+  usageWarning90Email,
+  usageExceededEmail,
   welcomeDeveloperEmail,
   welcomeConsumerEmail,
   stripeConnectCompleteEmail,
@@ -2744,5 +2747,26 @@ describe('chargebackRedAlertEmail', () => {
   it('includes a remediation CTA pointing to luther@', () => {
     const r = chargebackRedAlertEmail('dev@example.com', null, inputs)
     expect(r.html).toContain('luther@mail.settlegrid.ai')
+  })
+})
+
+describe('usage warning emails', () => {
+  const all = [usageWarning80Email, usageWarning90Email, usageExceededEmail]
+
+  it('speak of this month while it lasts', () => {
+    for (const make of all) {
+      const r = make('Ann', 45_000, 50_000, 'standard')
+      expect(r.subject).not.toMatch(/\d{4}/)
+      expect(r.html).toContain('this month')
+    }
+  })
+
+  it('name the month when sent after it ended (month-end catch-up)', () => {
+    for (const make of all) {
+      const r = make('Ann', 45_000, 50_000, 'standard', 'November 2026')
+      expect(r.subject).toContain('November 2026')
+      expect(r.html).toContain('in November 2026')
+      expect(r.html).not.toContain('this month')
+    }
   })
 })

@@ -1740,13 +1740,16 @@ export function usageWarning80Email(
   name: string,
   currentOps: number,
   limit: number,
-  tier: string
+  tier: string,
+  /** Set when the email is sent after the month ended (e.g. 'November 2026'). */
+  month?: string
 ): EmailTemplate {
   const tierName = TIER_DISPLAY_NAMES[tier] ?? tier
   const opsFormatted = currentOps.toLocaleString()
   const limitFormatted = limit.toLocaleString()
+  const when = month ? `in ${month}` : 'this month'
   return {
-    subject: sanitizeSubject("You've used 80% of your monthly operations"),
+    subject: sanitizeSubject(month ? `You used 80% of your ${month} operations` : "You've used 80% of your monthly operations"),
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Approaching Your Monthly Limit</h2>
@@ -1761,7 +1764,7 @@ export function usageWarning80Email(
 ${ctaButton('View Usage', 'https://settlegrid.ai/dashboard')}
 <p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">Your operations reset on the first of each month.</p>
 `,
-      { preheader: `You've used ${opsFormatted} of ${limitFormatted} operations this month (80%).` }
+      { preheader: `You've used ${opsFormatted} of ${limitFormatted} operations ${when} (80%).` }
     ),
   }
 }
@@ -1774,23 +1777,26 @@ export function usageWarning90Email(
   name: string,
   currentOps: number,
   limit: number,
-  tier: string
+  tier: string,
+  /** Set when the email is sent after the month ended (e.g. 'November 2026'). */
+  month?: string
 ): EmailTemplate {
   const tierName = TIER_DISPLAY_NAMES[tier] ?? tier
   const opsFormatted = currentOps.toLocaleString()
   const limitFormatted = limit.toLocaleString()
+  const when = month ? `in ${month}` : 'this month'
   return {
-    subject: sanitizeSubject("You've used 90% of your monthly operations"),
+    subject: sanitizeSubject(month ? `You used 90% of your ${month} operations` : "You've used 90% of your monthly operations"),
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Nearing Your Monthly Limit</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your tools have used <strong>90%</strong> of your monthly operation limit on the <strong>${escapeHtml(tierName)}</strong> plan.</p>
-${alertBanner('warning', '90% of limit reached', `You have used ${opsFormatted} of ${limitFormatted} operations this month. You are close to exceeding your plan limit.`)}
+${alertBanner('warning', '90% of limit reached', `You have used ${opsFormatted} of ${limitFormatted} operations ${when}. You are close to exceeding your plan limit.`)}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Your tools will continue to work even if you exceed the limit, but upgrading gives you higher capacity and priority support.</p>
 ${ctaButton('Upgrade Plan', 'https://settlegrid.ai/dashboard/settings#plan', '#d97706')}
 <p class="sg-muted" style="color:#9ca3af;font-size:12px;margin:16px 0 0">Your operations reset on the first of each month.</p>
 `,
-      { preheader: `You've used ${opsFormatted} of ${limitFormatted} operations this month (90%). Consider upgrading.` }
+      { preheader: `You've used ${opsFormatted} of ${limitFormatted} operations ${when} (90%). Consider upgrading.` }
     ),
   }
 }
@@ -1803,18 +1809,21 @@ export function usageExceededEmail(
   name: string,
   currentOps: number,
   limit: number,
-  tier: string
+  tier: string,
+  /** Set when the email is sent after the month ended (e.g. 'November 2026'). */
+  month?: string
 ): EmailTemplate {
   const tierName = TIER_DISPLAY_NAMES[tier] ?? tier
   const opsFormatted = currentOps.toLocaleString()
   const limitFormatted = limit.toLocaleString()
+  const when = month ? `in ${month}` : 'this month'
   return {
-    subject: sanitizeSubject("You've exceeded your monthly operation limit"),
+    subject: sanitizeSubject(month ? `You exceeded your ${month} operation limit` : "You've exceeded your monthly operation limit"),
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Monthly Limit Exceeded</h2>
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px">Hi ${escapeHtml(name)}, your tools have exceeded the monthly operation limit on the <strong>${escapeHtml(tierName)}</strong> plan.</p>
-${alertBanner('error', 'Limit exceeded', `You have used ${opsFormatted} operations this month, exceeding your ${limitFormatted} limit.`)}
+${alertBanner('error', 'Limit exceeded', `You have used ${opsFormatted} operations ${when}, exceeding your ${limitFormatted} limit.`)}
 <p class="sg-text" style="color:#4b5563;line-height:1.6;margin:0 0 16px"><strong>Your tools still work.</strong> SettleGrid uses soft limits, so your users will not experience any disruption. However, we recommend upgrading to ensure you have the capacity your tools need.</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
 ${dataRow('Current usage', `${opsFormatted} operations`)}

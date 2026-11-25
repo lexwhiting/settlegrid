@@ -4,6 +4,8 @@
  * - Plan-usage warnings: ops this UTC month per developer (every invocation of their
  *   tools, as the usage page counts them) against the tier the usage page shows
  *   (founding members get Scale); one email per level and month.
+ * - Month-end catch-up: for two days after a month ends, its levels are still checked
+ *   under its keys (a level crossed after its last run; a send left unresolved).
  * - Org cost allocations are paused: cost_allocations is neither written nor deleted.
  *
  * The schema is a test-only CREATE TABLE bootstrap of the columns the route reads
@@ -18,6 +20,7 @@ import * as schema from '@/lib/db/schema'
 const holder = vi.hoisted(() => ({
   db: null as unknown,
   store: new Map<string, string>(),
+  ttl: new Map<string, number | undefined>(),
   send: null as unknown as Mock,
 }))
 holder.send = vi.fn(async () => 'sent')
@@ -34,9 +37,10 @@ vi.mock('@/lib/redis', () => ({
     // Like Upstash: stored JSON comes back parsed
     get: async (k: string) => upstashValue(holder.store.get(k)),
     mget: async (...ks: string[]) => ks.map((k) => upstashValue(holder.store.get(k))),
-    set: async (k: string, v: string, opts?: { nx?: boolean }) => {
+    set: async (k: string, v: string, opts?: { nx?: boolean; ex?: number }) => {
       if (opts?.nx && holder.store.has(k)) return null
       holder.store.set(k, v)
+      holder.ttl.set(k, opts?.ex)
       return 'OK'
     },
     del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
@@ -82,6 +86,7 @@ const BUILDER = 'd0000000-0000-4000-8000-000000000005' // builder tier (200,000)
 const ENTERPRISE = 'd0000000-0000-4000-8000-000000000006' // enterprise, 50,000: no cap, no warning
 const ACADEMIC = 'd0000000-0000-4000-8000-000000000007' // academic (500,000): 45,000 is 9%
 const LEGACY = 'd0000000-0000-4000-8000-000000000008' // legacy 'starter' = Builder (200,000): 45,000 is 22%
+const LATE = 'd0000000-0000-4000-8000-000000000009' // 39,000 this month (78%); crosses 80% at 23:55 on 30 Nov
 let pg: PGlite
 
 async function calls(dev: string, n: number, at: string, isTest = false) {
@@ -111,7 +116,7 @@ beforeAll(async () => {
   for (const [id, tier, founder] of [
     [AT_80, 'standard', false], [AT_100, 'standard', false], [FOUNDER, 'standard', true],
     [LAST_MONTH, 'standard', false], [BUILDER, 'builder', false], [ENTERPRISE, 'enterprise', false],
-    [ACADEMIC, 'academic', false], [LEGACY, 'starter', false],
+    [ACADEMIC, 'academic', false], [LEGACY, 'starter', false], [LATE, 'standard', false],
   ] as const) {
     await pg.query('INSERT INTO developers (id, email, name, tier, is_founding_member) VALUES ($1, $2, $3, $4, $5)', [id, `${id}@example.com`, 'Dev', tier, founder])
     await pg.query('INSERT INTO tools (id, developer_id) VALUES (gen_random_uuid(), $1)', [id])
@@ -126,6 +131,7 @@ beforeAll(async () => {
   await calls(ENTERPRISE, 50_000, '2026-11-15T00:00:00Z') // over every capped limit but Scale
   await calls(ACADEMIC, 45_000, '2026-11-15T00:00:00Z')
   await calls(LEGACY, 45_000, '2026-11-15T00:00:00Z')
+  await calls(LATE, 39_000, '2026-11-15T00:00:00Z')
 
   // An organization whose member made this month's calls: the paused phase wrote rows for it.
   await pg.query(`INSERT INTO organizations (id) VALUES ('a0000000-0000-4000-8000-000000000001')`)
@@ -203,6 +209,72 @@ describe('cron aggregate-usage (pglite)', () => {
     await run()
     expect(holder.send.mock.calls[0][0]).toMatchObject({ developerId: AT_100, idempotencyKey: `usage-alert:${AT_100}:2026-11:100` })
   }, 30_000)
+
+  it("a level crossed after the month's last run is sent on the 1st, under that month's key and naming the month", async () => {
+    holder.store.clear()
+    vi.setSystemTime(new Date('2026-11-30T23:50:00.000Z')) // November's last run
+    try {
+      await run()
+      expect(sentTo()).not.toContain(LATE) // 78%
+      await calls(LATE, 1_500, '2026-11-30T23:55:00Z') // 40,500 = 81%, after the last run
+      holder.send.mockClear()
+      vi.setSystemTime(new Date('2026-12-01T00:50:00.000Z')) // December's first run
+      const body = await run()
+      expect(body).toMatchObject({ period: '2026-12-01T00:00:00.000Z', caughtUp: '2026-11-01T00:00:00.000Z', alertsSent: 1 })
+      expect(sentTo()).toEqual([LATE])
+      const sent = holder.send.mock.calls[0][0] as { subject: string; idempotencyKey: string }
+      expect(sent.idempotencyKey).toBe(`usage-alert:${LATE}:2026-11:80`)
+      expect(sent.subject).toContain('November 2026')
+      holder.send.mockClear()
+      await run()
+      expect(holder.send).not.toHaveBeenCalled() // once only
+
+      // November's records outlive November and its two-day catch-up
+      expect(holder.ttl.get(`usage-alert:${LATE}:2026-11:80`)).toBeGreaterThanOrEqual((31 + 2) * 24 * 60 * 60)
+
+      // November is still checked for two days, so a missed run or two loses nothing...
+      vi.setSystemTime(new Date('2026-12-02T23:50:00.000Z'))
+      expect((await run()).caughtUp).toBe('2026-11-01T00:00:00.000Z')
+      expect(holder.send).not.toHaveBeenCalled()
+
+      // ...and once the catch-up is over, it is no longer checked (December has no calls)
+      holder.store.clear()
+      vi.setSystemTime(new Date('2026-12-03T00:00:00.000Z'))
+      const after = await run()
+      expect(after.caughtUp).toBeUndefined()
+      expect(holder.send).not.toHaveBeenCalled()
+    } finally {
+      vi.setSystemTime(NOW)
+    }
+  }, 60_000)
+
+  it('a send left unresolved just before midnight is retried after the rollover with its original payload and key, then recorded as ambiguous', async () => {
+    holder.store.clear()
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'unknown' : 'sent'))
+    try {
+      vi.setSystemTime(new Date('2026-11-30T23:50:00.000Z'))
+      await run()
+      const first = holder.send.mock.calls.find((c) => (c[0] as { developerId: string }).developerId === AT_100)![0]
+      expect(holder.store.has(`usage-alert:${AT_100}:2026-11:100:attempt`)).toBe(true)
+
+      holder.send.mockClear()
+      vi.setSystemTime(new Date('2026-12-01T00:50:00.000Z')) // still inside Resend's 24 h window
+      const retry = await run()
+      expect(sentTo()).toEqual([AT_100])
+      expect(holder.send.mock.calls[0][0]).toEqual(first) // same recipient, subject, HTML and key
+      expect(retry).toMatchObject({ alertsSent: 0, failed: 1 })
+
+      holder.send.mockClear()
+      vi.setSystemTime(new Date('2026-12-01T23:50:00.000Z')) // 24 h after the first attempt
+      const late = await run()
+      expect(holder.send).not.toHaveBeenCalled() // never resent outside the window
+      expect(late).toMatchObject({ failed: 1 })
+      expect(holder.store.get(`usage-alert:${AT_100}:2026-11:100`)).toBe('ambiguous')
+    } finally {
+      holder.send.mockImplementation(async () => 'sent')
+      vi.setSystemTime(NOW)
+    }
+  }, 60_000)
 
   it('leaves cost_allocations alone (paused), though an organization has members with calls', async () => {
     const r = await pg.query<{ n: number }>('SELECT count(*)::int AS n FROM cost_allocations')
