@@ -1,29 +1,24 @@
 import { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
-import { invocations, developers, tools } from '@/lib/db/schema'
-import { sql, eq, and, gte, lt, inArray } from 'drizzle-orm'
 import { successResponse, errorResponse, internalErrorResponse } from '@/lib/api'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { logger } from '@/lib/logger'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { getRedis } from '@/lib/redis'
-import { usageWarning80Email, usageWarning90Email, usageExceededEmail } from '@/lib/email'
-import { sendNotificationEmailResult } from '@/lib/notifications'
-import { deliverOnce } from '@/lib/notification-delivery'
 import { utcMonthStart, utcNextMonthStart, utcMonthKey } from '@/lib/utc-periods'
-import { getEffectiveTier, getTierConfig, TIER_LIMITS } from '@/lib/tier-config'
 
 export const maxDuration = 60
 
-
 /**
- * Vercel Cron handler: checks each developer's ops this UTC month against their
- * tier limit and sends one warning email per level and month at 80%, 90% and 100%.
- * Org cost allocations are paused (see below).
- * Schedule: hourly at :50 (vercel.json). A warning goes out within the hour of a
- * level being crossed, each month's last hours are checked against that month (23:50),
- * and a retry after a failed or cut-off send lands well inside Resend's 24 h
- * idempotency window (lib/notification-delivery).
+ * Vercel Cron handler for the monthly usage job. Both of its phases are off for now
+ * (founder decisions 2026-11-22 and 2026-11-24), so it only reports the period:
+ *
+ * - Org cost allocations are paused. The earlier phase matched organization members
+ *   (developer ids) against invocation consumer ids, added a duplicate row per member
+ *   on every run and had no reader in the dashboard. Existing cost_allocations rows
+ *   are left as they are; nothing is deleted.
+ * - Plan-usage warning emails (80/90/100% of the monthly ops limit) are off until
+ *   their delivery is reworked in a separate change. The earlier code never sent one:
+ *   a JS Date inside a sql template threw for every developer under the production
+ *   postgres-js driver.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -41,153 +36,22 @@ export async function GET(request: NextRequest) {
       return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
     }
 
-    // Period: current month start to now
-    const now = new Date()
     // The UTC calendar month, whatever the server's time zone
+    const now = new Date()
     const periodStart = utcMonthStart(now)
     const periodEnd = utcNextMonthStart(now)
     const monthKey = utcMonthKey(now)
 
-    // Org cost allocations are paused (founder decision 2026-11-22). The earlier phase
-    // matched organization members (developer ids) against invocation consumer ids,
-    // added a duplicate row per member on every run and had no reader in the
-    // dashboard. Existing cost_allocations rows are left as they are.
-
-    // ─── Developer usage tier alerts ──────────────────────────────────
-    // Ops this UTC month per developer, counted as the usage page counts them (every
-    // invocation of the developer's tools). Timestamps go to SQL as ISO strings: the
-    // postgres-js driver cannot serialize a JS Date inside a sql template.
-    const usage = await db
-      .select({ developerId: tools.developerId, opCount: sql<number>`count(*)::int` })
-      .from(invocations)
-      .innerJoin(tools, eq(invocations.toolId, tools.id))
-      .where(and(
-        gte(invocations.createdAt, sql`${periodStart.toISOString()}::timestamptz`),
-        lt(invocations.createdAt, sql`${periodEnd.toISOString()}::timestamptz`),
-      ))
-      .groupBy(tools.developerId)
-
-    // No tier warns below 80% of the smallest limit.
-    const minLimit = Math.min(...Object.values(TIER_LIMITS).map((t) => t.opsPerMonth))
-    const opsByDev = new Map(
-      usage.filter((u) => u.opCount >= minLimit * 0.8).map((u) => [u.developerId, u.opCount])
-    )
-    const candidates = opsByDev.size === 0 ? [] : await db
-      .select({
-        id: developers.id,
-        email: developers.email,
-        name: developers.name,
-        tier: developers.tier,
-        isFoundingMember: developers.isFoundingMember,
-      })
-      .from(developers)
-      .where(inArray(developers.id, [...opsByDev.keys()]))
-
-    let alertsSent = 0
-    let failed = 0
-    let skipped = 0
-    const redis = getRedis()
-
-    for (const dev of candidates) {
-      try {
-        // The tier the usage page shows (founding members get Scale)
-        const tier = getEffectiveTier(dev.tier, dev.isFoundingMember)
-        // Monthly ops limit (soft: tools keep working); legacy and academic tiers included
-        const limit = getTierConfig(tier).opsPerMonth
-        if (!Number.isFinite(limit)) continue // Enterprise has no cap
-
-        const currentOps = opsByDev.get(dev.id) ?? 0
-        const usagePct = (currentOps / limit) * 100
-        const devName = dev.name ?? 'Developer'
-
-        // Determine which threshold level to alert at
-        let level: '80' | '90' | '100' | null = null
-        if (usagePct >= 100) {
-          level = '100'
-        } else if (usagePct >= 90) {
-          level = '90'
-        } else if (usagePct >= 80) {
-          level = '80'
-        }
-
-        if (!level) continue
-
-        // Build and send the appropriate email
-        let email: { subject: string; html: string }
-        if (level === '100') {
-          email = usageExceededEmail(devName, currentOps, limit, tier)
-        } else if (level === '90') {
-          email = usageWarning90Email(devName, currentOps, limit, tier)
-        } else {
-          email = usageWarning80Email(devName, currentOps, limit, tier)
-        }
-
-        // Once per level and month (lib/notification-delivery): recorded only when sent
-        // or opted out, so a failed send is tried again next hour; overlapping runs and
-        // a run killed mid-send can't send it twice.
-        const result = await deliverOnce(redis, {
-          key: `usage-alert:${dev.id}:${monthKey}:${level}`,
-          recordTtlSecs: 31 * 24 * 60 * 60,
-          recipient: dev.email,
-          render: () => ({ to: dev.email, ...email }),
-          send: (payload, idempotencyKey) => sendNotificationEmailResult({
-            developerId: dev.id,
-            eventKey: 'usage_alert',
-            email: payload.to,
-            subject: payload.subject,
-            html: payload.html,
-            idempotencyKey,
-          }),
-        })
-
-        if (result === 'delivered' || result === 'busy') continue
-        if (result === 'ambiguous') {
-          // An earlier attempt's outcome is unknown and Resend's 24 h window has passed:
-          // not resent (recorded); reconcile by hand
-          failed++
-          logger.error('cron.aggregate_usage.delivery_ambiguous', { developerId: dev.id, level })
-          continue
-        }
-        if (result === 'failed') {
-          failed++
-          logger.warn('cron.aggregate_usage.send_failed', { developerId: dev.id, level })
-          continue
-        }
-        if (result === 'opted_out') {
-          skipped++ // the developer turned these off: recorded, not counted as sent
-          continue
-        }
-        alertsSent++
-
-        logger.info('cron.aggregate_usage.alert_sent', {
-          developerId: dev.id,
-          level,
-          currentOps,
-          limit,
-          usagePct: Math.round(usagePct),
-        })
-      } catch (devErr) {
-        // Don't let one developer failure stop the batch; the next run retries it
-        failed++
-        logger.error('cron.aggregate_usage.dev_alert_failed', { developerId: dev.id }, devErr)
-      }
+    const result = {
+      period: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      month: monthKey,
+      costAllocations: 'paused',
+      usageAlerts: 'off',
+      alertsSent: 0,
     }
-
-    logger.info('cron.aggregate_usage.completed', {
-      period: periodStart.toISOString(),
-      developersWithUsage: usage.length,
-      alertsSent,
-      failed,
-      skipped,
-    })
-
-    return successResponse({
-      period: periodStart.toISOString(),
-      developersWithUsage: usage.length,
-      alertsSent,
-      failed,
-      skipped,
-    })
+    logger.info('cron.aggregate_usage.completed', result)
+    return successResponse(result)
   } catch (error) {
     logger.error('cron.aggregate_usage.failed', {}, error)
     return internalErrorResponse(error)
