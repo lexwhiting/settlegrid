@@ -10,9 +10,13 @@
  *   killed between claiming and recording (a timeout, a crash) doesn't block the
  *   next run.
  * - `${key}:attempt` keeps the first attempt that may have reached Resend: its time
- *   and the exact subject and HTML. A retry resends that same payload with `key` as
- *   Resend's Idempotency-Key, which Resend honours for 24 hours: if an earlier attempt
- *   got the email out, the retry is not sent again.
+ *   and the exact recipient, subject and HTML. A retry resends that same request with
+ *   `key` as Resend's Idempotency-Key, which Resend honours for 24 hours: if an
+ *   earlier attempt got the email out, the retry is not sent again.
+ * - If the developer's address has changed since such an attempt, the retry is not
+ *   sent at all (neither to the old address under the old key nor to the new one):
+ *   the earlier email may have reached the old address. It is recorded as
+ *   'ambiguous' and the caller logs it for reconciliation.
  * - A send Resend provably refused (`not_sent`) clears the attempt it started, so a
  *   long run of refusals (a bad API key) is simply retried. An attempt whose outcome
  *   is unknown (`unknown`, a throw, a killed run) stays. Retries go ahead only while
@@ -29,6 +33,8 @@ import type { SendEmailResult } from '@/lib/email'
 export type DeliveryRedis = Pick<Redis, 'get' | 'set' | 'del'>
 
 export interface DeliveryPayload {
+  /** The recipient address, kept with the attempt so a retry is identical. */
+  to: string
   subject: string
   html: string
 }
@@ -60,7 +66,10 @@ interface Attempt extends DeliveryPayload {
 function parsedAttempt(raw: unknown): Attempt | null {
   if (raw == null) return null
   const value = typeof raw === 'string' ? JSON.parse(raw) : raw
-  return value && typeof value === 'object' && typeof (value as Attempt).at === 'number' ? (value as Attempt) : null
+  const a = value as Partial<Attempt> | null
+  return a && typeof a === 'object' && typeof a.at === 'number' && typeof a.to === 'string' && typeof a.subject === 'string' && typeof a.html === 'string'
+    ? (a as Attempt)
+    : null
 }
 
 export async function deliverOnce(
@@ -69,6 +78,8 @@ export async function deliverOnce(
     key: string
     /** How long the result is remembered (the period, plus a margin). */
     recordTtlSecs: number
+    /** The developer's current address: a retry to a different one is not sent. */
+    recipient: string
     /** Builds the email; called only when there is no earlier attempt to resend. */
     render: () => DeliveryPayload
     /** Sends `payload` with the given Resend idempotency key. Should not throw. */
@@ -94,13 +105,17 @@ export async function deliverOnce(
         await redis.set(opts.key, 'ambiguous', { ex: opts.recordTtlSecs })
         return 'ambiguous'
       }
+      if (attempt.to !== opts.recipient) {
+        await redis.set(opts.key, 'ambiguous:recipient_changed', { ex: opts.recordTtlSecs })
+        return 'ambiguous'
+      }
     } else {
       attempt = { at: Date.now(), ...opts.render() }
       startedHere = true
       await redis.set(attemptKey, JSON.stringify(attempt), { ex: opts.recordTtlSecs })
     }
 
-    const outcome = await opts.send({ subject: attempt.subject, html: attempt.html }, opts.key)
+    const outcome = await opts.send({ to: attempt.to, subject: attempt.subject, html: attempt.html }, opts.key)
     if (outcome === 'sent' || outcome === 'opted_out') {
       await redis.set(opts.key, outcome, { ex: opts.recordTtlSecs })
       await redis.del(attemptKey)

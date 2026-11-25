@@ -499,6 +499,12 @@ describe('sendEmail', () => {
     expect(logger.info).toHaveBeenCalledWith('email.skipped', expect.any(Object))
   })
 
+  it('sendEmailResult says not_sent when Resend is not configured (a delivery record must not count it)', async () => {
+    mockGetResendApiKey.mockImplementation(() => { throw new Error('not set') })
+    expect(await sendEmailResult({ to: 'user@test.com', subject: 'Test', html: '<p>Hello</p>', idempotencyKey: 'k' })).toBe('not_sent')
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
   it('returns false when Resend API returns error', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,

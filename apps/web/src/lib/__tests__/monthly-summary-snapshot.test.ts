@@ -61,14 +61,20 @@ describe('monthly summary snapshot storage', () => {
     expect(await loadSnapshot(r.redis, '2026-11')).toEqual({ status: 'incomplete' })
   })
 
-  it('an incomplete snapshot is replaced, and later loads return the same complete stored snapshot', async () => {
+  it('an incomplete snapshot is never repaired: concurrent stores both get null and the stored meta is unchanged', async () => {
     const r = fakeRedis()
     await storeSnapshot(r.redis, '2026-11', entries(5), 3600, 2)
     r.store.delete(`${META}:${writerOf(r.store)}:1`)
-    const recovered = await storeSnapshot(r.redis, '2026-11', entries(5), 3600, 2)
-    expect(recovered).toEqual(entries(5))
-    expect(await loadSnapshot(r.redis, '2026-11')).toEqual({ status: 'ok', entries: entries(5) })
-    expect(await loadSnapshot(r.redis, '2026-11')).toEqual({ status: 'ok', entries: recovered })
+    const meta = r.store.get(META)
+    // Two runs try to store different figures at the same time
+    const [a, b] = await Promise.all([
+      storeSnapshot(r.redis, '2026-11', entries(5), 3600, 2),
+      storeSnapshot(r.redis, '2026-11', entries(4, 50), 3600, 2),
+    ])
+    expect(a).toBeNull()
+    expect(b).toBeNull()
+    expect(r.store.get(META)).toBe(meta) // nothing published over it
+    expect(await loadSnapshot(r.redis, '2026-11')).toEqual({ status: 'incomplete' })
   })
 
   it('a second store keeps the first complete snapshot and returns it', async () => {

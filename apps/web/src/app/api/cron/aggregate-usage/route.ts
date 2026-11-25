@@ -128,11 +128,12 @@ export async function GET(request: NextRequest) {
         const result = await deliverOnce(redis, {
           key: `usage-alert:${dev.id}:${monthKey}:${level}`,
           recordTtlSecs: 31 * 24 * 60 * 60,
-          render: () => email,
+          recipient: dev.email,
+          render: () => ({ to: dev.email, ...email }),
           send: (payload, idempotencyKey) => sendNotificationEmailResult({
             developerId: dev.id,
             eventKey: 'usage_alert',
-            email: dev.email,
+            email: payload.to,
             subject: payload.subject,
             html: payload.html,
             idempotencyKey,

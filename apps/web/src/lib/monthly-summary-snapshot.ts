@@ -9,8 +9,9 @@
  * Upstash's request-size limit. Each writer writes its chunks under its own id, then
  * the meta key naming that id and the chunk count: a reader sees a snapshot only once
  * it is complete. The meta key is set with NX, so when two first runs overlap, the
- * first one wins and the other run's chunks are never read (they expire). Only an
- * incomplete snapshot (a chunk gone) is replaced, and only by a capture.
+ * first one wins and the other run's chunks are never read (they expire). A snapshot
+ * that is incomplete (a chunk gone) is never repaired or replaced: the month fails
+ * closed (nothing sent, logged), so two runs can never publish different figures.
  */
 import { randomUUID } from 'node:crypto'
 import type { Redis } from '@upstash/redis'
@@ -93,10 +94,11 @@ export async function loadSnapshot(redis: SnapshotRedis, monthKey: string): Prom
 }
 
 /**
- * Publishes `entries` as the month's snapshot unless a complete one is already stored
- * (an incomplete one is replaced), and returns the published snapshot as read back.
- * Returns null if no complete snapshot can be read back: never unpublished entries.
- * Call it only while the source data is complete (inCaptureWindow).
+ * Publishes `entries` as the month's snapshot unless one is already stored, and
+ * returns the published snapshot as read back. Returns null if no complete snapshot
+ * can be read back (including when the stored one is incomplete, which is never
+ * replaced): never unpublished entries. Call it only while the source data is
+ * complete (inCaptureWindow).
  */
 export async function storeSnapshot(
   redis: SnapshotRedis,
@@ -110,11 +112,7 @@ export async function storeSnapshot(
   for (let i = 0; i < chunks; i++) {
     await redis.set(chunkKey(monthKey, writer, i), JSON.stringify(entries.slice(i * chunkSize, (i + 1) * chunkSize)), { ex: ttlSecs })
   }
-  const before = await loadSnapshot(redis, monthKey)
-  if (before.status === 'ok') return before.entries
-  const meta = JSON.stringify({ chunks, writer })
-  if (before.status === 'incomplete') await redis.set(metaKey(monthKey), meta, { ex: ttlSecs })
-  else await redis.set(metaKey(monthKey), meta, { nx: true, ex: ttlSecs })
+  await redis.set(metaKey(monthKey), JSON.stringify({ chunks, writer }), { nx: true, ex: ttlSecs })
   const after = await loadSnapshot(redis, monthKey)
   return after.status === 'ok' ? after.entries : null
 }

@@ -186,11 +186,12 @@ export async function GET(request: NextRequest) {
     const state = await loadSnapshot(redis, monthKey)
     let snapshot: SnapshotEntry[] | null = state.status === 'ok' ? state.entries : null
     if (!snapshot) {
-      if (!inCaptureWindow(now)) {
-        // Missed the capture (e.g. first deployed mid-month, or every run in the window
-        // failed) or the stored figures are incomplete: send nothing rather than figures
-        // from partly purged logs, and don't mark the month done. Logged once per month,
-        // with a failing status so the cron run shows it.
+      if (state.status === 'incomplete' || !inCaptureWindow(now)) {
+        // The stored figures are incomplete (never repaired: two runs could otherwise
+        // publish different figures), or the capture was missed (e.g. first deployed
+        // mid-month, or every run in the window failed): send nothing rather than
+        // figures from partly purged logs, and don't mark the month done. Logged once
+        // per month, with a failing status so the cron run shows it.
         if (await redis.set(`monthly-summary:not-captured:${monthKey}`, '1', { nx: true, ex: RECORD_TTL_SECS })) {
           logger.error('cron.monthly_summary.not_captured', { month: monthName, snapshot: state.status })
           return errorResponse(`Monthly summary for ${monthName} was not captured`, 503, 'NOT_CAPTURED')
@@ -252,7 +253,8 @@ export async function GET(request: NextRequest) {
         const result = await deliverOnce(redis, {
           key: deliveryKey(dev.id),
           recordTtlSecs: RECORD_TTL_SECS,
-          render: () => monthlyDeveloperSummaryEmail(dev.name ?? 'Developer', monthName, entry.summary),
+          recipient: dev.email,
+          render: () => ({ to: dev.email, ...monthlyDeveloperSummaryEmail(dev.name ?? 'Developer', monthName, entry.summary) }),
           send: async (payload, idempotencyKey) => {
             const wait = lastSendAt + MIN_SEND_INTERVAL_MS - Date.now()
             if (wait > 0) await new Promise((r) => setTimeout(r, wait))
@@ -260,7 +262,7 @@ export async function GET(request: NextRequest) {
             return sendNotificationEmailResult({
               developerId: dev.id,
               eventKey: 'monthly_summary',
-              email: dev.email,
+              email: payload.to,
               subject: payload.subject,
               html: payload.html,
               idempotencyKey,

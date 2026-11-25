@@ -51,8 +51,8 @@ export interface SendEmailParams {
  */
 export type SendEmailResult = 'sent' | 'not_sent' | 'unknown'
 
-/** Sends via Resend and says whether the email went out. Never throws. */
-export async function sendEmailResult(params: SendEmailParams): Promise<SendEmailResult> {
+/** Posts to Resend; `unconfigured` when no Resend key is available (nothing sent). */
+async function postToResend(params: SendEmailParams): Promise<SendEmailResult | 'unconfigured'> {
   let resendApiKey: string | null = null
   try {
     resendApiKey = getResendApiKey()
@@ -62,7 +62,7 @@ export async function sendEmailResult(params: SendEmailParams): Promise<SendEmai
 
   if (!resendApiKey) {
     logger.info('email.skipped', { to: params.to, subject: params.subject })
-    return 'sent'
+    return 'unconfigured'
   }
 
   try {
@@ -108,7 +108,20 @@ export async function sendEmailResult(params: SendEmailParams): Promise<SendEmai
  * Never throws — logs errors and returns false on failure.
  */
 export async function sendEmail(params: SendEmailParams): Promise<boolean> {
-  return (await sendEmailResult(params)) === 'sent'
+  // Without a Resend key (local development) the email is skipped and reported as
+  // accepted, as before; delivery records use sendEmailResult, which says not_sent.
+  const result = await postToResend(params)
+  return result === 'sent' || result === 'unconfigured'
+}
+
+/**
+ * Sends via Resend and says whether the email went out. Never throws. Without a
+ * Resend key nothing is sent, so it returns `not_sent`: a delivery record must not
+ * treat a skipped email as delivered, and a later configured run sends it.
+ */
+export async function sendEmailResult(params: SendEmailParams): Promise<SendEmailResult> {
+  const result = await postToResend(params)
+  return result === 'unconfigured' ? 'not_sent' : result
 }
 
 // ── Design system components ─────────────────────────────────────────────────
