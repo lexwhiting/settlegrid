@@ -87,11 +87,16 @@ async function computeSnapshot(redis: Redis, now: Date, lastMonthStart: Date, pr
 
   // The cutoffs the purge actually used, where recorded (data-retention cron)
   // (a high-water mark: the furthest cutoff any purge used)
+  // A developer whose mark can't be read is left out (it can't be shown complete)
+  // rather than failing the run for everyone.
   const recorded = new Map<string, Date>()
+  const unreadable = new Set<string>()
   for (let i = 0; i < devs.length; i += MGET_CHUNK) {
     const chunk = devs.slice(i, i + MGET_CHUNK)
-    const scores = await Promise.all(chunk.map((d) => redis.zscore(invocationsCutoffKey(d.id), INVOCATIONS_CUTOFF_MEMBER)))
+    const scores = await Promise.all(chunk.map((d) =>
+      redis.zscore(invocationsCutoffKey(d.id), INVOCATIONS_CUTOFF_MEMBER).catch(() => undefined)))
     chunk.forEach((d, j) => {
+      if (scores[j] === undefined) { unreadable.add(d.id); return }
       const ms = scores[j] == null ? NaN : Number(scores[j])
       if (Number.isFinite(ms)) recorded.set(d.id, new Date(ms))
     })
@@ -100,6 +105,10 @@ async function computeSnapshot(redis: Redis, now: Date, lastMonthStart: Date, pr
   const notComplete: string[] = []
   for (const dev of devs) {
     const t = totalsByDev.get(dev.id)!
+    if (unreadable.has(dev.id)) {
+      notComplete.push(dev.id)
+      continue
+    }
     // What is still there for this developer (null: everything)
     const kept = keptSince(now, effectiveRetentionDays(dev.logRetentionDays, MIN_LOG_RETENTION_DAYS), recorded.get(dev.id) ?? null)
     if (kept && kept > lastMonthStart) {

@@ -44,7 +44,7 @@ export const PURGE_HOUR_UTC = 3
  * Refreshed on every purge; once purges stop it expires after 70 days, by which time
  * the rows it covers are older than any month a capture reads.
  */
-export const invocationsCutoffKey = (developerId: string) => `retention:invocations-cutoff:${developerId}`
+export const invocationsCutoffKey = (developerId: string) => `retention:invocations-cutoff-hwm:${developerId}`
 export const INVOCATIONS_CUTOFF_MEMBER = 'cutoff'
 export const INVOCATIONS_CUTOFF_TTL_SECS = 70 * 24 * 60 * 60
 

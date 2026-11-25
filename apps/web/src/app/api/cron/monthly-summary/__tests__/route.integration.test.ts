@@ -24,6 +24,7 @@ const holder = vi.hoisted(() => ({
   db: null as unknown,
   store: new Map<string, string>(),
   zsets: new Map<string, number>(),
+  zscoreFails: new Set<string>(),
   send: null as unknown as Mock,
   template: null as unknown as Mock,
 }))
@@ -42,7 +43,10 @@ vi.mock('@/lib/redis', () => ({
     // Like Upstash: stored JSON comes back parsed
     get: async (k: string) => upstashValue(holder.store.get(k)),
     mget: async (...ks: string[]) => ks.map((k) => upstashValue(holder.store.get(k))),
-    zscore: async (k: string) => holder.zsets.get(k) ?? null,
+    zscore: async (k: string) => {
+      if (holder.zscoreFails.has(k)) throw new Error('WRONGTYPE')
+      return holder.zsets.get(k) ?? null
+    },
     set: async (k: string, v: string, opts?: { nx?: boolean }) => {
       if (opts?.nx && holder.store.has(k)) return null
       holder.store.set(k, v)
@@ -364,7 +368,7 @@ describe('cron monthly-summary (pglite)', () => {
     holder.store.clear()
     holder.send.mockClear()
     // The purge recorded a cutoff inside November for ACTIVE (it ran early, with a shorter retention)
-    holder.zsets.set(`retention:invocations-cutoff:${ACTIVE}`, Date.parse('2026-11-05T00:00:00.000Z'))
+    holder.zsets.set(`retention:invocations-cutoff-hwm:${ACTIVE}`, Date.parse('2026-11-05T00:00:00.000Z'))
     const body = await run()
     expect(body).toMatchObject({ month: 'November 2026', devsChecked: 1, emailsSent: 1 })
     expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([TIED])
@@ -404,6 +408,23 @@ describe('cron monthly-summary (pglite)', () => {
     expect(sentKeys().length).toBe(later.devsChecked)
   }, 20_000)
 
+  it("a developer whose purge mark can't be read is left out; the others still get their summaries", async () => {
+    await pg.query('DELETE FROM invocations')
+    await calls(T_SEARCH, 2, 50, '2026-11-20T00:00:00Z') // ACTIVE
+    await calls(T_ALPHA, 2, 20, '2026-11-20T00:00:00Z') // TIED
+    holder.store.clear()
+    holder.zsets.clear()
+    holder.send.mockClear()
+    holder.zscoreFails.add(`retention:invocations-cutoff-hwm:${ACTIVE}`)
+    try {
+      const body = await run()
+      expect(body).toMatchObject({ devsChecked: 1, emailsSent: 1 })
+      expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([TIED])
+    } finally {
+      holder.zscoreFails.clear()
+    }
+  }, 20_000)
+
   it('a purge high-water mark inside the month before (retention raised since) drops the trend', async () => {
     // ACTIVE keeps 90 days now, but an earlier purge under 30 days already deleted
     // October's first days: the recorded mark is 5 Oct, so October is incomplete
@@ -414,7 +435,7 @@ describe('cron monthly-summary (pglite)', () => {
     holder.zsets.clear()
     holder.send.mockClear()
     holder.template.mockClear()
-    holder.zsets.set(`retention:invocations-cutoff:${ACTIVE}`, Date.parse('2026-10-05T00:00:00.000Z'))
+    holder.zsets.set(`retention:invocations-cutoff-hwm:${ACTIVE}`, Date.parse('2026-10-05T00:00:00.000Z'))
     expect(await run()).toMatchObject({ emailsSent: 1 })
     expect(templateFor('Dev')?.[2]).toMatchObject({ totalRevenueCents: 100, momRevenuePct: null, momInvocationPct: null })
   }, 20_000)

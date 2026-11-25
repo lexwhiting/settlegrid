@@ -7,7 +7,8 @@
  *
  * - A developer with log retention gets the cutoff recorded and older rows purged.
  * - A keep-forever developer (0) gets nothing recorded and nothing purged.
- * - A failing Redis never blocks the purge.
+ * - If the cutoff can't be recorded, that developer's invocations are not purged that
+ *   run (a purge the monthly summary doesn't know about could hide deleted rows).
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -99,14 +100,14 @@ afterAll(async () => {
 describe('cron data-retention: recorded invocation cutoffs (pglite)', () => {
   it('records the cutoff it used for a developer with log retention, and purges older rows', async () => {
     await run()
-    expect(holder.zsets.get(`retention:invocations-cutoff:${KEEPS_30}`)).toBe(Date.parse('2026-11-01T03:00:00.000Z'))
-    expect(holder.ttl.get(`retention:invocations-cutoff:${KEEPS_30}`)).toBe(70 * 24 * 60 * 60)
+    expect(holder.zsets.get(`retention:invocations-cutoff-hwm:${KEEPS_30}`)).toBe(Date.parse('2026-11-01T03:00:00.000Z'))
+    expect(holder.ttl.get(`retention:invocations-cutoff-hwm:${KEEPS_30}`)).toBe(70 * 24 * 60 * 60)
     expect(await count(KEEPS_30)).toBe(1)
   })
 
   it('records nothing and purges nothing for a keep-forever developer', async () => {
     await run()
-    expect(holder.zsets.has(`retention:invocations-cutoff:${FOREVER}`)).toBe(false)
+    expect(holder.zsets.has(`retention:invocations-cutoff-hwm:${FOREVER}`)).toBe(false)
     expect(await count(FOREVER)).toBe(2)
   })
 
@@ -120,12 +121,12 @@ describe('cron data-retention: recorded invocation cutoffs (pglite)', () => {
       vi.setSystemTime(NOW)
     }
     // Still 1 Nov: rows before it were deleted, whatever the retention says now
-    expect(holder.zsets.get(`retention:invocations-cutoff:${KEEPS_30}`)).toBe(Date.parse('2026-11-01T03:00:00.000Z'))
+    expect(holder.zsets.get(`retention:invocations-cutoff-hwm:${KEEPS_30}`)).toBe(Date.parse('2026-11-01T03:00:00.000Z'))
   })
 
-  it('still purges when the cutoff cannot be recorded', async () => {
+  it("doesn't purge a developer's invocations when the cutoff can't be recorded (the summary must know every purge)", async () => {
     holder.redisDown = true
     await run()
-    expect(await count(KEEPS_30)).toBe(1)
+    expect(await count(KEEPS_30)).toBe(2) // nothing deleted this run; tomorrow's run tries again
   })
 })
