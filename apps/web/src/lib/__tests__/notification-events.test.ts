@@ -34,6 +34,9 @@ describe('notification events', () => {
     const shown = SETTINGS_NOTIFICATION_EVENTS.map((e) => e.key)
     expect(shown).toContain('monthly_summary')
     expect(shown).toContain('usage_alert')
+    // And the preference API accepts them, so a stored opt-out applies
+    expect(NOTIFICATION_PREFERENCE_KEYS).toContain('monthly_summary')
+    expect(NOTIFICATION_PREFERENCE_KEYS).toContain('usage_alert')
   })
 
   it('maps legacy keys onto current keys', () => {
