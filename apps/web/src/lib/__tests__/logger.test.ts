@@ -196,6 +196,36 @@ describe('Sentry mirror — error-level logs only, gated on SENTRY_DSN', () => {
     expect(MONEY_LOSS_KEYS.has('schema.check_unavailable')).toBe(false)
   })
 
+  it('pages the academic auto-confirm tripwire with the money-loss class', () => {
+    expect(MONEY_LOSS_KEYS.has('academic.autoconfirm_blocked')).toBe(true)
+  })
+
+  it('every logger.error call that marks itself money_loss uses a MONEY_LOSS_KEYS key (source guard)', async () => {
+    // A `money_loss: true` in the meta becomes Sentry "extra", not a tag: only a key in
+    // MONEY_LOSS_KEYS gets the money_loss tag the alert rule matches.
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const path = await import('node:path')
+    const src = path.resolve(__dirname, '../..')
+    const files: string[] = []
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = path.join(dir, name)
+        if (statSync(p).isDirectory()) { if (name !== '__tests__' && name !== 'node_modules') walk(p) }
+        else if (/\.tsx?$/.test(name) && !/\.(test|spec)\.tsx?$/.test(name)) files.push(p)
+      }
+    }
+    walk(src)
+    const marked: string[] = []
+    for (const f of files) {
+      const text = readFileSync(f, 'utf8')
+      for (const m of text.matchAll(/logger\.error\(\s*'([^']+)'\s*,\s*\{([^}]*)\}/g)) {
+        if (/\bmoney_loss\s*:\s*true\b/.test(m[2])) marked.push(m[1])
+      }
+    }
+    expect(marked).toContain('academic.autoconfirm_blocked') // the guard sees the known caller
+    expect(marked.filter((key) => !MONEY_LOSS_KEYS.has(key))).toEqual([])
+  })
+
   it('stamps money_loss:true on the Error (captureException) path too', () => {
     process.env.SENTRY_DSN = 'https://test@sentry.test/1'
     logger.error('proxy.onchain_credit_lost_after_settle', { txHash: '0xabc' }, new Error('credit lost'))

@@ -66,6 +66,7 @@ export const MONEY_LOSS_KEYS: ReadonlySet<string> = new Set([
   'settlement.credit_marker_unmatched', // credit reconciliation marker broke
   'stripe.webhook.dedup_delete_failed', // G3-5: a credit/transfer tx failed AND the dedup-marker delete also failed → marker persists → Stripe retry deduped → paid credit permanently skipped (consumer paid, balance never incremented)
   'stripe.connect_webhook.dedup_delete_failed', // G3-5: same funds-loss class on the Connect webhook rail
+  'academic.autoconfirm_blocked', // fail-closed tripwire: an academic credit grant refused because email auto-confirm looks enabled (no mailbox proof), the precondition for minting academic credit to anyone; the route already marks it a money_loss alert, so it pages with the class
   'schema.money_column_drift', // G4-4: a load-bearing money column drifted from schema.ts on the no-rollback push substrate (DC-14) — proactive integrity tripwire (precondition for silent future money loss). NB: 'schema.check_unavailable' (the check-couldn't-run branch) is deliberately NOT here — a transient boot DB blip must not false-page this class.
 ])
 
