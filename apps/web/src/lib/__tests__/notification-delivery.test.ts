@@ -38,7 +38,7 @@ function fakeRedis() {
   }
 }
 
-const KEY = 'monthly-summary:dev-1:2026-11'
+const KEY = 'usage-alert:dev-1:2026-11:80'
 const TO = 'dev@example.com'
 const DAY = 24 * 60 * 60
 const HOUR_MS = 60 * 60 * 1000
@@ -236,6 +236,6 @@ describe('deliverOnce', () => {
     vi.setSystemTime(new Date(Date.now() + IN_FLIGHT_TTL_SECS * 1000 + 1))
     expect(await deliver(r, renders(), send, DAY)).toBe('sent')
     expect(send).toHaveBeenCalledWith({ to: TO, subject: 'S1', html: '<p>1</p>' }, KEY)
-    expect(IN_FLIGHT_TTL_SECS).toBeLessThan(20 * 60) // shorter than the gap between summary runs
+    expect(IN_FLIGHT_TTL_SECS).toBeLessThan(20 * 60) // well under the hour between usage runs
   })
 })

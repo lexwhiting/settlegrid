@@ -17,8 +17,6 @@ import { logger } from '@/lib/logger'
 import { verifyCronAuth } from '@/lib/cron-auth'
 import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { processDataDeletion } from '@/lib/settlement/compliance'
-import { getRedis } from '@/lib/redis'
-import { invocationsCutoffKey, INVOCATIONS_CUTOFF_MEMBER, INVOCATIONS_CUTOFF_TTL_SECS, INVOCATIONS_TRACKING_SINCE_KEY } from '@/lib/monthly-summary-snapshot'
 import {
   effectiveRetentionDays,
   MIN_LOG_RETENTION_DAYS,
@@ -27,32 +25,6 @@ import {
 } from '@/lib/retention-options'
 
 export const maxDuration = 300 // 5 minutes — may process many developers
-
-/** True once the tracking start is known to be recorded; false (logged) if it couldn't be. */
-async function ensureCutoffTracking(): Promise<boolean> {
-  try {
-    await getRedis().set(INVOCATIONS_TRACKING_SINCE_KEY, String(Date.now()), { nx: true })
-    return true
-  } catch (err) {
-    logger.error('cron.data_retention.tracking_not_recorded', { error: err instanceof Error ? err.message : String(err) })
-    return false
-  }
-}
-
-/** True once the cutoff is recorded; false (logged) if it couldn't be. */
-async function recordInvocationsCutoff(developerId: string, cutoffIso: string): Promise<boolean> {
-  try {
-    // Only ever raised (ZADD GT): a purge under a longer retention has an older cutoff
-    const redis = getRedis()
-    const key = invocationsCutoffKey(developerId)
-    await redis.zadd(key, { gt: true }, { score: new Date(cutoffIso).getTime(), member: INVOCATIONS_CUTOFF_MEMBER })
-    await redis.expire(key, INVOCATIONS_CUTOFF_TTL_SECS)
-    return true
-  } catch (err) {
-    logger.error('cron.data_retention.cutoff_not_recorded', { developerId, error: err instanceof Error ? err.message : String(err) })
-    return false
-  }
-}
 
 const BATCH_SIZE = 1000
 
@@ -94,11 +66,6 @@ export async function GET(request: NextRequest) {
 
     // ── 1. Per-developer retention purge ──────────────────────────────
 
-    // Mark when cutoff tracking began (once, never overwritten), before any recorded
-    // purge: purges before it left no record, so the monthly summary treats nothing
-    // earlier as complete. If it can't be confirmed, no invocations are purged this run.
-    const trackingReady = await ensureCutoffTracking()
-
     const allDevelopers = await db
       .select({
         id: developers.id,
@@ -121,13 +88,6 @@ export async function GET(request: NextRequest) {
         cutoff.setDate(cutoff.getDate() - logDays)
         const cutoffIso = cutoff.toISOString()
 
-        // Record the cutoff actually used before deleting anything, so the monthly
-        // summary can tell whether a developer's month is still complete
-        // (lib/monthly-summary-snapshot). If it can't be recorded, this developer's
-        // invocations are not purged this run (tomorrow's run tries again): a purge the
-        // summary doesn't know about could make a partly deleted month look complete.
-        const cutoffRecorded = trackingReady && await recordInvocationsCutoff(dev.id, cutoffIso)
-
         // Get tool IDs for this developer
         const devTools = await db
           .select({ id: tools.id })
@@ -136,7 +96,7 @@ export async function GET(request: NextRequest) {
 
         const toolIds = devTools.map((t) => t.id)
 
-        if (cutoffRecorded && toolIds.length > 0) {
+        if (toolIds.length > 0) {
           let deleted = BATCH_SIZE
           while (deleted === BATCH_SIZE) {
             const idsToDelete = await db

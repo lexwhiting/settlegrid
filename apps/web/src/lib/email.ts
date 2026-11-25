@@ -2097,8 +2097,7 @@ export interface MonthlySummaryData {
 }
 
 /**
- * Sent on the 1st of each month to developers with at least 1 active tool and
- * calls in the month. Revenue is what consumers paid (before SettleGrid's fees).
+ * Sent on the 1st of each month to developers with at least 1 active tool.
  */
 export function monthlyDeveloperSummaryEmail(
   devName: string,
@@ -2109,7 +2108,7 @@ export function monthlyDeveloperSummaryEmail(
   const invocations = data.totalInvocations.toLocaleString()
 
   const trendLabel = (pct: number | null): string => {
-    if (pct === null) return 'Not available'
+    if (pct === null) return 'N/A (first month)'
     const sign = pct >= 0 ? '+' : ''
     return `${sign}${pct.toFixed(1)}% vs last month`
   }
@@ -2119,7 +2118,7 @@ export function monthlyDeveloperSummaryEmail(
     : ''
 
   return {
-    subject: sanitizeSubject(`Your ${monthName} summary — ${revenue} in revenue`),
+    subject: sanitizeSubject(`Your ${monthName} summary — ${revenue} earned`),
     html: baseEmailTemplate(
       `
 <h2 class="sg-heading" style="color:#1A1F3A;margin:0 0 16px;font-family:${FONT_STACK}">Your ${escapeHtml(monthName)} Summary</h2>
@@ -2131,13 +2130,12 @@ ${dataRow('Revenue trend', trendLabel(data.momRevenuePct))}
 ${dataRow('Invocation trend', trendLabel(data.momInvocationPct))}
 ${topToolHtml}
 </table>
-<p class="sg-text" style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 16px">Revenue is what consumers paid for your tools, before SettleGrid's fees. Sandbox calls are not included.</p>
 ${dividerLine()}
 <p class="sg-text" style="color:#4b5563;line-height:1.6">Keep building great tools. Your next payout will be processed according to your payout schedule.</p>
 ${ctaButton('View Dashboard', 'https://settlegrid.ai/dashboard')}
 ${UNSUBSCRIBE_FOOTER}
 `,
-      { preheader: `${revenue} in revenue from ${invocations} invocations in ${escapeHtml(monthName)}.` }
+      { preheader: `You earned ${revenue} from ${invocations} invocations in ${escapeHtml(monthName)}.` }
     ),
   }
 }

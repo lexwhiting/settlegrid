@@ -30,11 +30,11 @@ describe('notification events', () => {
     }
   })
 
-  it('offers the monthly summary and plan usage warnings in Settings now that their senders are on', () => {
+  it('offers plan usage warnings in Settings (sender on) but not the monthly summary (sender off)', () => {
     const shown = SETTINGS_NOTIFICATION_EVENTS.map((e) => e.key)
-    expect(shown).toContain('monthly_summary')
+    expect(shown).not.toContain('monthly_summary')
     expect(shown).toContain('usage_alert')
-    // And the preference API accepts them, so a stored opt-out applies
+    // Both still accepted, so a stored opt-out applies (for the summary, once it is back on)
     expect(NOTIFICATION_PREFERENCE_KEYS).toContain('monthly_summary')
     expect(NOTIFICATION_PREFERENCE_KEYS).toContain('usage_alert')
   })

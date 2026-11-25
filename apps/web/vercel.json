@@ -33,7 +33,7 @@
     },
     {
       "path": "/api/cron/monthly-summary",
-      "schedule": "15,35,55 * * * *"
+      "schedule": "0 9 1 * *"
     },
     {
       "path": "/api/cron/weekly-report",
