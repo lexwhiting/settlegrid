@@ -9,6 +9,20 @@ import { utcDayStart, utcMonthStart, daysBefore, hoursBefore } from '@/lib/utc-p
 
 export const maxDuration = 60
 
+/**
+ * A bigint total from SQL (as text) as a JS number. Exact up to 2^53 − 1
+ * (Number.MAX_SAFE_INTEGER, about $90 trillion in cents); beyond that it throws, so
+ * the request fails with a 500 rather than returning a rounded total.
+ */
+function asSafeInteger(value: string | number | null | undefined): number {
+  if (value == null) return 0
+  const n = BigInt(value)
+  if (n > BigInt(Number.MAX_SAFE_INTEGER) || n < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new RangeError('Explorer total exceeds the safe integer range')
+  }
+  return Number(n)
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -138,24 +152,26 @@ export async function GET(request: NextRequest) {
     const since = (d: Date) => sql`${invocations.createdAt} >= ${d.toISOString()}::timestamptz`
     const [agg] = await db
       .select({
-        spentToday: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${since(todayCutoff)}), 0))::int`,
-        spentWeek: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${since(weekCutoff)}), 0))::int`,
-        spentMonth: sql<number>`(coalesce(sum(${invocations.costCents}) filter (where ${since(monthCutoff)}), 0))::int`,
-        callsToday: sql<number>`(count(*) filter (where ${since(todayCutoff)}))::int`,
-        callsWeek: sql<number>`(count(*) filter (where ${since(weekCutoff)}))::int`,
-        callsMonth: sql<number>`(count(*) filter (where ${since(monthCutoff)}))::int`,
+        // Sums and counts stay bigint in SQL (a 32-bit cast would reject a total above
+        // 2,147,483,647) and come back as text, decoded by asSafeInteger below
+        spentToday: sql<string>`(coalesce(sum(${invocations.costCents}) filter (where ${since(todayCutoff)}), 0))::bigint::text`,
+        spentWeek: sql<string>`(coalesce(sum(${invocations.costCents}) filter (where ${since(weekCutoff)}), 0))::bigint::text`,
+        spentMonth: sql<string>`(coalesce(sum(${invocations.costCents}) filter (where ${since(monthCutoff)}), 0))::bigint::text`,
+        callsToday: sql<string>`(count(*) filter (where ${since(todayCutoff)}))::bigint::text`,
+        callsWeek: sql<string>`(count(*) filter (where ${since(weekCutoff)}))::bigint::text`,
+        callsMonth: sql<string>`(count(*) filter (where ${since(monthCutoff)}))::bigint::text`,
         avgLatencyMs: sql<number | null>`avg(${invocations.latencyMs}) filter (where ${since(periodCutoff)} and ${invocations.latencyMs} is not null)`,
       })
       .from(invocations)
       .innerJoin(tools, eq(invocations.toolId, tools.id))
       .where(and(eq(invocations.consumerId, auth.id), since(statsFrom)))
 
-    const spentToday = agg?.spentToday ?? 0
-    const spentWeek = agg?.spentWeek ?? 0
-    const spentMonth = agg?.spentMonth ?? 0
-    const callsToday = agg?.callsToday ?? 0
-    const callsWeek = agg?.callsWeek ?? 0
-    const callsMonth = agg?.callsMonth ?? 0
+    const spentToday = asSafeInteger(agg?.spentToday)
+    const spentWeek = asSafeInteger(agg?.spentWeek)
+    const spentMonth = asSafeInteger(agg?.spentMonth)
+    const callsToday = asSafeInteger(agg?.callsToday)
+    const callsWeek = asSafeInteger(agg?.callsWeek)
+    const callsMonth = asSafeInteger(agg?.callsMonth)
     const avgCostCents = callsMonth > 0 ? Math.round(spentMonth / callsMonth) : 0
     const avgResponseMs = agg?.avgLatencyMs != null ? Math.round(Number(agg.avgLatencyMs)) : 0
 

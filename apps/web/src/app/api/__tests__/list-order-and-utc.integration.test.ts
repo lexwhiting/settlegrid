@@ -193,4 +193,22 @@ describe('analytics: UTC days and months (pglite)', () => {
       else process.env.TZ = saved
     }
   }, 20_000)
+  it("the explorer's header totals keep their full range: a month's spend above 2,147,483,647 cents is returned exactly", async () => {
+    const BIG = 'c0000000-0000-4000-8000-0000000000b1'
+    // Two calls, each a valid integer cost, whose sum passes the 32-bit limit
+    await pg.query(
+      `INSERT INTO invocations (consumer_id, tool_id, api_key_id, cost_cents, latency_ms, created_at)
+       SELECT $1, t.id, gen_random_uuid(), 2000000000, 10, v.at::timestamptz
+       FROM (SELECT id FROM tools WHERE slug = 'newest') t, (VALUES ('2026-11-01T01:00:00Z'), ('2026-11-01T02:00:00Z')) v(at)`,
+      [BIG],
+    )
+    authState.id = BIG
+    const res = await explorer(new NextRequest('http://localhost:3005/api/consumer/explorer?period=month'))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.stats).toMatchObject({
+      spentToday: 4_000_000_000, spentWeek: 4_000_000_000, spentMonth: 4_000_000_000,
+      callsToday: 2, callsWeek: 2, callsMonth: 2, avgCostCents: 2_000_000_000,
+    })
+  }, 20_000)
 })

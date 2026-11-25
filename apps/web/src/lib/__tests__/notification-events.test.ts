@@ -30,6 +30,12 @@ describe('notification events', () => {
     }
   })
 
+  it('offers the monthly summary and plan usage warnings in Settings now that their senders are on', () => {
+    const shown = SETTINGS_NOTIFICATION_EVENTS.map((e) => e.key)
+    expect(shown).toContain('monthly_summary')
+    expect(shown).toContain('usage_alert')
+  })
+
   it('maps legacy keys onto current keys', () => {
     for (const current of Object.values(LEGACY_NOTIFICATION_KEYS)) {
       expect(NOTIFICATION_PREFERENCE_KEYS).toContain(current)
