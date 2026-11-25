@@ -16,13 +16,19 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { NextRequest } from 'next/server'
 import * as schema from '@/lib/db/schema'
 
-const holder = vi.hoisted(() => ({ db: null as unknown, zsets: new Map<string, number>(), ttl: new Map<string, number>(), redisDown: false }))
+const holder = vi.hoisted(() => ({ db: null as unknown, zsets: new Map<string, number>(), ttl: new Map<string, number>(), strings: new Map<string, string>(), redisDown: false, trackingDown: false }))
 
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
 vi.mock('@/lib/cron-auth', () => ({ verifyCronAuth: () => 'ok' }))
 vi.mock('@/lib/redis', () => ({
   // A sorted set per key with one member, as ZADD GT keeps it: the score only ever rises
   getRedis: () => ({
+    set: async (k: string, v: string, opts?: { nx?: boolean }) => {
+      if (holder.redisDown || holder.trackingDown) throw new Error('redis down')
+      if (opts?.nx && holder.strings.has(k)) return null
+      holder.strings.set(k, v)
+      return 'OK'
+    },
     zadd: async (k: string, opts: { gt?: boolean }, m: { score: number; member: string }) => {
       if (holder.redisDown) throw new Error('redis down')
       const cur = holder.zsets.get(k)
@@ -81,10 +87,12 @@ beforeAll(async () => {
 }, 60_000)
 
 beforeEach(async () => {
+  holder.strings.clear()
   holder.zsets.clear()
   holder.ttl.clear()
   await pg.query('UPDATE developers SET log_retention_days = 30 WHERE id = $1', [KEEPS_30])
   holder.redisDown = false
+  holder.trackingDown = false
   await pg.query('DELETE FROM invocations')
   // One call before the 30-day cutoff (1 Nov 03:00), one after, for each developer
   for (const at of ['2026-10-30T00:00:00Z', '2026-11-15T00:00:00Z']) {
@@ -109,6 +117,24 @@ describe('cron data-retention: recorded invocation cutoffs (pglite)', () => {
     await run()
     expect(holder.zsets.has(`retention:invocations-cutoff-hwm:${FOREVER}`)).toBe(false)
     expect(await count(FOREVER)).toBe(2)
+  })
+
+  it("doesn't purge invocations when the tracking start can't be recorded, even if the cutoff could be", async () => {
+    holder.trackingDown = true
+    await run()
+    expect(await count(KEEPS_30)).toBe(2)
+  })
+
+  it('records when cutoff tracking began, once, before the first recorded purge, and never overwrites it', async () => {
+    await run()
+    expect(holder.strings.get('retention:invocations-tracking-since')).toBe(String(NOW.getTime()))
+    vi.setSystemTime(new Date(NOW.getTime() + 24 * 60 * 60 * 1000))
+    try {
+      await run()
+    } finally {
+      vi.setSystemTime(NOW)
+    }
+    expect(holder.strings.get('retention:invocations-tracking-since')).toBe(String(NOW.getTime()))
   })
 
   it('the recorded cutoff never moves back: a later purge under a longer retention keeps the earlier, further cutoff', async () => {

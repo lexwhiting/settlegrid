@@ -62,15 +62,29 @@ export function inCaptureWindow(now: Date): boolean {
 }
 
 /**
- * The earliest instant whose invocations are still there for a developer (null:
- * everything): the later of the purge's recorded cutoff (if any; it covers a changed
- * retention setting or a purge run off schedule) and the modelled scheduled purge
- * under the current retention (`logDays`, 0 = forever).
+ * When the data-retention cron started recording purge cutoffs (epoch ms; set once
+ * with NX before its first recorded purge, never overwritten, no expiry). Purges
+ * before it left no record, so nothing earlier can be shown complete.
  */
-export function keptSince(now: Date, logDays: number, recorded: Date | null): Date | null {
-  const modelled = retainedSince(now, logDays)
-  if (!recorded) return modelled
-  return modelled && modelled > recorded ? modelled : recorded
+export const INVOCATIONS_TRACKING_SINCE_KEY = 'retention:invocations-tracking-since'
+
+/**
+ * The earliest instant from which a developer's invocations are known to be all
+ * there: the latest of
+ * - when cutoff tracking began (`trackingSince`): purges before it are unknown, so
+ *   an absent mark never implies the current retention setting always applied;
+ *   null (not known to have begun, or unreadable) means nothing can be shown
+ *   complete, so `now` is returned;
+ * - the purge's recorded high-water mark (covers a changed retention setting or a
+ *   purge run off schedule);
+ * - the modelled scheduled purge under the current retention (`logDays`, 0 = forever).
+ * A period is complete only if it starts at or after this instant.
+ */
+export function keptSince(now: Date, logDays: number, recorded: Date | null, trackingSince: Date | null): Date {
+  if (!trackingSince) return now
+  let kept = trackingSince
+  for (const d of [recorded, retainedSince(now, logDays)]) if (d && d > kept) kept = d
+  return kept
 }
 
 /**

@@ -116,15 +116,26 @@ describe('capture window and purge coverage', () => {
     expect(retainedSince(new Date('2026-12-01T00:15:00Z'), 0)).toBeNull() // kept forever
   })
 
-  it('takes the later of the recorded purge cutoff and the modelled one', () => {
+  it('takes the latest of when tracking began, the recorded purge mark and the modelled purge', () => {
     const now = new Date('2026-12-01T00:15:00Z') // modelled 90-day cutoff: 1 Sep 03:00
-    expect(keptSince(now, 90, null)?.toISOString()).toBe('2026-09-01T03:00:00.000Z')
+    const since = new Date('2026-08-01T00:00:00Z') // tracking began long ago
+    expect(keptSince(now, 90, null, since).toISOString()).toBe('2026-09-01T03:00:00.000Z')
     // A purge that ran with a shorter retention, or off schedule, deleted more
-    expect(keptSince(now, 90, new Date('2026-11-05T00:00:00Z'))?.toISOString()).toBe('2026-11-05T00:00:00.000Z')
+    expect(keptSince(now, 90, new Date('2026-11-05T00:00:00Z'), since).toISOString()).toBe('2026-11-05T00:00:00.000Z')
     // A recorded cutoff older than the model doesn't loosen it
-    expect(keptSince(now, 30, new Date('2026-09-01T00:00:00Z'))?.toISOString()).toBe('2026-10-31T03:00:00.000Z')
-    // Keep-forever now, but an earlier purge already ran
-    expect(keptSince(now, 0, new Date('2026-11-05T00:00:00Z'))?.toISOString()).toBe('2026-11-05T00:00:00.000Z')
-    expect(keptSince(now, 0, null)).toBeNull()
+    expect(keptSince(now, 30, new Date('2026-09-01T00:00:00Z'), since).toISOString()).toBe('2026-10-31T03:00:00.000Z')
+    // Keep-forever now, but an earlier recorded purge already ran
+    expect(keptSince(now, 0, new Date('2026-11-05T00:00:00Z'), since).toISOString()).toBe('2026-11-05T00:00:00.000Z')
+    expect(keptSince(now, 0, null, since).toISOString()).toBe(since.toISOString())
+  })
+
+  it('treats nothing before tracking began as complete, whatever the retention says now (pre-deployment purges)', () => {
+    const now = new Date('2026-12-01T00:15:00Z')
+    const since = new Date('2026-11-26T03:00:00Z') // tracking began after the deploy
+    // Keep-forever or 90 days now, no mark: still nothing before 26 Nov counts as complete
+    expect(keptSince(now, 0, null, since).toISOString()).toBe('2026-11-26T03:00:00.000Z')
+    expect(keptSince(now, 90, null, since).toISOString()).toBe('2026-11-26T03:00:00.000Z')
+    // Tracking not known to have begun (or unreadable): nothing counts as complete
+    expect(keptSince(now, 0, null, null).toISOString()).toBe(now.toISOString())
   })
 })

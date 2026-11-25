@@ -25,6 +25,8 @@ const holder = vi.hoisted(() => ({
   store: new Map<string, string>(),
   zsets: new Map<string, number>(),
   zscoreFails: new Set<string>(),
+  // When the purge job began recording cutoffs (epoch ms); long before the test months
+  trackingSince: Date.parse('2026-01-01T00:00:00Z') as number | null,
   send: null as unknown as Mock,
   template: null as unknown as Mock,
 }))
@@ -41,7 +43,9 @@ vi.mock('@/lib/cron-auth', () => ({ verifyCronAuth: () => 'ok' }))
 vi.mock('@/lib/redis', () => ({
   getRedis: () => ({
     // Like Upstash: stored JSON comes back parsed
-    get: async (k: string) => upstashValue(holder.store.get(k)),
+    get: async (k: string) => (k === 'retention:invocations-tracking-since'
+      ? holder.trackingSince
+      : upstashValue(holder.store.get(k))),
     mget: async (...ks: string[]) => ks.map((k) => upstashValue(holder.store.get(k))),
     zscore: async (k: string) => {
       if (holder.zscoreFails.has(k)) throw new Error('WRONGTYPE')
@@ -422,6 +426,40 @@ describe('cron monthly-summary (pglite)', () => {
       expect(holder.send.mock.calls.map((c) => (c[0] as { developerId: string }).developerId)).toEqual([TIED])
     } finally {
       holder.zscoreFails.clear()
+    }
+  }, 20_000)
+
+  it('purges before tracking began are unknown: months they could reach are not reported as complete, whatever the retention says now', async () => {
+    // ACTIVE now keeps everything forever and has no recorded mark, but cutoff tracking
+    // only began on 20 Nov: an untracked purge before then may have deleted November rows
+    await pg.query('DELETE FROM invocations')
+    await pg.query('UPDATE developers SET log_retention_days = 0 WHERE id = $1', [ACTIVE])
+    await calls(T_SEARCH, 2, 50, '2026-11-20T00:00:00Z')
+    await calls(T_SEARCH, 1, 50, '2026-10-20T00:00:00Z')
+    holder.store.clear()
+    holder.zsets.clear()
+    holder.send.mockClear()
+    holder.template.mockClear()
+    const saved = holder.trackingSince
+    try {
+      holder.trackingSince = Date.parse('2026-11-20T03:00:00Z')
+      expect(await run()).toMatchObject({ devsChecked: 0, emailsSent: 0 }) // November not complete: no summary
+      expect(holder.send).not.toHaveBeenCalled()
+
+      // Tracking began mid-October: November is complete, October is not, so no trend
+      holder.store.clear()
+      holder.trackingSince = Date.parse('2026-10-15T03:00:00Z')
+      expect(await run()).toMatchObject({ emailsSent: 1 })
+      expect(templateFor('Dev')?.[2]).toMatchObject({ totalRevenueCents: 100, momRevenuePct: null, momInvocationPct: null })
+
+      // Tracking not known to have begun: nothing is complete
+      holder.store.clear()
+      holder.send.mockClear()
+      holder.trackingSince = null
+      expect(await run()).toMatchObject({ devsChecked: 0, emailsSent: 0 })
+    } finally {
+      holder.trackingSince = saved
+      await pg.query('UPDATE developers SET log_retention_days = 90 WHERE id = $1', [ACTIVE])
     }
   }, 20_000)
 

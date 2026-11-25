@@ -9,7 +9,8 @@ import { apiLimiter, checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { sendNotificationEmailResult } from '@/lib/notifications'
 import { deliverOnce } from '@/lib/notification-delivery'
 import {
-  loadSnapshot, storeSnapshot, inCaptureWindow, keptSince, invocationsCutoffKey, INVOCATIONS_CUTOFF_MEMBER, type SnapshotEntry,
+  loadSnapshot, storeSnapshot, inCaptureWindow, keptSince, invocationsCutoffKey, INVOCATIONS_CUTOFF_MEMBER,
+  INVOCATIONS_TRACKING_SINCE_KEY, type SnapshotEntry,
 } from '@/lib/monthly-summary-snapshot'
 import { effectiveRetentionDays, MIN_LOG_RETENTION_DAYS } from '@/lib/retention-options'
 import { monthlyDeveloperSummaryEmail } from '@/lib/email'
@@ -87,6 +88,12 @@ async function computeSnapshot(redis: Redis, now: Date, lastMonthStart: Date, pr
 
   // The cutoffs the purge actually used, where recorded (data-retention cron)
   // (a high-water mark: the furthest cutoff any purge used)
+  // When cutoff tracking began: before it, purges left no record, so nothing earlier
+  // counts as complete (unknown or unreadable: nothing counts as complete).
+  const rawSince = await redis.get(INVOCATIONS_TRACKING_SINCE_KEY).catch(() => null)
+  const sinceMs = rawSince == null ? NaN : Number(rawSince)
+  const trackingSince = Number.isFinite(sinceMs) ? new Date(sinceMs) : null
+
   // A developer whose mark can't be read is left out (it can't be shown complete)
   // rather than failing the run for everyone.
   const recorded = new Map<string, Date>()
@@ -110,15 +117,15 @@ async function computeSnapshot(redis: Redis, now: Date, lastMonthStart: Date, pr
       continue
     }
     // What is still there for this developer (null: everything)
-    const kept = keptSince(now, effectiveRetentionDays(dev.logRetentionDays, MIN_LOG_RETENTION_DAYS), recorded.get(dev.id) ?? null)
-    if (kept && kept > lastMonthStart) {
+    const kept = keptSince(now, effectiveRetentionDays(dev.logRetentionDays, MIN_LOG_RETENTION_DAYS), recorded.get(dev.id) ?? null, trackingSince)
+    if (kept > lastMonthStart) {
       // Part of the reported month is purged (e.g. 30-day retention after a 31-day
       // month, or a purge that ran early): no summary rather than understated totals
       notComplete.push(dev.id)
       continue
     }
     // The month before may be partly purged: then no trend rather than a wrong one
-    const prevComplete = !(kept && kept > prevMonthStart)
+    const prevComplete = !(kept > prevMonthStart)
     entries.push({
       developerId: dev.id,
       summary: {
