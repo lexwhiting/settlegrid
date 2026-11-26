@@ -5,10 +5,12 @@
  * - `key` records the result: set only once the email was sent or the developer
  *   opted out, so a failed send is tried again by a later run.
  * - `${key}:inflight` is a short claim taken (SET NX) before sending, so two runs
- *   can't send at once. It holds a token, and a run releases only its own claim. It
- *   expires on its own (10 minutes, far longer than a run's 60 s limit), so a run
- *   killed between claiming and recording (a timeout, a crash) doesn't block the
- *   next run.
+ *   can't send at once. It holds a token, and a run releases only its own claim, in
+ *   one atomic compare-and-delete (a Lua script): a claim that expired and was taken
+ *   by another run is never deleted by the first. It expires on its own (10 minutes),
+ *   so a run killed between claiming and recording (a timeout, a crash) doesn't block
+ *   the next run. Should a run outlive its claim, a second run finds the stored attempt
+ *   and resends it with the same Idempotency-Key, which Resend doesn't send twice.
  * - `${key}:attempt` keeps the first attempt that may have reached Resend: its time
  *   and the exact recipient, subject and HTML. A retry resends that same request with
  *   `key` as Resend's Idempotency-Key, which Resend honours for 24 hours: if an
@@ -30,7 +32,7 @@ import type { Redis } from '@upstash/redis'
 import type { SendEmailResult } from '@/lib/email'
 
 /** The subset of the Upstash client used here. */
-export type DeliveryRedis = Pick<Redis, 'get' | 'set' | 'del'>
+export type DeliveryRedis = Pick<Redis, 'get' | 'set' | 'del' | 'eval'>
 
 export interface DeliveryPayload {
   /** The recipient address, kept with the attempt so a retry is identical. */
@@ -54,6 +56,10 @@ export type DeliveryResult = 'sent' | 'opted_out' | 'failed' | 'delivered' | 'bu
 
 /** Long enough for one send; shorter than the gap between runs. */
 export const IN_FLIGHT_TTL_SECS = 10 * 60
+
+/** Deletes KEYS[1] only if it still holds ARGV[1] (this run's token), atomically. */
+export const RELEASE_IF_OWNER =
+  "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
 
 /** Retries reuse the idempotency key only inside Resend's 24 h window, with an hour's margin. */
 export const SAFE_RETRY_MS = 23 * 60 * 60 * 1000
@@ -131,7 +137,7 @@ export async function deliverOnce(
     // inside the window resends the same payload and key, which Resend doesn't send
     // again).
     try {
-      if ((await redis.get(inFlight)) === token) await redis.del(inFlight)
+      await redis.eval(RELEASE_IF_OWNER, [inFlight], [token])
     } catch {
       // The claim expires on its own
     }
