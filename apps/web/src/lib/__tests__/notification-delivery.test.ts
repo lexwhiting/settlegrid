@@ -2,16 +2,23 @@
  * deliverOnce: once-per-period delivery that survives failed sends, overlapping runs
  * and a run killed mid-send, never resends after Resend's idempotency window, and
  * resends exactly the first attempt's payload. The Redis double honours NX and EX
- * against a fake clock and, like Upstash, returns stored JSON parsed.
+ * against a fake clock, like Upstash returns stored JSON parsed, and runs the claim
+ * release script (compare-and-delete) as one atomic step.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
-  deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS,
+  deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS, RELEASE_IF_OWNER,
   type DeliveryRedis, type DeliveryPayload, type SendOutcome,
 } from '../notification-delivery'
 
+const VERIFIED_RELEASE_SCRIPT =
+  "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
+
 function fakeRedis() {
   const data = new Map<string, { value: string; expiresAt: number }>()
+  /** Runs once when a claim is released: after a plain read of it, or before the release script. */
+  let onRelease: (() => void) | null = null
+  const releasing = () => { const f = onRelease; onRelease = null; f?.() }
   const live = (k: string) => {
     const e = data.get(k)
     if (e && e.expiresAt <= Date.now()) data.delete(k)
@@ -20,6 +27,7 @@ function fakeRedis() {
   const redis = {
     get: async (k: string) => {
       const v = live(k)?.value
+      if (k.endsWith(':inflight')) releasing() // the claim changes hands just after this read
       if (v === undefined) return null
       try { return JSON.parse(v) } catch { return v }
     },
@@ -29,12 +37,23 @@ function fakeRedis() {
       return 'OK'
     },
     del: async (k: string) => (data.delete(k) ? 1 : 0),
+    eval: async (script: string, keys: string[], args: string[]) => {
+      // Only the exact compare-and-delete script (checked against a real Redis server),
+      // whose effect this double reproduces
+      if (script !== VERIFIED_RELEASE_SCRIPT) throw new Error('unexpected script')
+      releasing()
+      // One atomic step, as in Redis
+      if (live(keys[0])?.value !== args[0]) return 0
+      data.delete(keys[0])
+      return 1
+    },
   }
   return {
     redis: redis as unknown as DeliveryRedis,
     has: (k: string) => live(k) !== undefined,
     value: (k: string) => live(k)?.value,
     put: (k: string, v: string, ttlSecs: number) => data.set(k, { value: v, expiresAt: Date.now() + ttlSecs * 1000 }),
+    whenReleasing: (f: () => void) => { onRelease = f },
   }
 }
 
@@ -140,6 +159,26 @@ describe('deliverOnce', () => {
     const send = vi.fn(async (): Promise<SendOutcome> => { r.put(`${KEY}:inflight`, 'other-run', IN_FLIGHT_TTL_SECS); return 'unknown' })
     expect(await deliverOnce(r.redis, { key: KEY, recipient: TO, recordTtlSecs: DAY, render: renders(), send })).toBe('failed')
     expect(r.value(`${KEY}:inflight`)).toBe('other-run')
+  })
+
+  it('releases its claim with the verified compare-and-delete script', () => {
+    expect(RELEASE_IF_OWNER).toBe(VERIFIED_RELEASE_SCRIPT)
+  })
+
+  it("never deletes a claim that expired and was taken by another run while it was being released", async () => {
+    const r = fakeRedis()
+    // Our claim runs out and another run takes it, right as this run releases its own
+    r.whenReleasing(() => {
+      vi.setSystemTime(Date.now() + (IN_FLIGHT_TTL_SECS + 1) * 1000)
+      expect(r.has(`${KEY}:inflight`)).toBe(false) // expired
+      r.put(`${KEY}:inflight`, 'replacement-run', IN_FLIGHT_TTL_SECS)
+    })
+    expect(await deliver(r, renders(), sender('unknown'), DAY)).toBe('failed')
+    // The replacement run's claim survives, so a third run stays out while it sends
+    expect(r.value(`${KEY}:inflight`)).toBe('replacement-run')
+    const third = sender('sent')
+    expect(await deliver(r, renders(), third, DAY)).toBe('busy')
+    expect(third).not.toHaveBeenCalled()
   })
 
   it('re-checks the record after claiming: one recorded meanwhile is not sent again', async () => {
