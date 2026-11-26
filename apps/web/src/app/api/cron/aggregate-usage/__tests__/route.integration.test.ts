@@ -44,6 +44,9 @@ vi.mock('@/lib/redis', () => ({
       return 'OK'
     },
     del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
+    // The claim release script: delete KEYS[1] if it still holds ARGV[1]
+    eval: async (_script: string, keys: string[], args: string[]) =>
+      holder.store.get(keys[0]) === args[0] && holder.store.delete(keys[0]) ? 1 : 0,
   }),
 }))
 vi.mock('@/lib/notifications', () => ({
