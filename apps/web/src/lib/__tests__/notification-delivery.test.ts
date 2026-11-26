@@ -7,12 +7,14 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
-  deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS, RELEASE_IF_OWNER,
+  deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS, RELEASE_IF_OWNER, CLEAR_ATTEMPT_IF_OWNER,
   type DeliveryRedis, type DeliveryPayload, type SendOutcome,
 } from '../notification-delivery'
 
 const VERIFIED_RELEASE_SCRIPT =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
+const VERIFIED_CLEAR_ATTEMPT_SCRIPT =
+  "if redis.call('get', KEYS[1]) == ARGV[1] and redis.call('get', KEYS[2]) == ARGV[2] then return redis.call('del', KEYS[2]) else return 0 end"
 
 function fakeRedis() {
   const data = new Map<string, { value: string; expiresAt: number }>()
@@ -38,11 +40,15 @@ function fakeRedis() {
     },
     del: async (k: string) => (data.delete(k) ? 1 : 0),
     eval: async (script: string, keys: string[], args: string[]) => {
-      // Only the exact compare-and-delete script (checked against a real Redis server),
-      // whose effect this double reproduces
+      // Only the exact compare-and-delete scripts (checked against a real Redis server),
+      // whose effect this double reproduces, each as one atomic step as in Redis
+      if (script === VERIFIED_CLEAR_ATTEMPT_SCRIPT) {
+        if (live(keys[0])?.value !== args[0] || live(keys[1])?.value !== args[1]) return 0
+        data.delete(keys[1])
+        return 1
+      }
       if (script !== VERIFIED_RELEASE_SCRIPT) throw new Error('unexpected script')
       releasing()
-      // One atomic step, as in Redis
       if (live(keys[0])?.value !== args[0]) return 0
       data.delete(keys[0])
       return 1
@@ -161,8 +167,33 @@ describe('deliverOnce', () => {
     expect(r.value(`${KEY}:inflight`)).toBe('other-run')
   })
 
-  it('releases its claim with the verified compare-and-delete script', () => {
+  it('releases its claim and clears a refused attempt with the verified compare-and-delete scripts', () => {
     expect(RELEASE_IF_OWNER).toBe(VERIFIED_RELEASE_SCRIPT)
+    expect(CLEAR_ATTEMPT_IF_OWNER).toBe(VERIFIED_CLEAR_ATTEMPT_SCRIPT)
+  })
+
+  it("a run whose claim ran out doesn't clear the attempt another run resent: a refusal then keeps it, and after 24 h it is ambiguous, not sent again", async () => {
+    const r = fakeRedis()
+    // Run A writes the attempt and its send hangs past the claim's 10 minutes
+    let refuseA!: () => void
+    const sendA = vi.fn((_p: DeliveryPayload, _k: string) => new Promise<SendOutcome>((resolve) => { refuseA = () => resolve('not_sent') }))
+    const a = deliver(r, renders(), sendA)
+    await vi.waitFor(() => expect(sendA).toHaveBeenCalled())
+    vi.setSystemTime(Date.now() + (IN_FLIGHT_TTL_SECS + 60) * 1000)
+    // Run B takes the expired claim and resends that attempt: Resend accepts it, but
+    // B never learns so (unknown)
+    const sendB = sender('unknown')
+    expect(await deliver(r, renders(), sendB)).toBe('failed')
+    expect(sendB).toHaveBeenCalledWith(sendA.mock.calls[0][0], KEY)
+    // A's send is then refused: A no longer holds the claim, so the attempt stays
+    refuseA()
+    expect(await a).toBe('failed')
+    expect(r.has(`${KEY}:attempt`)).toBe(true)
+    // More than 24 h later, B's send may have gone out: given up on, not sent again
+    vi.setSystemTime(Date.now() + 25 * HOUR_MS)
+    const later = sender('sent')
+    expect(await deliver(r, renders(), later)).toBe('ambiguous')
+    expect(later).not.toHaveBeenCalled()
   })
 
   it("never deletes a claim that expired and was taken by another run while it was being released", async () => {

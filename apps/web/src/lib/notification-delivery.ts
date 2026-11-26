@@ -20,7 +20,10 @@
  *   the earlier email may have reached the old address. It is recorded as
  *   'ambiguous' and the caller logs it for reconciliation.
  * - A send Resend provably refused (`not_sent`) clears the attempt it started, so a
- *   long run of refusals (a bad API key) is simply retried. An attempt whose outcome
+ *   long run of refusals (a bad API key) is simply retried. It is cleared only in one
+ *   atomic step that checks the run still holds its claim and the attempt is the one
+ *   it wrote: if the claim ran out meanwhile, another run may have resent that attempt
+ *   with an unknown outcome, so the attempt stays. An attempt whose outcome
  *   is unknown (`unknown`, a throw, a killed run) stays. Retries go ahead only while
  *   it is under SAFE_RETRY_MS old, inside Resend's window. After that the delivery is
  *   recorded as 'ambiguous' and never sent again: the caller logs it for
@@ -60,6 +63,13 @@ export const IN_FLIGHT_TTL_SECS = 10 * 60
 /** Deletes KEYS[1] only if it still holds ARGV[1] (this run's token), atomically. */
 export const RELEASE_IF_OWNER =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
+
+/**
+ * Deletes KEYS[2] (the attempt) only if KEYS[1] (the claim) still holds ARGV[1] (this
+ * run's token) and KEYS[2] still holds ARGV[2] (the attempt this run wrote), atomically.
+ */
+export const CLEAR_ATTEMPT_IF_OWNER =
+  "if redis.call('get', KEYS[1]) == ARGV[1] and redis.call('get', KEYS[2]) == ARGV[2] then return redis.call('del', KEYS[2]) else return 0 end"
 
 /** Retries reuse the idempotency key only inside Resend's 24 h window, with an hour's margin. */
 export const SAFE_RETRY_MS = 23 * 60 * 60 * 1000
@@ -105,7 +115,7 @@ export async function deliverOnce(
 
     const attemptKey = `${opts.key}:attempt`
     let attempt = parsedAttempt(await redis.get(attemptKey))
-    let startedHere = false
+    let startedHere: string | null = null // the attempt as written, if written by this run
     if (attempt) {
       if (Date.now() - attempt.at > SAFE_RETRY_MS) {
         await redis.set(opts.key, 'ambiguous', { ex: opts.recordTtlSecs })
@@ -117,19 +127,23 @@ export async function deliverOnce(
       }
     } else {
       attempt = { at: Date.now(), ...opts.render() }
-      startedHere = true
-      await redis.set(attemptKey, JSON.stringify(attempt), { ex: opts.recordTtlSecs })
+      startedHere = JSON.stringify(attempt)
+      await redis.set(attemptKey, startedHere, { ex: opts.recordTtlSecs })
     }
 
     const outcome = await opts.send({ to: attempt.to, subject: attempt.subject, html: attempt.html }, opts.key)
     if (outcome === 'sent' || outcome === 'opted_out') {
+      // Safe whoever holds the claim now: the record stops every later send
       await redis.set(opts.key, outcome, { ex: opts.recordTtlSecs })
       await redis.del(attemptKey)
       return outcome
     }
     // Refused outright: nothing went out on this attempt. Forget it if it started here,
-    // so a long run of refusals is retried rather than given up on.
-    if (outcome === 'not_sent' && startedHere) await redis.del(attemptKey)
+    // so a long run of refusals is retried rather than given up on; but only while this
+    // run still holds its claim (another run may have resent it after the claim ran out).
+    if (outcome === 'not_sent' && startedHere !== null) {
+      await redis.eval(CLEAR_ATTEMPT_IF_OWNER, [inFlight, attemptKey], [token, startedHere])
+    }
     return 'failed'
   } finally {
     // Released whatever happened (only if still ours): a failed send is retried by
