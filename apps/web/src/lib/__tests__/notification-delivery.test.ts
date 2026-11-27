@@ -7,10 +7,16 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
-  deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS, RELEASE_IF_OWNER, CLEAR_ATTEMPT_IF_OWNER,
+  deliverOnce, IN_FLIGHT_TTL_SECS, SAFE_RETRY_MS, RELEASE_IF_OWNER, CLEAR_ATTEMPT_IF_OWNER, BEGIN_IF_OWNER,
   type DeliveryRedis, type DeliveryPayload, type SendOutcome,
 } from '../notification-delivery'
 
+const VERIFIED_BEGIN_SCRIPT =
+  "if redis.call('exists', KEYS[1]) == 1 then return {'delivered'} end " +
+  "if redis.call('get', KEYS[2]) ~= ARGV[1] then return {'lost'} end " +
+  "local a = redis.call('get', KEYS[3]) if a then return {'existing', a} end " +
+  "if ARGV[2] == '' then return {'missing'} end " +
+  "redis.call('set', KEYS[3], ARGV[2], 'EX', ARGV[3]) return {'created'}"
 const VERIFIED_RELEASE_SCRIPT =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
 const VERIFIED_CLEAR_ATTEMPT_SCRIPT =
@@ -21,6 +27,10 @@ function fakeRedis() {
   /** Runs once when a claim is released: after a plain read of it, or before the release script. */
   let onRelease: (() => void) | null = null
   const releasing = () => { const f = onRelease; onRelease = null; f?.() }
+  /** Runs once when a run looks for the attempt: after a plain read of it, or before the begin script. */
+  let onBegin: (() => Promise<void>) | null = null
+  const beginning = async () => { const f = onBegin; onBegin = null; await f?.() }
+  const parsed = (v: string) => { try { return JSON.parse(v) } catch { return v } }
   const live = (k: string) => {
     const e = data.get(k)
     if (e && e.expiresAt <= Date.now()) data.delete(k)
@@ -30,8 +40,9 @@ function fakeRedis() {
     get: async (k: string) => {
       const v = live(k)?.value
       if (k.endsWith(':inflight')) releasing() // the claim changes hands just after this read
+      if (k.endsWith(':attempt')) await beginning() // other runs act before this read returns
       if (v === undefined) return null
-      try { return JSON.parse(v) } catch { return v }
+      return parsed(v)
     },
     set: async (k: string, v: string, opts: { ex: number; nx?: boolean }) => {
       if (opts.nx && live(k)) return null
@@ -40,8 +51,18 @@ function fakeRedis() {
     },
     del: async (k: string) => (data.delete(k) ? 1 : 0),
     eval: async (script: string, keys: string[], args: string[]) => {
-      // Only the exact compare-and-delete scripts (checked against a real Redis server),
-      // whose effect this double reproduces, each as one atomic step as in Redis
+      // Only the exact scripts (checked against a real Redis server), whose effect this
+      // double reproduces, each as one atomic step as in Redis
+      if (script === VERIFIED_BEGIN_SCRIPT) {
+        await beginning()
+        if (live(keys[0])) return ['delivered']
+        if (live(keys[1])?.value !== args[0]) return ['lost']
+        const a = live(keys[2])?.value
+        if (a !== undefined) return ['existing', parsed(a)] // like Upstash, stored JSON comes back parsed
+        if (args[1] === '') return ['missing']
+        data.set(keys[2], { value: args[1], expiresAt: Date.now() + Number(args[2]) * 1000 })
+        return ['created']
+      }
       if (script === VERIFIED_CLEAR_ATTEMPT_SCRIPT) {
         if (live(keys[0])?.value !== args[0] || live(keys[1])?.value !== args[1]) return 0
         data.delete(keys[1])
@@ -60,6 +81,7 @@ function fakeRedis() {
     value: (k: string) => live(k)?.value,
     put: (k: string, v: string, ttlSecs: number) => data.set(k, { value: v, expiresAt: Date.now() + ttlSecs * 1000 }),
     whenReleasing: (f: () => void) => { onRelease = f },
+    whenBeginning: (f: () => Promise<void>) => { onBegin = f },
   }
 }
 
@@ -167,7 +189,8 @@ describe('deliverOnce', () => {
     expect(r.value(`${KEY}:inflight`)).toBe('other-run')
   })
 
-  it('releases its claim and clears a refused attempt with the verified compare-and-delete scripts', () => {
+  it('begins, releases its claim and clears a refused attempt with the verified scripts', () => {
+    expect(BEGIN_IF_OWNER).toBe(VERIFIED_BEGIN_SCRIPT)
     expect(RELEASE_IF_OWNER).toBe(VERIFIED_RELEASE_SCRIPT)
     expect(CLEAR_ATTEMPT_IF_OWNER).toBe(VERIFIED_CLEAR_ATTEMPT_SCRIPT)
   })
@@ -191,6 +214,34 @@ describe('deliverOnce', () => {
     expect(r.has(`${KEY}:attempt`)).toBe(true)
     // More than 24 h later, B's send may have gone out: given up on, not sent again
     vi.setSystemTime(Date.now() + 25 * HOUR_MS)
+    const later = sender('sent')
+    expect(await deliver(r, renders(), later)).toBe('ambiguous')
+    expect(later).not.toHaveBeenCalled()
+  })
+
+  it("a run whose claim ran out before it began changes nothing: the other run's attempt keeps its payload and time, and nothing is sent after that attempt's window", async () => {
+    const r = fakeRedis()
+    const sendB = sender('unknown') // Resend accepted B's email, but B never learned so
+    let attemptB: string | undefined
+    // Run A takes the claim; before it gets to the attempt, it stalls past its claim
+    // and run B takes the claim, makes its attempt and sends it
+    r.whenBeginning(async () => {
+      vi.setSystemTime(Date.now() + (IN_FLIGHT_TTL_SECS + 60) * 1000)
+      expect(await deliver(r, renders(), sendB)).toBe('failed')
+      attemptB = r.value(`${KEY}:attempt`)
+      // A resumes two hours later
+      vi.setSystemTime(Date.now() + 2 * HOUR_MS)
+    })
+    const renderA = vi.fn((): DeliveryPayload => ({ to: TO, subject: 'A', html: '<p>A</p>' }))
+    const sendA = sender('unknown')
+    expect(await deliver(r, renderA, sendA)).toBe('busy') // A no longer holds the claim
+    expect(sendA).not.toHaveBeenCalled()
+    expect(attemptB).toBeDefined()
+    expect(r.value(`${KEY}:attempt`)).toBe(attemptB) // B's payload and time, unchanged
+    // 24 h 20 min after B's send (22 h 20 min after A resumed): past B's window, so
+    // given up on, not sent again
+    const bAt = (JSON.parse(attemptB!) as { at: number }).at
+    vi.setSystemTime(bAt + 24 * HOUR_MS + 20 * 60 * 1000)
     const later = sender('sent')
     expect(await deliver(r, renders(), later)).toBe('ambiguous')
     expect(later).not.toHaveBeenCalled()
