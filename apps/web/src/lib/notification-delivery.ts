@@ -1,36 +1,20 @@
 /**
  * Once-per-period delivery of a notification email, safe across overlapping runs,
- * failed sends and a run that dies mid-send.
- *
- * - `key` records the result: set only once the email was sent or the developer
- *   opted out, so a failed send is tried again by a later run.
- * - `${key}:inflight` is a short claim taken (SET NX) before sending, so two runs
- *   can't send at once. It holds a token, and a run releases only its own claim, in
- *   one atomic compare-and-delete (a Lua script): a claim that expired and was taken
- *   by another run is never deleted by the first. It expires on its own (10 minutes),
- *   so a run killed between claiming and recording (a timeout, a crash) doesn't block
- *   the next run. Should a run outlive its claim, a second run finds the stored attempt
- *   and resends it with the same Idempotency-Key, which Resend doesn't send twice.
- * - `${key}:attempt` keeps the first attempt that may have reached Resend: its time
- *   and the exact recipient, subject and HTML. It is stored, or the stored one read,
- *   in one atomic step that also checks the record and that the claim is still this
- *   run's; it is never replaced, so its time is never later than its first send. A retry resends that same request with
- *   `key` as Resend's Idempotency-Key, which Resend honours for 24 hours: if an
- *   earlier attempt got the email out, the retry is not sent again.
- * - If the developer's address has changed since such an attempt, the retry is not
- *   sent at all (neither to the old address under the old key nor to the new one):
- *   the earlier email may have reached the old address. It is recorded as
- *   'ambiguous' and the caller logs it for reconciliation.
- * - A send Resend provably refused (`not_sent`) clears the attempt it started, so a
- *   long run of refusals (a bad API key) is simply retried. It is cleared only in one
- *   atomic step that checks the run still holds its claim and the attempt is the one
- *   it wrote: if the claim ran out meanwhile, another run may have resent that attempt
- *   with an unknown outcome, so the attempt stays. An attempt whose outcome
- *   is unknown (`unknown`, a throw, a killed run) stays. Retries go ahead only while
- *   it is under SAFE_RETRY_MS old, inside Resend's window. After that the delivery is
- *   recorded as 'ambiguous' and never sent again: the caller logs it for
- *   reconciliation rather than risk a second email. Callers run hourly or more often,
- *   so a retry normally lands well inside the window.
+ * failed sends and a run that dies mid-send. Keys:
+ * - `key`, the record: set once the email was sent, the developer opted out, or the
+ *   delivery was given up as 'ambiguous'. A failed send is retried by a later run.
+ * - `${key}:inflight`, a 10-minute claim (SET NX, a random token), so two runs can't
+ *   send at once; a killed run's claim expires. Every write that decides whether an
+ *   email is sent is one atomic Lua script that checks the claim is still this run's:
+ *   beginning (store or read the attempt), releasing the claim and clearing a refused
+ *   attempt. A run whose claim ran out changes nothing.
+ * - `${key}:attempt`, the first attempt that may have reached Resend: its time and the
+ *   exact recipient, subject and HTML. Never replaced, so its time is never later
+ *   than its first send. Every send of it uses `key` as Resend's Idempotency-Key,
+ *   which Resend honours for 24 hours, and none goes out once it is SAFE_RETRY_MS old
+ *   (recorded 'ambiguous', for the caller to log). A changed recipient is never sent
+ *   to either address ('ambiguous'). A provable refusal (`not_sent`) clears the
+ *   attempt it started, so a run of refusals (a bad API key) is simply retried.
  */
 import { randomUUID } from 'node:crypto'
 import type { Redis } from '@upstash/redis'
@@ -129,10 +113,8 @@ export async function deliverOnce(
   if (claimed === null) return 'busy'
 
   try {
-    // One atomic step, only while the claim is still ours: re-check the record (another
-    // run may have recorded it since the check above), then reuse the stored attempt
-    // or store ours. A run whose claim ran out changes nothing, so it can't overwrite
-    // or race an attempt another run made since.
+    // One atomic step, only while the claim is still ours: re-check the record, then
+    // reuse the stored attempt or store ours (BEGIN_IF_OWNER)
     const attemptKey = `${opts.key}:attempt`
     const build = (): Attempt => ({ at: Date.now(), ...opts.render() })
     const begin = async (attemptJson: string) => (await redis.eval(
@@ -160,14 +142,18 @@ export async function deliverOnce(
       const stored = parsedAttempt(begun[1])
       if (!stored) throw new Error(`deliverOnce: unreadable attempt for ${opts.key}`)
       attempt = stored
-      if (Date.now() - attempt.at > SAFE_RETRY_MS) {
-        await redis.set(opts.key, 'ambiguous', { ex: opts.recordTtlSecs })
-        return 'ambiguous'
-      }
       if (attempt.to !== opts.recipient) {
-        await redis.set(opts.key, 'ambiguous:recipient_changed', { ex: opts.recordTtlSecs })
+        await redis.set(opts.key, 'ambiguous:recipient_changed', { ex: opts.recordTtlSecs, nx: true })
         return 'ambiguous'
       }
+    }
+
+    // Never send past Resend's window for the attempt's first possible send, whichever
+    // run stored it: this run's own may have waited since (another run may have sent it
+    // meanwhile). The record is written only if none exists, so a 'sent' stays.
+    if (Date.now() - attempt.at > SAFE_RETRY_MS) {
+      await redis.set(opts.key, 'ambiguous', { ex: opts.recordTtlSecs, nx: true })
+      return 'ambiguous'
     }
 
     const outcome = await opts.send({ to: attempt.to, subject: attempt.subject, html: attempt.html }, opts.key)
@@ -185,10 +171,7 @@ export async function deliverOnce(
     }
     return 'failed'
   } finally {
-    // Released whatever happened (only if still ours): a failed send is retried by
-    // the next run, and a sent one is recorded above (or, if recording threw, a retry
-    // inside the window resends the same payload and key, which Resend doesn't send
-    // again).
+    // Released whatever happened, only if still ours; a later run retries what failed
     try {
       await redis.eval(RELEASE_IF_OWNER, [inFlight], [token])
     } catch {

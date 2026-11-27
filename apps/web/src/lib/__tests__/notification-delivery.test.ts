@@ -30,6 +30,9 @@ function fakeRedis() {
   /** Runs once when a run looks for the attempt: after a plain read of it, or before the begin script. */
   let onBegin: (() => Promise<void>) | null = null
   const beginning = async () => { const f = onBegin; onBegin = null; await f?.() }
+  /** Runs once after the begin script has run, before its answer reaches the caller. */
+  let onBegun: (() => Promise<void>) | null = null
+  const begun = async () => { const f = onBegun; onBegun = null; await f?.() }
   const parsed = (v: string) => { try { return JSON.parse(v) } catch { return v } }
   const live = (k: string) => {
     const e = data.get(k)
@@ -61,6 +64,7 @@ function fakeRedis() {
         if (a !== undefined) return ['existing', parsed(a)] // like Upstash, stored JSON comes back parsed
         if (args[1] === '') return ['missing']
         data.set(keys[2], { value: args[1], expiresAt: Date.now() + Number(args[2]) * 1000 })
+        await begun()
         return ['created']
       }
       if (script === VERIFIED_CLEAR_ATTEMPT_SCRIPT) {
@@ -82,6 +86,7 @@ function fakeRedis() {
     put: (k: string, v: string, ttlSecs: number) => data.set(k, { value: v, expiresAt: Date.now() + ttlSecs * 1000 }),
     whenReleasing: (f: () => void) => { onRelease = f },
     whenBeginning: (f: () => Promise<void>) => { onBegin = f },
+    whenBegun: (f: () => Promise<void>) => { onBegun = f },
   }
 }
 
@@ -245,6 +250,33 @@ describe('deliverOnce', () => {
     const later = sender('sent')
     expect(await deliver(r, renders(), later)).toBe('ambiguous')
     expect(later).not.toHaveBeenCalled()
+  })
+
+  it("a run whose own new attempt reaches it only after Resend's window sends nothing (another run may have sent it)", async () => {
+    const r = fakeRedis()
+    const sendB = sender('unknown') // Resend accepted B's resend, but B never learned so
+    // A's attempt is stored, but A only hears so 25 h later; meanwhile its claim runs
+    // out and run B resends that attempt
+    r.whenBegun(async () => {
+      vi.setSystemTime(Date.now() + (IN_FLIGHT_TTL_SECS + 60) * 1000)
+      expect(await deliver(r, renders(), sendB)).toBe('failed')
+      vi.setSystemTime(Date.now() + 25 * HOUR_MS)
+    })
+    const sendA = sender('sent')
+    expect(await deliver(r, renders(), sendA)).toBe('ambiguous')
+    expect(sendB).toHaveBeenCalledTimes(1)
+    expect(sendA).not.toHaveBeenCalled()
+    expect(r.value(KEY)).toBe('ambiguous')
+  })
+
+  it("an ambiguous verdict never overwrites a record another run wrote meanwhile", async () => {
+    const r = fakeRedis()
+    r.whenBegun(async () => {
+      vi.setSystemTime(Date.now() + 25 * HOUR_MS)
+      r.put(KEY, 'sent', DAY) // another run sent and recorded it
+    })
+    expect(await deliver(r, renders(), sender('sent'))).toBe('ambiguous')
+    expect(r.value(KEY)).toBe('sent')
   })
 
   it("never deletes a claim that expired and was taken by another run while it was being released", async () => {
