@@ -12,7 +12,9 @@
  *   the next run. Should a run outlive its claim, a second run finds the stored attempt
  *   and resends it with the same Idempotency-Key, which Resend doesn't send twice.
  * - `${key}:attempt` keeps the first attempt that may have reached Resend: its time
- *   and the exact recipient, subject and HTML. A retry resends that same request with
+ *   and the exact recipient, subject and HTML. It is stored, or the stored one read,
+ *   in one atomic step that also checks the record and that the claim is still this
+ *   run's; it is never replaced, so its time is never later than its first send. A retry resends that same request with
  *   `key` as Resend's Idempotency-Key, which Resend honours for 24 hours: if an
  *   earlier attempt got the email out, the retry is not sent again.
  * - If the developer's address has changed since such an attempt, the retry is not
@@ -60,6 +62,23 @@ export type DeliveryResult = 'sent' | 'opted_out' | 'failed' | 'delivered' | 'bu
 /** Long enough for one send; shorter than the gap between runs. */
 export const IN_FLIGHT_TTL_SECS = 10 * 60
 
+/**
+ * Starts a delivery, atomically, only while the claim is still this run's. KEYS: the
+ * record, the claim, the attempt; ARGV: the token, a freshly built attempt ('' if none
+ * was built), its TTL.
+ * - `{'delivered'}`: already recorded;
+ * - `{'lost'}`: the claim is no longer this run's (it ran out): nothing is changed;
+ * - `{'existing', attempt}`: an earlier attempt, to resend exactly (never replaced);
+ * - `{'missing'}`: no attempt, and none was given: build one and begin again;
+ * - `{'created'}`: no attempt existed, so this run's is stored.
+ */
+export const BEGIN_IF_OWNER =
+  "if redis.call('exists', KEYS[1]) == 1 then return {'delivered'} end " +
+  "if redis.call('get', KEYS[2]) ~= ARGV[1] then return {'lost'} end " +
+  "local a = redis.call('get', KEYS[3]) if a then return {'existing', a} end " +
+  "if ARGV[2] == '' then return {'missing'} end " +
+  "redis.call('set', KEYS[3], ARGV[2], 'EX', ARGV[3]) return {'created'}"
+
 /** Deletes KEYS[1] only if it still holds ARGV[1] (this run's token), atomically. */
 export const RELEASE_IF_OWNER =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
@@ -96,7 +115,7 @@ export async function deliverOnce(
     recordTtlSecs: number
     /** The developer's current address: a retry to a different one is not sent. */
     recipient: string
-    /** Builds the email; called only when there is no earlier attempt to resend. */
+    /** Builds the email; used only when there is no earlier attempt to resend. */
     render: () => DeliveryPayload
     /** Sends `payload` with the given Resend idempotency key. Should not throw. */
     send: (payload: DeliveryPayload, idempotencyKey: string) => Promise<SendOutcome>
@@ -110,13 +129,37 @@ export async function deliverOnce(
   if (claimed === null) return 'busy'
 
   try {
-    // Another run may have sent and recorded it between the check above and the claim
-    if (await redis.get(opts.key)) return 'delivered'
-
+    // One atomic step, only while the claim is still ours: re-check the record (another
+    // run may have recorded it since the check above), then reuse the stored attempt
+    // or store ours. A run whose claim ran out changes nothing, so it can't overwrite
+    // or race an attempt another run made since.
     const attemptKey = `${opts.key}:attempt`
-    let attempt = parsedAttempt(await redis.get(attemptKey))
+    const build = (): Attempt => ({ at: Date.now(), ...opts.render() })
+    const begin = async (attemptJson: string) => (await redis.eval(
+      BEGIN_IF_OWNER,
+      [opts.key, inFlight, attemptKey],
+      [token, attemptJson, String(opts.recordTtlSecs)],
+    )) as [string, unknown?]
+    // The email is built only if there is no earlier attempt to resend (a hint; the
+    // begin step decides)
+    let fresh = (await redis.get(attemptKey)) == null ? build() : null
+    let begun = await begin(fresh ? JSON.stringify(fresh) : '')
+    if (begun[0] === 'missing') {
+      fresh = build()
+      begun = await begin(JSON.stringify(fresh))
+    }
+    if (begun[0] === 'delivered') return 'delivered'
+    if (begun[0] === 'lost') return 'busy' // another run holds (or will take) the claim
+
+    let attempt: Attempt
     let startedHere: string | null = null // the attempt as written, if written by this run
-    if (attempt) {
+    if (begun[0] === 'created' && fresh) {
+      attempt = fresh
+      startedHere = JSON.stringify(fresh)
+    } else {
+      const stored = parsedAttempt(begun[1])
+      if (!stored) throw new Error(`deliverOnce: unreadable attempt for ${opts.key}`)
+      attempt = stored
       if (Date.now() - attempt.at > SAFE_RETRY_MS) {
         await redis.set(opts.key, 'ambiguous', { ex: opts.recordTtlSecs })
         return 'ambiguous'
@@ -125,10 +168,6 @@ export async function deliverOnce(
         await redis.set(opts.key, 'ambiguous:recipient_changed', { ex: opts.recordTtlSecs })
         return 'ambiguous'
       }
-    } else {
-      attempt = { at: Date.now(), ...opts.render() }
-      startedHere = JSON.stringify(attempt)
-      await redis.set(attemptKey, startedHere, { ex: opts.recordTtlSecs })
     }
 
     const outcome = await opts.send({ to: attempt.to, subject: attempt.subject, html: attempt.html }, opts.key)
