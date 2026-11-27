@@ -44,10 +44,23 @@ vi.mock('@/lib/redis', () => ({
       return 'OK'
     },
     del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
-    // The delivery scripts: delete the last key if every key still holds its argument
-    // (the claim release; clearing a refused attempt while the claim is still held)
-    eval: async (_script: string, keys: string[], args: string[]) =>
-      keys.every((k, i) => holder.store.get(k) === args[i]) && holder.store.delete(keys[keys.length - 1]) ? 1 : 0,
+    // The delivery scripts (lib/notification-delivery), each one atomic step
+    eval: async (_script: string, keys: string[], args: string[]) => {
+      if (keys.length === 3) {
+        // Begin: the record, the claim, the attempt
+        if (holder.store.has(keys[0])) return ['delivered']
+        if (holder.store.get(keys[1]) !== args[0]) return ['lost']
+        const a = holder.store.get(keys[2])
+        if (a !== undefined) return ['existing', upstashValue(a)]
+        if (args[1] === '') return ['missing']
+        holder.store.set(keys[2], args[1])
+        holder.ttl.set(keys[2], Number(args[2]))
+        return ['created']
+      }
+      // Release the claim, or clear a refused attempt: delete the last key if every key
+      // still holds its argument
+      return keys.every((k, i) => holder.store.get(k) === args[i]) && holder.store.delete(keys[keys.length - 1]) ? 1 : 0
+    },
   }),
 }))
 vi.mock('@/lib/notifications', () => ({
