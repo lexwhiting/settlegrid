@@ -74,6 +74,7 @@ import {
   escapeHtml,
   formatCurrency,
   sendEmail,
+  sendEmailResult,
   FROM_TRANSACTIONAL,
 } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -387,6 +388,34 @@ describe('sendEmail', () => {
     expect(body.html).toBe('<p>Hello</p>')
   })
 
+  it('sends an idempotency key as the Idempotency-Key header, only when given', async () => {
+    await sendEmail({ to: 'user@test.com', subject: 'Test', html: '<p>Hello</p>', idempotencyKey: 'monthly-summary:d1:2026-11' })
+    const [, withKey] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(withKey.headers['Idempotency-Key']).toBe('monthly-summary:d1:2026-11')
+    expect(JSON.parse(withKey.body).headers).toBeUndefined() // an HTTP header, not an email header
+
+    await sendEmail({ to: 'user@test.com', subject: 'Test', html: '<p>Hello</p>' })
+    const [, withoutKey] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[1]
+    expect('Idempotency-Key' in withoutKey.headers).toBe(false)
+  })
+
+  it('sendEmailResult tells refused (nothing sent) from unknown (may have been accepted)', async () => {
+    const reply = (status: number) => vi.fn().mockResolvedValue({ ok: status < 400, status, text: async () => '{}' })
+    const params = { to: 'u@test.com', subject: 'T', html: '<p>H</p>', idempotencyKey: 'k' }
+    for (const [status, result] of [[200, 'sent'], [401, 'not_sent'], [403, 'not_sent'], [422, 'not_sent'], [429, 'not_sent'],
+      [408, 'unknown'], [409, 'unknown'], [500, 'unknown'], [503, 'unknown']] as const) {
+      global.fetch = reply(status)
+      expect(await sendEmailResult(params), String(status)).toBe(result)
+    }
+    global.fetch = vi.fn().mockRejectedValue(new Error('socket hang up'))
+    expect(await sendEmailResult(params)).toBe('unknown')
+  })
+
+  it('sendEmail is true only when Resend accepted the email (a 409 is not counted as sent)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 409, text: async () => '{"name":"invalid_idempotent_request"}' })
+    expect(await sendEmail({ to: 'u@test.com', subject: 'T', html: '<p>H</p>', idempotencyKey: 'k' })).toBe(false)
+  })
+
   it('supports array of recipients', async () => {
     await sendEmail({
       to: ['a@test.com', 'b@test.com'],
@@ -468,6 +497,12 @@ describe('sendEmail', () => {
     expect(result).toBe(true)
     expect(global.fetch).not.toHaveBeenCalled()
     expect(logger.info).toHaveBeenCalledWith('email.skipped', expect.any(Object))
+  })
+
+  it('sendEmailResult says not_sent when Resend is not configured (a delivery record must not count it)', async () => {
+    mockGetResendApiKey.mockImplementation(() => { throw new Error('not set') })
+    expect(await sendEmailResult({ to: 'user@test.com', subject: 'Test', html: '<p>Hello</p>', idempotencyKey: 'k' })).toBe('not_sent')
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('returns false when Resend API returns error', async () => {

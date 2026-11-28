@@ -16,11 +16,12 @@ import * as schema from '@/lib/db/schema'
 
 const holder = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof drizzle> }))
 const sendEmail = vi.hoisted(() => vi.fn(async (): Promise<boolean> => true))
+const sendEmailResult = vi.hoisted(() => vi.fn(async (): Promise<'sent' | 'not_sent' | 'unknown'> => 'sent'))
 
 vi.mock('@/lib/db', () => ({ get db() { return holder.db } }))
-vi.mock('@/lib/email', () => ({ sendEmail }))
+vi.mock('@/lib/email', () => ({ sendEmail, sendEmailResult }))
 
-import { sendNotificationEmail } from '@/lib/notifications'
+import { sendNotificationEmail, sendNotificationEmailResult } from '@/lib/notifications'
 
 const BOOTSTRAP_SQL = `
   CREATE TABLE developers (id uuid PRIMARY KEY, notification_preferences jsonb);
@@ -55,12 +56,19 @@ afterAll(async () => {
 beforeEach(() => {
   sendEmail.mockReset()
   sendEmail.mockResolvedValue(true)
+  sendEmailResult.mockReset()
+  sendEmailResult.mockResolvedValue('sent')
 })
 
 describe('sendNotificationEmail outcomes (pglite)', () => {
   it("returns 'sent' when the email goes out", async () => {
     expect(await notify(DEV, 'dev@example.com')).toBe('sent')
     expect(sendEmail).toHaveBeenCalledWith({ to: 'dev@example.com', subject: 'S', html: '<p>H</p>' })
+  })
+
+  it('passes an idempotency key through to Resend', async () => {
+    expect(await sendNotificationEmail({ developerId: DEV, eventKey: 'quality_alert', email: 'dev@example.com', subject: 'S', html: '<p>H</p>', idempotencyKey: 'k1' })).toBe('sent')
+    expect(sendEmail).toHaveBeenCalledWith({ to: 'dev@example.com', subject: 'S', html: '<p>H</p>', idempotencyKey: 'k1' })
   })
 
   it("returns 'opted_out' and sends nothing when the developer turned the event off", async () => {
@@ -85,5 +93,33 @@ describe('sendNotificationEmail outcomes (pglite)', () => {
   it('sends a critical notice regardless of preferences', async () => {
     expect(await notify(OPTED_OUT, 'dev@example.com', true)).toBe('sent')
     expect(sendEmail).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sendNotificationEmailResult (pglite)', () => {
+  const params = (developerId: string) => ({ developerId, eventKey: 'quality_alert' as const, email: 'dev@example.com', subject: 'S', html: '<p>H</p>', idempotencyKey: 'k1' })
+
+  it("passes Resend's answer through (sent / not_sent / unknown) with the idempotency key", async () => {
+    for (const r of ['sent', 'not_sent', 'unknown'] as const) {
+      sendEmailResult.mockResolvedValueOnce(r)
+      expect(await sendNotificationEmailResult(params(DEV))).toBe(r)
+    }
+    expect(sendEmailResult).toHaveBeenCalledWith({ to: 'dev@example.com', subject: 'S', html: '<p>H</p>', idempotencyKey: 'k1' })
+  })
+
+  it("returns 'opted_out' and sends nothing when the developer turned the event off", async () => {
+    expect(await sendNotificationEmailResult(params(OPTED_OUT))).toBe('opted_out')
+    expect(sendEmailResult).not.toHaveBeenCalled()
+  })
+
+  it("returns 'not_sent' (nothing went out) when the preference lookup fails", async () => {
+    const real = holder.db
+    holder.db = { select: () => { throw new Error('db down') } } as unknown as typeof real
+    try {
+      expect(await sendNotificationEmailResult(params(DEV))).toBe('not_sent')
+      expect(sendEmailResult).not.toHaveBeenCalled()
+    } finally {
+      holder.db = real
+    }
   })
 })

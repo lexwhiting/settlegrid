@@ -30,19 +30,29 @@ export interface InvoiceItem {
 
 // ── Send helper ──────────────────────────────────────────────────────────────
 
-/**
- * Send an email via the Resend HTTP API.
- * Returns true if the email was accepted (or Resend is not configured in dev).
- * Never throws — logs errors and returns false on failure.
- */
-export async function sendEmail(params: {
+/** Parameters for a Resend send. */
+export interface SendEmailParams {
   to: string | string[]
   subject: string
   html: string
   from?: string
   replyTo?: string
   headers?: Record<string, string>
-}): Promise<boolean> {
+  /** Resend Idempotency-Key (1–256 chars): the same key and payload within 24 hours is not sent again. */
+  idempotencyKey?: string
+}
+
+/**
+ * - `sent`: Resend accepted the email.
+ * - `not_sent`: Resend answered and refused it (a 4xx other than 408 and 409, e.g. a bad
+ *   key, a validation error or a 429 rate limit), so nothing went out.
+ * - `unknown`: no answer, or one that doesn't rule out acceptance (a 5xx, 408, 409, a
+ *   network error or timeout).
+ */
+export type SendEmailResult = 'sent' | 'not_sent' | 'unknown'
+
+/** Posts to Resend; `unconfigured` when no Resend key is available (nothing sent). */
+async function postToResend(params: SendEmailParams): Promise<SendEmailResult | 'unconfigured'> {
   let resendApiKey: string | null = null
   try {
     resendApiKey = getResendApiKey()
@@ -52,7 +62,7 @@ export async function sendEmail(params: {
 
   if (!resendApiKey) {
     logger.info('email.skipped', { to: params.to, subject: params.subject })
-    return true
+    return 'unconfigured'
   }
 
   try {
@@ -61,6 +71,7 @@ export async function sendEmail(params: {
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
+        ...(params.idempotencyKey ? { 'Idempotency-Key': params.idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from: params.from ?? FROM_TRANSACTIONAL,
@@ -79,15 +90,38 @@ export async function sendEmail(params: {
         body,
         to: params.to,
       })
-      return false
+      const refused = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 409
+      return refused ? 'not_sent' : 'unknown'
     }
 
     logger.info('email.sent', { to: params.to, subject: params.subject })
-    return true
+    return 'sent'
   } catch (err) {
     logger.error('email.send_error', { to: params.to }, err)
-    return false
+    return 'unknown'
   }
+}
+
+/**
+ * Send an email via the Resend HTTP API.
+ * Returns true if the email was accepted (or Resend is not configured in dev).
+ * Never throws — logs errors and returns false on failure.
+ */
+export async function sendEmail(params: SendEmailParams): Promise<boolean> {
+  // Without a Resend key (local development) the email is skipped and reported as
+  // accepted, as before; delivery records use sendEmailResult, which says not_sent.
+  const result = await postToResend(params)
+  return result === 'sent' || result === 'unconfigured'
+}
+
+/**
+ * Sends via Resend and says whether the email went out. Never throws. Without a
+ * Resend key nothing is sent, so it returns `not_sent`: a delivery record must not
+ * treat a skipped email as delivered, and a later configured run sends it.
+ */
+export async function sendEmailResult(params: SendEmailParams): Promise<SendEmailResult> {
+  const result = await postToResend(params)
+  return result === 'unconfigured' ? 'not_sent' : result
 }
 
 // ── Design system components ─────────────────────────────────────────────────

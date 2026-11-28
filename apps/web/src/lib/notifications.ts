@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { developers } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { sendEmail } from '@/lib/email'
+import { sendEmail, sendEmailResult, type SendEmailResult } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { isWebhookUrlSafe } from '@/lib/webhooks'
 import { safeFetch } from '@/lib/safe-egress'
@@ -232,6 +232,32 @@ export async function notifyDeveloper(params: {
  */
 export type NotificationOutcome = 'sent' | 'opted_out' | 'failed'
 
+type NotificationEmailParams = {
+  developerId: string
+  eventKey: NotificationEventKey
+  email: string
+  subject: string
+  html: string
+  critical?: boolean
+  /** Passed to Resend: the same key and payload within 24 hours is not sent again. */
+  idempotencyKey?: string
+}
+
+/** True if the developer turned this (non-critical) event off. Throws on a database error. */
+async function optedOut(params: NotificationEmailParams): Promise<boolean> {
+  // Critical emails (security alerts, payout failures) always send
+  if (params.critical) return false
+  const [dev] = await db
+    .select({ notificationPreferences: developers.notificationPreferences })
+    .from(developers)
+    .where(eq(developers.id, params.developerId))
+    .limit(1)
+  const prefs = (dev?.notificationPreferences ?? {}) as Record<string, boolean>
+  if (!isNotificationOptedOut(prefs, params.eventKey)) return false
+  logger.info('notification.skipped', { developerId: params.developerId, eventKey: params.eventKey })
+  return true
+}
+
 /**
  * Send a notification email to a developer, respecting their notification preferences.
  *
@@ -246,36 +272,15 @@ export type NotificationOutcome = 'sent' | 'opted_out' | 'failed'
  * Never throws. Returns the outcome so a caller can, for example, keep retrying
  * an alert whose send failed instead of recording it as delivered.
  */
-export async function sendNotificationEmail(params: {
-  developerId: string
-  eventKey: NotificationEventKey
-  email: string
-  subject: string
-  html: string
-  critical?: boolean
-}): Promise<NotificationOutcome> {
+export async function sendNotificationEmail(params: NotificationEmailParams): Promise<NotificationOutcome> {
   try {
-    // Critical emails (security alerts, payout failures) always send
-    if (!params.critical) {
-      const [dev] = await db
-        .select({ notificationPreferences: developers.notificationPreferences })
-        .from(developers)
-        .where(eq(developers.id, params.developerId))
-        .limit(1)
-
-      const prefs = (dev?.notificationPreferences ?? {}) as Record<string, boolean>
-
-      // If the developer explicitly disabled this event, skip
-      if (isNotificationOptedOut(prefs, params.eventKey)) {
-        logger.info('notification.skipped', {
-          developerId: params.developerId,
-          eventKey: params.eventKey,
-        })
-        return 'opted_out'
-      }
-    }
-
-    const sent = await sendEmail({ to: params.email, subject: params.subject, html: params.html })
+    if (await optedOut(params)) return 'opted_out'
+    const sent = await sendEmail({
+      to: params.email,
+      subject: params.subject,
+      html: params.html,
+      ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
+    })
     return sent ? 'sent' : 'failed'
   } catch (err) {
     logger.error(
@@ -285,4 +290,28 @@ export async function sendNotificationEmail(params: {
     )
     return 'failed'
   }
+}
+
+/**
+ * Like sendNotificationEmail, but tells a failure that provably sent nothing
+ * (`not_sent`: the preference lookup failed before any send, or Resend refused the
+ * email) from one whose outcome is unknown (`unknown`: Resend may have accepted it).
+ * Used where a retry must not risk a second email (lib/notification-delivery).
+ * Never throws.
+ */
+export async function sendNotificationEmailResult(
+  params: NotificationEmailParams,
+): Promise<'opted_out' | SendEmailResult> {
+  try {
+    if (await optedOut(params)) return 'opted_out'
+  } catch (err) {
+    logger.error('notification.send_failed', { developerId: params.developerId, eventKey: params.eventKey }, err)
+    return 'not_sent'
+  }
+  return sendEmailResult({
+    to: params.email,
+    subject: params.subject,
+    html: params.html,
+    ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
+  })
 }
