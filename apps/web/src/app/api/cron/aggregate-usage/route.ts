@@ -18,9 +18,8 @@ export const maxDuration = 60
 /**
  * After a UTC month ends, its warnings are still checked for this long, under that
  * month's keys: a level crossed after the month's last hourly run is sent (naming the
- * month), and a send left unresolved just before midnight is retried inside Resend's
- * 24 h window or, after it, recorded as ambiguous and logged (lib/notification-delivery).
- * Two days, so a missed run or two doesn't lose either.
+ * month), and a send Resend refused just before midnight is tried again. Two days, so
+ * a missed run or two doesn't lose either.
  */
 const CATCH_UP_MS = 48 * 60 * 60 * 1000
 
@@ -33,8 +32,7 @@ const RECORD_TTL_SECS = 40 * 24 * 60 * 60
  * current month, and for the first CATCH_UP_MS of a month the month before too.
  * Org cost allocations are paused (see below).
  * Schedule: hourly at :50 (vercel.json). A warning goes out within the hour of a
- * level being crossed, and a retry after a failed or cut-off send lands well inside
- * Resend's 24 h idempotency window (lib/notification-delivery).
+ * level being crossed, and a send Resend refused is tried again within the hour.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -170,13 +168,11 @@ async function warnForMonth(
         email = usageWarning80Email(devName, currentOps, limit, tier, monthName)
       }
 
-      // Once per level and month (lib/notification-delivery): recorded only when sent
-      // or opted out, so a failed send is tried again next hour; overlapping runs and
-      // a run killed mid-send can't send it twice.
+      // At most once per level and month (lib/notification-delivery): a send Resend
+      // refused is tried again next hour; an uncertain one is never resent (logged).
       const result = await deliverOnce(redis, {
         key: `usage-alert:${dev.id}:${monthKey}:${level}`,
         recordTtlSecs: RECORD_TTL_SECS,
-        recipient: dev.email,
         render: () => ({ to: dev.email, ...email }),
         send: (payload, idempotencyKey) => sendNotificationEmailResult({
           developerId: dev.id,
@@ -190,8 +186,7 @@ async function warnForMonth(
 
       if (result === 'delivered' || result === 'busy') continue
       if (result === 'ambiguous') {
-        // An earlier attempt's outcome is unknown and Resend's 24 h window has passed:
-        // not resent (recorded); reconcile by hand
+        // It may or may not have gone out: recorded, never resent; reconcile by hand
         totals.failed++
         logger.error('cron.aggregate_usage.delivery_ambiguous', { developerId: dev.id, month: monthKey, level })
         continue

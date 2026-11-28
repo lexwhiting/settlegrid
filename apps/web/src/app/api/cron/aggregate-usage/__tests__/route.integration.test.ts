@@ -44,22 +44,12 @@ vi.mock('@/lib/redis', () => ({
       return 'OK'
     },
     del: async (k: string) => (holder.store.delete(k) ? 1 : 0),
-    // The delivery scripts (lib/notification-delivery), each one atomic step
-    eval: async (_script: string, keys: string[], args: string[]) => {
-      if (keys.length === 3) {
-        // Begin: the record, the claim, the attempt
-        if (holder.store.has(keys[0])) return ['delivered']
-        if (holder.store.get(keys[1]) !== args[0]) return ['lost']
-        const a = holder.store.get(keys[2])
-        if (a !== undefined) return ['existing', upstashValue(a)]
-        if (args[1] === '') return ['missing']
-        holder.store.set(keys[2], args[1])
-        holder.ttl.set(keys[2], Number(args[2]))
-        return ['created']
-      }
-      // Release the claim, or clear a refused attempt: delete the last key if every key
-      // still holds its argument
-      return keys.every((k, i) => holder.store.get(k) === args[i]) && holder.store.delete(keys[keys.length - 1]) ? 1 : 0
+    // The delivery's compare-and-set scripts (lib/notification-delivery), atomically
+    eval: async (script: string, keys: string[], args: string[]) => {
+      if (holder.store.get(keys[0]) !== args[0]) return 0
+      if (script.includes("'set'")) { holder.store.set(keys[0], args[1]); holder.ttl.set(keys[0], Number(args[2])) }
+      else holder.store.delete(keys[0])
+      return 1
     },
   }),
 }))
@@ -197,14 +187,14 @@ describe('cron aggregate-usage (pglite)', () => {
     expect((holder.send.mock.calls[0][0] as { subject: string }).subject).toMatch(/90%/)
   }, 30_000)
 
-  it('a failed send releases its claim and is sent by the next run; an opted-out one is not counted or retried', async () => {
+  it('a refused send is sent by the next run; an uncertain one is recorded ambiguous, not resent; an opt-out is not counted or retried', async () => {
     holder.store.clear()
-    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'unknown' : 'opted_out'))
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'not_sent' : 'opted_out'))
     try {
       const first = await run()
       expect(first).toMatchObject({ alertsSent: 0, failed: 1, skipped: 1 })
-      // AT_100 not recorded (retried); its first attempt is remembered; claims released
-      expect([...holder.store.keys()].sort()).toEqual([`usage-alert:${AT_100}:2026-11:100:attempt`, `usage-alert:${AT_80}:2026-11:90`].sort())
+      // AT_100 not recorded (nothing went out), so it is tried again
+      expect([...holder.store.keys()]).toEqual([`usage-alert:${AT_80}:2026-11:90`])
     } finally {
       holder.send.mockImplementation(async () => 'sent')
     }
@@ -212,19 +202,37 @@ describe('cron aggregate-usage (pglite)', () => {
     const second = await run()
     expect(second).toMatchObject({ alertsSent: 1, failed: 0, skipped: 0 })
     expect(sentTo()).toEqual([AT_100])
+
+    holder.store.clear()
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'unknown' : 'sent'))
+    try {
+      expect(await run()).toMatchObject({ alertsSent: 1, failed: 1 })
+      expect(holder.store.get(`usage-alert:${AT_100}:2026-11:100`)).toBe('ambiguous')
+    } finally {
+      holder.send.mockImplementation(async () => 'sent')
+    }
+    holder.send.mockClear()
+    expect(await run()).toMatchObject({ alertsSent: 0, failed: 0 })
+    expect(holder.send).not.toHaveBeenCalled() // never resent
   }, 30_000)
 
-  it('a run killed mid-send blocks nobody: its claim expires and a later run sends it, with the same idempotency key', async () => {
+  it('a run killed mid-send: busy while recent, then given up once as ambiguous; never sent twice', async () => {
     holder.store.clear()
-    holder.store.set(`usage-alert:${AT_100}:2026-11:100:inflight`, '1') // claimed, never recorded
+    holder.store.set(`usage-alert:${AT_100}:2026-11:100`, `sending:dead-run:${Date.now() - 5 * 60 * 1000}`)
     holder.send.mockClear()
     const first = await run()
     expect(sentTo()).toEqual([AT_80]) // AT_100 is busy
-    expect(first).toMatchObject({ alertsSent: 1 })
-    holder.store.delete(`usage-alert:${AT_100}:2026-11:100:inflight`) // the claim's 10 minutes are up
-    holder.send.mockClear()
-    await run()
-    expect(holder.send.mock.calls[0][0]).toMatchObject({ developerId: AT_100, idempotencyKey: `usage-alert:${AT_100}:2026-11:100` })
+    expect(first).toMatchObject({ alertsSent: 1, failed: 0 })
+    vi.setSystemTime(new Date(NOW.getTime() + 2 * 60 * 60 * 1000))
+    try {
+      holder.send.mockClear()
+      expect(await run()).toMatchObject({ alertsSent: 0, failed: 1 }) // logged as ambiguous
+      expect(holder.store.get(`usage-alert:${AT_100}:2026-11:100`)).toBe('ambiguous')
+      expect(await run()).toMatchObject({ failed: 0 })
+      expect(holder.send).not.toHaveBeenCalled()
+    } finally {
+      vi.setSystemTime(NOW)
+    }
   }, 30_000)
 
   it("a level crossed after the month's last run is sent on the 1st, under that month's key and naming the month", async () => {
@@ -265,28 +273,21 @@ describe('cron aggregate-usage (pglite)', () => {
     }
   }, 60_000)
 
-  it('a send left unresolved just before midnight is retried after the rollover with its original payload and key, then recorded as ambiguous', async () => {
+  it("a send refused just before midnight is tried again after the rollover, under that month's key", async () => {
     holder.store.clear()
-    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'unknown' : 'sent'))
+    holder.send.mockImplementation(async (a: { developerId: string }) => (a.developerId === AT_100 ? 'not_sent' : 'sent'))
     try {
       vi.setSystemTime(new Date('2026-11-30T23:50:00.000Z'))
       await run()
-      const first = holder.send.mock.calls.find((c) => (c[0] as { developerId: string }).developerId === AT_100)![0]
-      expect(holder.store.has(`usage-alert:${AT_100}:2026-11:100:attempt`)).toBe(true)
-
+      expect(holder.store.has(`usage-alert:${AT_100}:2026-11:100`)).toBe(false)
+      holder.send.mockImplementation(async () => 'sent')
       holder.send.mockClear()
-      vi.setSystemTime(new Date('2026-12-01T00:50:00.000Z')) // still inside Resend's 24 h window
-      const retry = await run()
+      vi.setSystemTime(new Date('2026-12-01T00:50:00.000Z'))
+      const body = await run()
       expect(sentTo()).toEqual([AT_100])
-      expect(holder.send.mock.calls[0][0]).toEqual(first) // same recipient, subject, HTML and key
-      expect(retry).toMatchObject({ alertsSent: 0, failed: 1 })
-
-      holder.send.mockClear()
-      vi.setSystemTime(new Date('2026-12-01T23:50:00.000Z')) // 24 h after the first attempt
-      const late = await run()
-      expect(holder.send).not.toHaveBeenCalled() // never resent outside the window
-      expect(late).toMatchObject({ failed: 1 })
-      expect(holder.store.get(`usage-alert:${AT_100}:2026-11:100`)).toBe('ambiguous')
+      expect(holder.send.mock.calls[0][0]).toMatchObject({ idempotencyKey: `usage-alert:${AT_100}:2026-11:100` })
+      expect((holder.send.mock.calls[0][0] as { subject: string }).subject).toContain('November 2026')
+      expect(body).toMatchObject({ alertsSent: 1 })
     } finally {
       holder.send.mockImplementation(async () => 'sent')
       vi.setSystemTime(NOW)
